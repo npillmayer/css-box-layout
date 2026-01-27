@@ -3,6 +3,7 @@ package layout
 import "errors"
 
 type NodeID uint64
+type BoxID uint64
 
 type ComputedStyle struct{}
 

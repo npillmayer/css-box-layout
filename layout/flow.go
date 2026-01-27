@@ -22,24 +22,25 @@ func InlineItem(n *LayoutNode) FlowItem { return FlowItem{Kind: FlowInline, Node
 func BlockItem(n *LayoutNode) FlowItem  { return FlowItem{Kind: FlowBlock, Node: n} }
 
 // Entry point for a block container (BoxBlock / BoxAnonymousBlock / BoxInlineBlock):
-func buildBlockContainer(r *RenderNode, box BoxKind) (*LayoutNode, error) {
+func buildBlockContainer(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID) (*LayoutNode, error) {
 	if r == nil {
 		return nil, nil
 	}
 	flow := make([]FlowItem, 0, len(r.Children()))
 	for _, child := range r.Children() {
-		items, err := buildInlineFlow(child)
+		items, err := buildInlineFlow(gen, child, boxID)
 		if err != nil {
 			return nil, err
 		}
 		flow = append(flow, items...)
 	}
-	children, err := normalizeBlockChildren(flow)
+	children, err := normalizeBlockChildren(gen, flow, boxID)
 	if err != nil {
 		return nil, err
 	}
 	return &LayoutNode{
-		ID:       r.ID,
+		BoxID:    boxID,
+		NodeID:   r.ID,
 		Box:      box,
 		FC:       FCBlock,
 		Children: children,
@@ -47,7 +48,7 @@ func buildBlockContainer(r *RenderNode, box BoxKind) (*LayoutNode, error) {
 }
 
 // Builds an inline-level subtree, but may return hoisted blocks as FlowBlock items:
-func buildInlineFlow(r *RenderNode) ([]FlowItem, error) {
+func buildInlineFlow(gen *boxIDGen, r *RenderNode, parentBoxID BoxID) ([]FlowItem, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -62,6 +63,8 @@ func buildInlineFlow(r *RenderNode) ([]FlowItem, error) {
 		if text == nil {
 			return nil, nil
 		}
+		text.BoxID = gen.newChild(parentBoxID)
+		text.NodeID = r.ID
 		return []FlowItem{InlineItem(text)}, nil
 	}
 
@@ -73,30 +76,34 @@ func buildInlineFlow(r *RenderNode) ([]FlowItem, error) {
 	case "inline":
 		flow := make([]FlowItem, 0, len(r.Children()))
 		for _, child := range r.Children() {
-			items, err := buildInlineFlow(child)
+			items, err := buildInlineFlow(gen, child, parentBoxID)
 			if err != nil {
 				return nil, err
 			}
 			flow = append(flow, items...)
 		}
 		if containsBlockFlow(flow) {
-			proto := &LayoutNode{ID: r.ID, Box: BoxInline, FC: FCInline}
-			return wrapInlineRunsForElement(proto, flow), nil
+			proto := &LayoutNode{NodeID: r.ID, Box: BoxInline, FC: FCInline}
+			return wrapInlineRunsForElement(gen, proto, flow, parentBoxID), nil
 		}
+		boxID := gen.newChild(parentBoxID)
 		return []FlowItem{InlineItem(&LayoutNode{
-			ID:       r.ID,
+			BoxID:    boxID,
+			NodeID:   r.ID,
 			Box:      BoxInline,
 			FC:       FCInline,
 			Children: inlineChildren(flow),
 		})}, nil
 	case "inline-block":
-		node, err := buildBlockContainer(r, BoxInlineBlock)
+		boxID := gen.newChild(parentBoxID)
+		node, err := buildBlockContainer(gen, r, BoxInlineBlock, boxID)
 		if err != nil {
 			return nil, err
 		}
 		return []FlowItem{InlineItem(node)}, nil
 	case "block":
-		node, err := buildBlockContainer(r, BoxBlock)
+		boxID := gen.newChild(parentBoxID)
+		node, err := buildBlockContainer(gen, r, BoxBlock, boxID)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +122,6 @@ func buildText(r *RenderNode) *LayoutNode { // returns BoxText leaf
 		return nil
 	}
 	return &LayoutNode{
-		ID:  r.ID,
 		Box: BoxText,
 		Text: text.TextRef{
 			Source: 0,
@@ -145,7 +151,7 @@ This single function enforces the core invariant across:
 - anonymous blocks (BoxAnonymousBlock)
 - inline-block containers (BoxInlineBlock) internally
 */
-func normalizeBlockChildren(flow []FlowItem) ([]*LayoutNode, error) {
+func normalizeBlockChildren(gen *boxIDGen, flow []FlowItem, parentBoxID BoxID) ([]*LayoutNode, error) {
 	if len(flow) == 0 {
 		return nil, nil
 	}
@@ -173,7 +179,7 @@ func normalizeBlockChildren(flow []FlowItem) ([]*LayoutNode, error) {
 		for _, item := range flow {
 			inlines = append(inlines, item.Node)
 		}
-		return []*LayoutNode{wrapInAnonymousInline(inlines)}, nil
+		return []*LayoutNode{wrapInAnonymousInline(gen, parentBoxID, inlines)}, nil
 	}
 
 	children := make([]*LayoutNode, 0, len(flow))
@@ -182,7 +188,7 @@ func normalizeBlockChildren(flow []FlowItem) ([]*LayoutNode, error) {
 		if len(inlineRun) == 0 {
 			return
 		}
-		children = append(children, wrapInlineRunAsAnonymousBlock(inlineRun))
+		children = append(children, wrapInlineRunAsAnonymousBlock(gen, parentBoxID, inlineRun))
 		inlineRun = inlineRun[:0]
 	}
 
@@ -238,24 +244,31 @@ func resolveLength(l Length, ctx ResolveCtx) (px float32, isAuto bool) {
 
 // === Helpers ==========================================================
 
-func wrapInAnonymousInline(inlines []*LayoutNode) *LayoutNode {
+func wrapInAnonymousInline(gen *boxIDGen, parentBoxID BoxID, inlines []*LayoutNode) *LayoutNode {
 	return &LayoutNode{
-		ID: 0, Box: BoxAnonymousInline, FC: FCInline,
+		BoxID:    gen.newChild(parentBoxID),
+		NodeID:   0,
+		Box:      BoxAnonymousInline,
+		FC:       FCInline,
 		Children: inlines,
 	}
 }
 
-func wrapInlineRunAsAnonymousBlock(inlines []*LayoutNode) *LayoutNode {
-	ai := wrapInAnonymousInline(inlines)
+func wrapInlineRunAsAnonymousBlock(gen *boxIDGen, parentBoxID BoxID, inlines []*LayoutNode) *LayoutNode {
+	anonBlockID := gen.newChild(parentBoxID)
+	ai := wrapInAnonymousInline(gen, anonBlockID, inlines)
 	return &LayoutNode{
-		ID: 0, Box: BoxAnonymousBlock, FC: FCBlock,
+		BoxID:    anonBlockID,
+		NodeID:   0,
+		Box:      BoxAnonymousBlock,
+		FC:       FCBlock,
 		Children: []*LayoutNode{ai},
 	}
 }
 
 // For split+hoist: take mixed flow returned from building an inline element’s children
 // and wrap each inline run inside a BoxInline for that element (same ID).
-func wrapInlineRunsForElement(proto *LayoutNode, flow []FlowItem) []FlowItem {
+func wrapInlineRunsForElement(gen *boxIDGen, proto *LayoutNode, flow []FlowItem, parentBoxID BoxID) []FlowItem {
 	if proto == nil {
 		return nil
 	}
@@ -267,7 +280,8 @@ func wrapInlineRunsForElement(proto *LayoutNode, flow []FlowItem) []FlowItem {
 			return
 		}
 		out = append(out, InlineItem(&LayoutNode{
-			ID:       proto.ID,
+			BoxID:    gen.newChild(parentBoxID),
+			NodeID:   proto.NodeID,
 			Box:      proto.Box,
 			FC:       proto.FC,
 			Children: append([]*LayoutNode(nil), run...),
@@ -286,7 +300,6 @@ func wrapInlineRunsForElement(proto *LayoutNode, flow []FlowItem) []FlowItem {
 	flush()
 	return out
 }
-
 
 func isTextNode(n *html.Node) bool {
 	return n != nil && n.Type == html.TextNode

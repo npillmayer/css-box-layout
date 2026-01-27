@@ -29,7 +29,7 @@ function buildInlineOrBlockFlow(node StyNodeView) -> []FlowItem:
   if display == "none": return []
 
   if isTextNode(node.HTMLNode()):
-    text = textRange(node.HTMLNode())
+    text = textRange(node.HTMLNode)
     if text.isEmpty(): return []
     return [FlowInline(BoxText(node, text))]
 

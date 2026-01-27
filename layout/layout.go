@@ -5,7 +5,9 @@ func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, er
 	if renderRoot == nil {
 		return nil, nil
 	}
-	return buildBlockContainer(renderRoot, BoxBlock)
+	gen := newBoxIDGen()
+	rootID := gen.newRoot(renderRoot.ID)
+	return buildBlockContainer(gen, renderRoot, BoxBlock, rootID)
 }
 
 // E -> F: compute block geometry; call a black-box inline layouter for BoxAnonymousInline owners.

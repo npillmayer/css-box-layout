@@ -81,6 +81,14 @@ Implement the structural box tree:
 - split + hoist for inline containing block
 - stable IDs and deterministic ordering
 
+Status:
+- Anonymous box insertion: implemented in `normalizeBlockChildren` with tests.
+- Split + hoist: implemented in `buildInlineFlow` + `wrapInlineRunsForElement` with tests.
+- Stable IDs + deterministic ordering: `BoxID` introduced and assigned deterministically from parent BoxID and traversal order; `NodeID` retained for source mapping.
+
+Notes:
+- Plumbing for CSSDOM adapters and text sources is deferred and tracked separately.
+
 ## 6) Implement Pass 2 (Resolve Used Values)
 Implement a pure resolution step:
 - margins, padding, borders, and width handling

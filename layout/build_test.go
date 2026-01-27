@@ -8,19 +8,24 @@ import (
 
 func newRenderElement(id NodeID, display string, children ...*RenderNode) *RenderNode {
 	return &RenderNode{
-		ID:     id,
-		HTML:   &html.Node{Type: html.ElementNode, Data: "div"},
-		Styles: map[string]string{"display": display},
+		ID:            id,
+		HTML:          &html.Node{Type: html.ElementNode, Data: "div"},
+		Styles:        map[string]string{"display": display},
 		ChildrenNodes: children,
 	}
 }
 
 func newRenderText(id NodeID, data string) *RenderNode {
 	return &RenderNode{
-		ID:   id,
-		HTML: &html.Node{Type: html.TextNode, Data: data},
+		ID:     id,
+		HTML:   &html.Node{Type: html.TextNode, Data: data},
 		Styles: map[string]string{"display": "inline"},
 	}
+}
+
+func newBoxGenWithRoot(nodeID NodeID) (*boxIDGen, BoxID) {
+	gen := newBoxIDGen()
+	return gen, gen.newRoot(nodeID)
 }
 
 func TestBuildInlineFlow_SplitAndHoist(t *testing.T) {
@@ -29,7 +34,8 @@ func TestBuildInlineFlow_SplitAndHoist(t *testing.T) {
 	childInline2 := newRenderElement(4, "inline")
 	parent := newRenderElement(1, "inline", childInline1, childBlock, childInline2)
 
-	flow, err := buildInlineFlow(parent)
+	gen, parentBoxID := newBoxGenWithRoot(parent.ID)
+	flow, err := buildInlineFlow(gen, parent, parentBoxID)
 	if err != nil {
 		t.Fatalf("buildInlineFlow returned error: %v", err)
 	}
@@ -39,16 +45,16 @@ func TestBuildInlineFlow_SplitAndHoist(t *testing.T) {
 	if flow[0].Kind != FlowInline || flow[1].Kind != FlowBlock || flow[2].Kind != FlowInline {
 		t.Fatalf("unexpected flow kinds: %v, %v, %v", flow[0].Kind, flow[1].Kind, flow[2].Kind)
 	}
-	if flow[0].Node.ID != parent.ID || flow[2].Node.ID != parent.ID {
+	if flow[0].Node.NodeID != parent.ID || flow[2].Node.NodeID != parent.ID {
 		t.Fatalf("expected inline fragments to keep parent ID")
 	}
-	if len(flow[0].Node.Children) != 1 || flow[0].Node.Children[0].ID != childInline1.ID {
+	if len(flow[0].Node.Children) != 1 || flow[0].Node.Children[0].NodeID != childInline1.ID {
 		t.Fatalf("expected first inline run to contain childInline1")
 	}
-	if flow[1].Node.ID != childBlock.ID || flow[1].Node.Box != BoxBlock {
+	if flow[1].Node.NodeID != childBlock.ID || flow[1].Node.Box != BoxBlock {
 		t.Fatalf("expected middle flow item to be block child")
 	}
-	if len(flow[2].Node.Children) != 1 || flow[2].Node.Children[0].ID != childInline2.ID {
+	if len(flow[2].Node.Children) != 1 || flow[2].Node.Children[0].NodeID != childInline2.ID {
 		t.Fatalf("expected second inline run to contain childInline2")
 	}
 }
@@ -56,7 +62,8 @@ func TestBuildInlineFlow_SplitAndHoist(t *testing.T) {
 func TestBuildInlineFlow_TextNode(t *testing.T) {
 	textNode := newRenderText(2, "hello")
 
-	flow, err := buildInlineFlow(textNode)
+	gen, parentBoxID := newBoxGenWithRoot(1)
+	flow, err := buildInlineFlow(gen, textNode, parentBoxID)
 	if err != nil {
 		t.Fatalf("buildInlineFlow returned error: %v", err)
 	}
@@ -74,7 +81,8 @@ func TestBuildInlineFlow_TextNode(t *testing.T) {
 func TestBuildInlineFlow_TextNodeEmpty(t *testing.T) {
 	textNode := newRenderText(2, "")
 
-	flow, err := buildInlineFlow(textNode)
+	gen, parentBoxID := newBoxGenWithRoot(1)
+	flow, err := buildInlineFlow(gen, textNode, parentBoxID)
 	if err != nil {
 		t.Fatalf("buildInlineFlow returned error: %v", err)
 	}
@@ -87,7 +95,8 @@ func TestBuildInlineFlow_DisplayNone(t *testing.T) {
 	child := newRenderElement(2, "inline")
 	parent := newRenderElement(1, "none", child)
 
-	flow, err := buildInlineFlow(parent)
+	gen, parentBoxID := newBoxGenWithRoot(parent.ID)
+	flow, err := buildInlineFlow(gen, parent, parentBoxID)
 	if err != nil {
 		t.Fatalf("buildInlineFlow returned error: %v", err)
 	}
@@ -100,7 +109,8 @@ func TestBuildInlineFlow_InlineBlockIsAtomic(t *testing.T) {
 	child := newRenderElement(2, "inline")
 	parent := newRenderElement(1, "inline-block", child)
 
-	flow, err := buildInlineFlow(parent)
+	gen, parentBoxID := newBoxGenWithRoot(parent.ID)
+	flow, err := buildInlineFlow(gen, parent, parentBoxID)
 	if err != nil {
 		t.Fatalf("buildInlineFlow returned error: %v", err)
 	}
@@ -119,7 +129,8 @@ func TestBuildInlineFlow_NestedInlineSplit(t *testing.T) {
 	childInline := newRenderElement(2, "inline", innerInline1, innerBlock, innerInline2)
 	parent := newRenderElement(1, "inline", childInline)
 
-	flow, err := buildInlineFlow(parent)
+	gen, parentBoxID := newBoxGenWithRoot(parent.ID)
+	flow, err := buildInlineFlow(gen, parent, parentBoxID)
 	if err != nil {
 		t.Fatalf("buildInlineFlow returned error: %v", err)
 	}
@@ -129,10 +140,10 @@ func TestBuildInlineFlow_NestedInlineSplit(t *testing.T) {
 	if flow[0].Kind != FlowInline || flow[1].Kind != FlowBlock || flow[2].Kind != FlowInline {
 		t.Fatalf("unexpected flow kinds in nested split")
 	}
-	if flow[0].Node.ID != parent.ID || flow[2].Node.ID != parent.ID {
+	if flow[0].Node.NodeID != parent.ID || flow[2].Node.NodeID != parent.ID {
 		t.Fatalf("expected parent inline fragments to keep parent ID")
 	}
-	if len(flow[0].Node.Children) != 1 || flow[0].Node.Children[0].ID != childInline.ID {
+	if len(flow[0].Node.Children) != 1 || flow[0].Node.Children[0].NodeID != childInline.ID {
 		t.Fatalf("expected parent inline fragment to wrap child inline fragment")
 	}
 }
@@ -142,7 +153,8 @@ func TestBuildBlockContainer_InlineOnly(t *testing.T) {
 	childInline2 := newRenderElement(3, "inline")
 	parent := newRenderElement(1, "block", childInline1, childInline2)
 
-	node, err := buildBlockContainer(parent, BoxBlock)
+	gen, rootBoxID := newBoxGenWithRoot(parent.ID)
+	node, err := buildBlockContainer(gen, parent, BoxBlock, rootBoxID)
 	if err != nil {
 		t.Fatalf("buildBlockContainer returned error: %v", err)
 	}
@@ -164,7 +176,8 @@ func TestBuildBlockContainer_InlineOnlySingleChild(t *testing.T) {
 	childInline := newRenderElement(2, "inline")
 	parent := newRenderElement(1, "block", childInline)
 
-	node, err := buildBlockContainer(parent, BoxBlock)
+	gen, rootBoxID := newBoxGenWithRoot(parent.ID)
+	node, err := buildBlockContainer(gen, parent, BoxBlock, rootBoxID)
 	if err != nil {
 		t.Fatalf("buildBlockContainer returned error: %v", err)
 	}
@@ -187,7 +200,8 @@ func TestBuildBlockContainer_MixedInlineBlock(t *testing.T) {
 	childBlock := newRenderElement(3, "block")
 	parent := newRenderElement(1, "block", childInline, childBlock)
 
-	node, err := buildBlockContainer(parent, BoxBlock)
+	gen, rootBoxID := newBoxGenWithRoot(parent.ID)
+	node, err := buildBlockContainer(gen, parent, BoxBlock, rootBoxID)
 	if err != nil {
 		t.Fatalf("buildBlockContainer returned error: %v", err)
 	}

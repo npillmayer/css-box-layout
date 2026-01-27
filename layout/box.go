@@ -9,7 +9,8 @@ import (
 type Edges struct{ Top, Right, Bottom, Left float32 }
 
 type LayoutNode struct {
-	ID       NodeID
+	BoxID    BoxID
+	NodeID   NodeID
 	Box      BoxKind
 	FC       FormattingContextKind
 	Style    *ComputedStyle

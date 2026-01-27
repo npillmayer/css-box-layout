@@ -3,15 +3,16 @@ package layout
 import "testing"
 
 func TestNormalizeBlockChildren_BlockOnly1(t *testing.T) {
-	a := &LayoutNode{ID: 1, Box: BoxBlock, FC: FCBlock}
-	b := &LayoutNode{ID: 2, Box: BoxAnonymousBlock, FC: FCBlock}
+	a := &LayoutNode{BoxID: 1, NodeID: 1, Box: BoxBlock, FC: FCBlock}
+	b := &LayoutNode{BoxID: 2, NodeID: 2, Box: BoxAnonymousBlock, FC: FCBlock}
 
 	flow := []FlowItem{
 		BlockItem(a),
 		BlockItem(b),
 	}
 
-	children, err := normalizeBlockChildren(flow)
+	gen := newBoxIDGen()
+	children, err := normalizeBlockChildren(gen, flow, gen.newRoot(1))
 	if err != nil {
 		t.Fatalf("normalizeBlockChildren returned error: %v", err)
 	}
@@ -27,15 +28,16 @@ func TestNormalizeBlockChildren_BlockOnly1(t *testing.T) {
 }
 
 func TestNormalizeBlockChildren_BlockOnly2(t *testing.T) {
-	a := &LayoutNode{ID: 1, Box: BoxBlock, FC: FCBlock}
-	b := &LayoutNode{ID: 2, Box: BoxAnonymousInline, FC: FCBlock}
+	a := &LayoutNode{BoxID: 1, NodeID: 1, Box: BoxBlock, FC: FCBlock}
+	b := &LayoutNode{BoxID: 2, NodeID: 2, Box: BoxAnonymousInline, FC: FCBlock}
 
 	flow := []FlowItem{
 		BlockItem(a),
 		InlineItem(b),
 	}
 
-	children, err := normalizeBlockChildren(flow)
+	gen := newBoxIDGen()
+	children, err := normalizeBlockChildren(gen, flow, gen.newRoot(1))
 	if err != nil {
 		t.Fatalf("normalizeBlockChildren returned error: %v", err)
 	}
