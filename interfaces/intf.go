@@ -1,4 +1,16 @@
-package layout
+package interfaces
+
+import (
+	"golang.org/x/net/html"
+)
+
+// StyNodeView is the minimal interface needed by core passes.
+// Order is defined by Children() slice order (Rank must remain in sync).
+type StyNodeView interface {
+	Children() []StyNodeView
+	HTMLNode() *html.Node
+	ComputedStyle(string) string
+}
 
 type InlineLayouter interface {
 	LayoutInline(

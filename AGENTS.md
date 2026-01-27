@@ -9,6 +9,7 @@
 - `doc/Current-Checklist.md`: working checklist for IR freeze and invariants (planning artifact).
 - `doc/Pass-Signatures.md`: pass boundaries, signatures, and provisional package structure.
 - `doc/Pass-Algorithms.md`: per-pass pseudocode sketches and test outlines.
+- `doc/Tree-Type.md`: CSSDOM tree types and traversal interface.
 - The repo includes early Go stubs under `layout/`, `glyphing/`, and `text/`.
 
 ## Build, Test, and Development Commands
