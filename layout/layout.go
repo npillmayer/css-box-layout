@@ -2,7 +2,10 @@ package layout
 
 // D -> E: create a correct CSS2 box tree with anonymous boxes and FC boundaries.
 func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, error) {
-	return nil, errNotImplemented
+	if renderRoot == nil {
+		return nil, nil
+	}
+	return buildBlockContainer(renderRoot, BoxBlock)
 }
 
 // E -> F: compute block geometry; call a black-box inline layouter for BoxAnonymousInline owners.

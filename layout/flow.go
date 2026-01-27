@@ -1,5 +1,11 @@
 package layout
 
+import (
+	"golang.org/x/net/html"
+
+	"github.com/npillmayer/css-box-layout/text"
+)
+
 type FlowKind uint8
 
 const (
@@ -17,16 +23,105 @@ func BlockItem(n *LayoutNode) FlowItem  { return FlowItem{Kind: FlowBlock, Node:
 
 // Entry point for a block container (BoxBlock / BoxAnonymousBlock / BoxInlineBlock):
 func buildBlockContainer(r *RenderNode, box BoxKind) (*LayoutNode, error) {
-	return nil, errNotImplemented
+	if r == nil {
+		return nil, nil
+	}
+	flow := make([]FlowItem, 0, len(r.Children()))
+	for _, child := range r.Children() {
+		items, err := buildInlineFlow(child)
+		if err != nil {
+			return nil, err
+		}
+		flow = append(flow, items...)
+	}
+	children, err := normalizeBlockChildren(flow)
+	if err != nil {
+		return nil, err
+	}
+	return &LayoutNode{
+		ID:       r.ID,
+		Box:      box,
+		FC:       FCBlock,
+		Children: children,
+	}, nil
 }
 
 // Builds an inline-level subtree, but may return hoisted blocks as FlowBlock items:
 func buildInlineFlow(r *RenderNode) ([]FlowItem, error) {
-	return nil, errNotImplemented
+	if r == nil {
+		return nil, nil
+	}
+
+	display := r.ComputedStyle("display")
+	if display == "none" {
+		return nil, nil
+	}
+
+	if isTextNode(r.HTMLNode()) {
+		text := buildText(r)
+		if text == nil {
+			return nil, nil
+		}
+		return []FlowItem{InlineItem(text)}, nil
+	}
+
+	if display == "" {
+		display = "inline"
+	}
+
+	switch display {
+	case "inline":
+		flow := make([]FlowItem, 0, len(r.Children()))
+		for _, child := range r.Children() {
+			items, err := buildInlineFlow(child)
+			if err != nil {
+				return nil, err
+			}
+			flow = append(flow, items...)
+		}
+		if containsBlockFlow(flow) {
+			proto := &LayoutNode{ID: r.ID, Box: BoxInline, FC: FCInline}
+			return wrapInlineRunsForElement(proto, flow), nil
+		}
+		return []FlowItem{InlineItem(&LayoutNode{
+			ID:       r.ID,
+			Box:      BoxInline,
+			FC:       FCInline,
+			Children: inlineChildren(flow),
+		})}, nil
+	case "inline-block":
+		node, err := buildBlockContainer(r, BoxInlineBlock)
+		if err != nil {
+			return nil, err
+		}
+		return []FlowItem{InlineItem(node)}, nil
+	case "block":
+		node, err := buildBlockContainer(r, BoxBlock)
+		if err != nil {
+			return nil, err
+		}
+		return []FlowItem{BlockItem(node)}, nil
+	default:
+		return nil, errNotImplemented
+	}
 }
 
 func buildText(r *RenderNode) *LayoutNode { // returns BoxText leaf
-	return nil
+	if r == nil || r.HTMLNode() == nil {
+		return nil
+	}
+	data := r.HTMLNode().Data
+	if data == "" {
+		return nil
+	}
+	return &LayoutNode{
+		ID:  r.ID,
+		Box: BoxText,
+		Text: text.TextRef{
+			Source: 0,
+			Range:  text.TextRange{Start: 0, End: uint64(len(data))},
+		},
+	}
 }
 
 /*
@@ -161,5 +256,57 @@ func wrapInlineRunAsAnonymousBlock(inlines []*LayoutNode) *LayoutNode {
 // For split+hoist: take mixed flow returned from building an inline element’s children
 // and wrap each inline run inside a BoxInline for that element (same ID).
 func wrapInlineRunsForElement(proto *LayoutNode, flow []FlowItem) []FlowItem {
-	return nil
+	if proto == nil {
+		return nil
+	}
+	out := make([]FlowItem, 0, len(flow))
+	run := make([]*LayoutNode, 0, len(flow))
+
+	flush := func() {
+		if len(run) == 0 {
+			return
+		}
+		out = append(out, InlineItem(&LayoutNode{
+			ID:       proto.ID,
+			Box:      proto.Box,
+			FC:       proto.FC,
+			Children: append([]*LayoutNode(nil), run...),
+		}))
+		run = run[:0]
+	}
+
+	for _, item := range flow {
+		if item.Kind == FlowInline {
+			run = append(run, item.Node)
+			continue
+		}
+		flush()
+		out = append(out, item)
+	}
+	flush()
+	return out
+}
+
+
+func isTextNode(n *html.Node) bool {
+	return n != nil && n.Type == html.TextNode
+}
+
+func containsBlockFlow(flow []FlowItem) bool {
+	for _, item := range flow {
+		if item.Kind == FlowBlock {
+			return true
+		}
+	}
+	return false
+}
+
+func inlineChildren(flow []FlowItem) []*LayoutNode {
+	children := make([]*LayoutNode, 0, len(flow))
+	for _, item := range flow {
+		if item.Kind == FlowInline {
+			children = append(children, item.Node)
+		}
+	}
+	return children
 }

@@ -4,8 +4,6 @@ import "errors"
 
 type NodeID uint64
 
-type RenderNode struct{}
-
 type ComputedStyle struct{}
 
 type BuildOptions struct{}
