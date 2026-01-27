@@ -1,6 +1,9 @@
 package glyphing
 
-import "github.com/npillmayer/css-box-layout/text"
+import (
+	"github.com/npillmayer/css-box-layout/layout"
+	"github.com/npillmayer/css-box-layout/text"
+)
 
 type GlyphID = uint32
 
@@ -29,7 +32,7 @@ type GlyphBuffer struct {
 }
 
 type GlyphSlice struct {
-	BufferOwner NodeID // which leaf (typically BoxText) produced the GlyphBuffer
+	BufferOwner layout.NodeID // which leaf (typically BoxText) produced the GlyphBuffer
 	From, To    int    // indices into GlyphBuffer.Glyphs: [From,To)
 	// Optional: also report the subrange of text covered by this slice
 	TextRange text.TextRange

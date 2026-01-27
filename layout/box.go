@@ -124,4 +124,6 @@ type UsedWidth struct {
 	ContentX           float32
 }
 
-func computeUsedWidth(node *LayoutNode, style *ComputedStyle, ctx ResolveCtx) UsedWidth
+func computeUsedWidth(node *LayoutNode, style *ComputedStyle, ctx ResolveCtx) UsedWidth {
+	return UsedWidth{}
+}

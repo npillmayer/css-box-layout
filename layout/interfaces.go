@@ -1,4 +1,4 @@
-package interfaces
+package layout
 
 import (
 	"golang.org/x/net/html"

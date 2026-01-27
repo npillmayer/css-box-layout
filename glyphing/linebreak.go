@@ -1,5 +1,7 @@
 package glyphing
 
+import "github.com/npillmayer/css-box-layout/layout"
+
 type BrokenLine struct {
 	Baseline float32
 	Segs     []BrokenSeg
@@ -9,7 +11,7 @@ type BrokenLine struct {
 }
 
 type BrokenSeg struct {
-	SourceID NodeID // which RunNode leaf/span this segment belongs to (see note below)
+	SourceID layout.NodeID // which RunNode leaf/span this segment belongs to (see note below)
 
 	Kind SegKind
 	// When Kind==SegGlyphSlice:
@@ -27,14 +29,14 @@ const (
 )
 
 type LineBox struct {
-	Frame    Rect
+	Frame    layout.Rect
 	Baseline float32
 	Frags    []GlyphFragment
 }
 
 type GlyphFragment struct {
-	SourceID NodeID
-	Frame    Rect // relative to block content box
+	SourceID layout.NodeID
+	Frame    layout.Rect // relative to block content box
 
 	// Content:
 	Kind  FragKind
@@ -50,10 +52,10 @@ const (
 )
 
 type LayoutResult struct {
-	Root *LayoutNode
+	Root *layout.LayoutNode
 
 	Inline struct {
-		LinesByBlock map[NodeID][]LineBox
-		GlyphsByLeaf map[NodeID]GlyphBuffer // shaped buffers produced during layout
+		LinesByBlock map[layout.NodeID][]LineBox
+		GlyphsByLeaf map[layout.NodeID]GlyphBuffer // shaped buffers produced during layout
 	}
 }

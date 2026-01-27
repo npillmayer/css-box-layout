@@ -16,12 +16,18 @@ func InlineItem(n *LayoutNode) FlowItem { return FlowItem{Kind: FlowInline, Node
 func BlockItem(n *LayoutNode) FlowItem  { return FlowItem{Kind: FlowBlock, Node: n} }
 
 // Entry point for a block container (BoxBlock / BoxAnonymousBlock / BoxInlineBlock):
-func buildBlockContainer(r *RenderNode, box BoxKind) (*LayoutNode, error)
+func buildBlockContainer(r *RenderNode, box BoxKind) (*LayoutNode, error) {
+	return nil, errNotImplemented
+}
 
 // Builds an inline-level subtree, but may return hoisted blocks as FlowBlock items:
-func buildInlineFlow(r *RenderNode) ([]FlowItem, error)
+func buildInlineFlow(r *RenderNode) ([]FlowItem, error) {
+	return nil, errNotImplemented
+}
 
-func buildText(r *RenderNode) *LayoutNode // returns BoxText leaf
+func buildText(r *RenderNode) *LayoutNode { // returns BoxText leaf
+	return nil
+}
 
 /*
 * Behavior of normalizeBlockChildren
@@ -154,4 +160,6 @@ func wrapInlineRunAsAnonymousBlock(inlines []*LayoutNode) *LayoutNode {
 
 // For split+hoist: take mixed flow returned from building an inline element’s children
 // and wrap each inline run inside a BoxInline for that element (same ID).
-func wrapInlineRunsForElement(proto *LayoutNode, flow []FlowItem) []FlowItem
+func wrapInlineRunsForElement(proto *LayoutNode, flow []FlowItem) []FlowItem {
+	return nil
+}

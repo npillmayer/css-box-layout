@@ -1,7 +1,9 @@
 package layout
 
 // D -> E: create a correct CSS2 box tree with anonymous boxes and FC boundaries.
-func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, error)
+func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, error) {
+	return nil, errNotImplemented
+}
 
 // E -> F: compute block geometry; call a black-box inline layouter for BoxAnonymousInline owners.
 func ComputeLayoutWithConstraints(
@@ -10,7 +12,9 @@ func ComputeLayoutWithConstraints(
 	intrinsic IntrinsicMeasurer, // provides initial max-content approximations
 	cb ContainingBlock,
 	opts LayoutOptions,
-) (*LayoutResult, error)
+) (*LayoutResult, error) {
+	return nil, errNotImplemented
+}
 
 type LayoutResult struct {
 	Root         *LayoutNode
@@ -23,7 +27,9 @@ func layoutBlockContainer(
 	inline InlineLayouter,
 	intrinsic IntrinsicMeasurer,
 	res *LayoutResult,
-) error
+) error {
+	return errNotImplemented
+}
 
 func layoutBlockChildrenVertical(
 	parent *LayoutNode,
@@ -32,4 +38,6 @@ func layoutBlockChildrenVertical(
 	inline InlineLayouter,
 	intrinsic IntrinsicMeasurer,
 	res *LayoutResult,
-) (contentHeight float32, err error)
+) (contentHeight float32, err error) {
+	return 0, errNotImplemented
+}
