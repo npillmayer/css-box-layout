@@ -72,6 +72,9 @@ For each pass, add:
 
 No implementation yet.
 
+Artifacts:
+- `doc/Pass-Algorithms.md` (per-pass sketches + test outlines).
+
 ## 5) Implement Pass 1 (BuildLayoutTree)
 Implement the structural box tree:
 - anonymous box insertion

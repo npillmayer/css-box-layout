@@ -8,6 +8,7 @@
 - `doc/Exec-Roadmap.md`: execution roadmap with frozen decisions/checklists (no separate decision log).
 - `doc/Current-Checklist.md`: working checklist for IR freeze and invariants (planning artifact).
 - `doc/Pass-Signatures.md`: pass boundaries, signatures, and provisional package structure.
+- `doc/Pass-Algorithms.md`: per-pass pseudocode sketches and test outlines.
 - The repo includes early Go stubs under `layout/`, `glyphing/`, and `text/`.
 
 ## Build, Test, and Development Commands
