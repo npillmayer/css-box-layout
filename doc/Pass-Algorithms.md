@@ -10,38 +10,47 @@ Authoritative signatures and package layout: `doc/Pass-Signatures.md`.
 
 ### Algorithm sketch (pseudocode)
 ```
-function BuildLayoutTree(renderRoot):
-  return buildBlockContainer(renderRoot, BoxBlock)
+function BuildLayoutTree(root StyNodeView) -> LayoutNode:
+  return buildBlockContainer(root, BoxBlock)
 
-function buildBlockContainer(node, boxKind):
-  items = buildInlineOrBlockFlow(node)
-  children = normalizeBlockChildren(items)
-  return LayoutNode{ Kind: boxKind, Children: children, ... }
+function buildBlockContainer(node StyNodeView, boxKind BoxKind) -> LayoutNode:
+  flowItems = buildInlineOrBlockFlow(node)
+  children = normalizeBlockChildren(flowItems)
+  return LayoutNode{
+    BoxId: newBoxId(node),
+    NodeId: sourceNodeId(node),
+    Kind: boxKind,
+    Style: node,
+    Children: children,
+  }
 
-function buildInlineOrBlockFlow(node):
-  if display:none: return []
-  if node is text:
-    if text range empty: return []
-    return [FlowInline(BoxText(node))]
+function buildInlineOrBlockFlow(node StyNodeView) -> []FlowItem:
+  display = node.ComputedStyle("display")
+  if display == "none": return []
 
-  kind = boxKindFromDisplay(node)
+  if isTextNode(node.HTMLNode()):
+    text = textRange(node.HTMLNode())
+    if text.isEmpty(): return []
+    return [FlowInline(BoxText(node, text))]
+
+  kind = boxKindFromDisplay(display)
 
   if kind is inline:
     flows = []
-    for child in node.children:
+    for child in node.Children():
       flows += buildInlineOrBlockFlow(child)
-    if flows contains FlowBlock:
+    if containsBlockFlow(flows):
       return splitAndHoistInline(node, flows)
-    return [FlowInline(BoxInline(node, flows))]
+    return [FlowInline(BoxInline(node, inlineChildren(flows)))]
 
   if kind is block:
-    children = []
-    for child in node.children:
-      children += buildInlineOrBlockFlow(child)
-    blockChildren = normalizeBlockChildren(children)
+    flows = []
+    for child in node.Children():
+      flows += buildInlineOrBlockFlow(child)
+    blockChildren = normalizeBlockChildren(flows)
     return [FlowBlock(BoxBlock(node, blockChildren))]
 
-function normalizeBlockChildren(flowItems):
+function normalizeBlockChildren(flowItems []FlowItem) -> []*LayoutNode:
   if all blocks:
     return block nodes
   if all inlines:
@@ -52,7 +61,7 @@ function normalizeBlockChildren(flowItems):
     keep block nodes between runs
     return children
 
-function splitAndHoistInline(node, flows):
+function splitAndHoistInline(node StyNodeView, flows []FlowItem) -> []FlowItem:
   split inline runs into BoxInline fragments (same NodeId, unique BoxId)
   hoist FlowBlock items unchanged
   return concatenated flow items
@@ -142,4 +151,3 @@ function layoutBlockContainer(node, cb, used, geom, lines, inline, intrinsic):
 | Inline-only block | block with BoxAnonymousInline | lines stored + content height | delegate inline layouter |
 | Frame/content math | node with padding/border | Frame = Content + edges | epsilon check |
 | Coordinate convention | nested blocks | coordinates relative to parent content | origin (0,0) |
-

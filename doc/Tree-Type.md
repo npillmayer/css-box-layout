@@ -45,5 +45,5 @@ type StyNodeView interface {
 Notes:
 - Traversal uses `Children()` order; `Rank` must stay consistent with that order.
 - Access to `html.Node` is allowed.
-- Computed styles must be accessed via `ComputedStyle()` (no direct field access).
+- Computed styles must be accessed via `ComputedStyle(…)` (no direct field access).
 - Parent access exists on `tree.Node[T]` but is not required by Pass 1.

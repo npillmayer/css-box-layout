@@ -44,7 +44,59 @@ This single function enforces the core invariant across:
 - anonymous blocks (BoxAnonymousBlock)
 - inline-block containers (BoxInlineBlock) internally
 */
-func normalizeBlockChildren(flow []FlowItem) ([]*LayoutNode, error)
+func normalizeBlockChildren(flow []FlowItem) ([]*LayoutNode, error) {
+	if len(flow) == 0 {
+		return nil, nil
+	}
+
+	hasBlock := false
+	hasInline := false
+	for _, item := range flow {
+		if item.Kind == FlowBlock {
+			hasBlock = true
+		} else {
+			hasInline = true
+		}
+	}
+
+	if hasBlock && !hasInline {
+		children := make([]*LayoutNode, 0, len(flow))
+		for _, item := range flow {
+			children = append(children, item.Node)
+		}
+		return children, nil
+	}
+
+	if hasInline && !hasBlock {
+		inlines := make([]*LayoutNode, 0, len(flow))
+		for _, item := range flow {
+			inlines = append(inlines, item.Node)
+		}
+		return []*LayoutNode{wrapInAnonymousInline(inlines)}, nil
+	}
+
+	children := make([]*LayoutNode, 0, len(flow))
+	inlineRun := make([]*LayoutNode, 0, len(flow))
+	flushInlineRun := func() {
+		if len(inlineRun) == 0 {
+			return
+		}
+		children = append(children, wrapInlineRunAsAnonymousBlock(inlineRun))
+		inlineRun = inlineRun[:0]
+	}
+
+	for _, item := range flow {
+		if item.Kind == FlowInline {
+			inlineRun = append(inlineRun, item.Node)
+			continue
+		}
+		flushInlineRun()
+		children = append(children, item.Node)
+	}
+	flushInlineRun()
+
+	return children, nil
+}
 
 type ContainingBlock struct {
 	Width  Constraint
