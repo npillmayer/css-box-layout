@@ -60,8 +60,8 @@ Margin representation:
 - Margins remain in used values; Frame is border box (no margins).
 
 Ownership:
-- Lines are only stored for inline-only block containers and only for non-anonymous owners (if you keep that rule, specify why).
-- Inline-blocks: `SizeAtomicInline` returns border-box size; stored in node/frame.
+- Lines are only stored for inline-only block containers and only for BoxBlock and BoxInlineBlock owners.
+- Inline-blocks: `SizeInlineBlock` returns border-box size; stored in node/frame.
 
 ---
 

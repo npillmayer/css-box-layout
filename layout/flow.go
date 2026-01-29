@@ -205,23 +205,6 @@ func normalizeBlockChildren(gen *boxIDGen, flow []FlowItem, parentBoxID BoxID) (
 	return children, nil
 }
 
-type ContainingBlock struct {
-	Width  Constraint
-	Height Constraint
-}
-
-type ConstraintKind uint8
-
-const (
-	ConstraintIndefinite ConstraintKind = iota
-	ConstraintDefinite
-)
-
-type Constraint struct {
-	Kind  ConstraintKind
-	Value float32
-}
-
 // === Helpers ==========================================================
 
 func wrapInAnonymousInline(gen *boxIDGen, parentBoxID BoxID, inlines []*LayoutNode) *LayoutNode {

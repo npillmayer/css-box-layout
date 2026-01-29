@@ -66,34 +66,37 @@ type LineBox struct {
 	Payload any
 }
 
-type BlockContext struct {
-	AvailableWidth float32 // width of parent content box
-	// Later: current BFC, floats, etc.
-}
-
 type atomicSizer struct {
 	inline    InlineLayouter
 	intrinsic IntrinsicMeasurer
-	res       *LayoutResult
+	used      UsedValuesTable
+	geom      LayoutGeometryTable
+	lines     LinesByBlock
 }
 
-func (a atomicSizer) SizeAtomicInline(n *LayoutNode, maxWidth float32) (float32, float32, error) {
+func (a atomicSizer) SizeInlineBlock(n *LayoutNode, maxWidth float32) (float32, float32, error) {
 	if n.Box != BoxInlineBlock {
 		// later: replaced elements etc.
 		return 0, 0, fmt.Errorf("unsupported atomic inline kind")
 	}
 
-	// Approximate auto width:
-	maxContent, err := a.intrinsic.MaxContentWidth(n)
-	if err != nil {
-		return 0, 0, err
+	usedW := float32(0)
+	if a.used != nil {
+		if u, ok := a.used[n.BoxID]; ok && u.ContentWidth > 0 {
+			usedW = u.ContentWidth
+		}
+	}
+	if usedW == 0 {
+		// Approximate auto width:
+		maxContent, err := a.intrinsic.MaxContentWidth(n)
+		if err != nil {
+			return 0, 0, err
+		}
+		usedW = min(maxWidth, maxContent)
 	}
 
-	usedW := min(maxWidth, maxContent)
-
 	// Layout internal contents as a block container with usedW.
-	ctx := BlockContext{AvailableWidth: usedW}
-	err = layoutBlockContainer(n, ctx, a.inline, a.intrinsic, a.res)
+	err := layoutBlockContainer(n, a.used, a.geom, a.lines, a.inline, a.intrinsic)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -117,4 +120,11 @@ const (
 type Length struct {
 	Kind  LengthKind
 	Value float32 // px, percent (0..1), em
+}
+
+func min(a, b float32) float32 {
+	if a < b {
+		return a
+	}
+	return b
 }

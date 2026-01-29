@@ -45,10 +45,12 @@ Outputs:
 Responsibilities:
 - Resolve lengths (px/%/em/auto) into used values.
 - Make padding/border/margins available before line breaking.
+Notes:
+- Percent lengths are represented as 0..1 in `Length.Value` (e.g., 0.10 = 10%).
 
 ### Phase 3: FlowLayout (E -> F)
 Inputs:
-- Layout box tree `E` + used values + inline layouter + intrinsic measurer.
+- Layout box tree `E` + used values table + inline layouter + intrinsic measurer.
 
 Outputs:
 - Layout result `F` (geometry + line boxes).
@@ -83,8 +85,9 @@ TextRef:
 - Empty ranges are dropped at build time.
 
 LayoutResult (F):
-- Root *LayoutNode (same tree with geometry filled)
-- LinesByBlock map[BoxId][]LineBox (only for non-anonymous owners, per policy)
+- Root *LayoutNode (same tree; geometry may be mirrored on nodes)
+- Geometry table `LayoutGeometryTable[BoxId]` (authoritative)
+- LinesByBlock map[BoxId][]LineBox (stored for BoxBlock and BoxInlineBlock owners only)
 - Used values table is a separate pass output: `UsedValuesTable[BoxId]`.
 
 ---
@@ -112,7 +115,7 @@ B4. BoxText is leaf
 
 - BuildLayoutTree(renderRoot) -> *LayoutNode
 - ResolveUsedValues(root, containingBlock) -> UsedValuesTable
-- ComputeLayoutWithConstraints(root, inlineLayouter, intrinsicMeasurer, containingBlock) -> LayoutResult
+- FlowLayout(root, usedValues, inlineLayouter, intrinsicMeasurer, containingBlock) -> LayoutResult
 
 Inline layouter (black box):
 - LayoutInline(anonymousInlineRoot, maxWidth, atomicSizer) -> []LineBox
@@ -120,7 +123,7 @@ Inline layouter (black box):
   - LineBox.Frame.Y is already stacked by the inline layouter.
 
 Atomic sizer:
-- SizeAtomicInline(node, maxWidthRemaining) -> (borderBoxW, borderBoxH)
+- SizeInlineBlock(node, maxWidthRemaining) -> (borderBoxW, borderBoxH)
 
 Intrinsic measurer:
 - MaxContentWidth(node) -> contentBoxW

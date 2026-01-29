@@ -43,11 +43,20 @@ _ = tree
 Flow layout entry point (requires inline/intrinsic adapters):
 
 ```go
-res, err := layout.ComputeLayoutWithConstraints(
+used, err := layout.ResolveUsedValues(tree, layout.ResolveContext{
+	ContainingBlock: layout.Rect{W: 800}, // fill in constraints
+	FontSizePx:      16,
+})
+if err != nil {
+	// handle error
+}
+
+res, err := layout.FlowLayout(
 	tree,
+	used,
 	inlineLayouter,
 	intrinsicMeasurer,
-	layout.ContainingBlock{}, // fill in constraints
+	layout.LayoutContext{ContainingBlock: layout.Rect{W: 800}},
 	layout.LayoutOptions{},
 )
 if err != nil {

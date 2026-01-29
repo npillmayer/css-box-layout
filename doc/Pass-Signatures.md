@@ -75,6 +75,10 @@ Tables:
 - `type LayoutGeometryTable map[BoxId]LayoutGeometry`
 - `type LinesByBlock map[BoxId][]LineBox`
 
+Inline layout interfaces:
+- `type InlineLayouter interface { LayoutInline(inlineRoot *LayoutNode, maxWidth float32, atomic AtomicSizer) ([]LineBox, error) }`
+- `type AtomicSizer interface { SizeInlineBlock(node *LayoutNode, maxWidth float32) (w, h float32, err error) }`
+
 ---
 
 ## 3) Pass signatures (canonical)

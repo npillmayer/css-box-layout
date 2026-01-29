@@ -97,6 +97,7 @@ function walk(node, containingBlock, table):
 ```
 
 Note: inline-block resolves specified width here; `width:auto` defers to intrinsic sizing in FlowLayout.
+Note: percent lengths are represented as 0..1 (e.g., 0.10 = 10%).
 
 ### Test outline (normal scope)
 
