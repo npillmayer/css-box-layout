@@ -5,8 +5,6 @@ import "errors"
 type NodeID uint64
 type BoxID uint64
 
-type ComputedStyle struct{}
-
 type BuildOptions struct{}
 
 type LayoutOptions struct{}

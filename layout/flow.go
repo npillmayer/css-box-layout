@@ -222,26 +222,6 @@ type Constraint struct {
 	Value float32
 }
 
-type ResolveCtx struct {
-	AvailableWidth float32
-	FontSizePx     float32
-}
-
-func resolveLength(l Length, ctx ResolveCtx) (px float32, isAuto bool) {
-	switch l.Kind {
-	case LenPx:
-		return l.Value, false
-	case LenPercent:
-		return ctx.AvailableWidth * l.Value, false // assume l.Value is 0..1
-	case LenEm:
-		return ctx.FontSizePx * l.Value, false
-	case LenAuto:
-		return 0, true
-	default:
-		return 0, true
-	}
-}
-
 // === Helpers ==========================================================
 
 func wrapInAnonymousInline(gen *boxIDGen, parentBoxID BoxID, inlines []*LayoutNode) *LayoutNode {

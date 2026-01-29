@@ -96,6 +96,8 @@ function walk(node, containingBlock, table):
     walk(child, childContainingBlock(containingBlock, used), table)
 ```
 
+Note: inline-block resolves specified width here; `width:auto` defers to intrinsic sizing in FlowLayout.
+
 ### Test outline (normal scope)
 
 | Case | Input style | Expected used values | Notes |

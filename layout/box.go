@@ -17,11 +17,6 @@ type LayoutNode struct {
 	Children []*LayoutNode
 	Text     text.TextRef // For BoxText only (range in base rope)
 
-	// Used values (after resolving percentages/auto where applicable):
-	Margin  Edges
-	Border  Edges
-	Padding Edges
-
 	// Computed during layout: border/content rects relative to parent content box.
 	Frame   Rect // border box (recommended)
 	Content Rect // content box
@@ -37,6 +32,15 @@ const (
 	BoxAnonymousInline
 	BoxInlineBlock // atomic inline, lays out children with block rules
 )
+
+func IsBlockLevel(kind BoxKind) bool {
+	switch kind {
+	case BoxBlock, BoxAnonymousBlock, BoxInlineBlock:
+		return true
+	default:
+		return false
+	}
+}
 
 type FormattingContextKind uint8
 
@@ -112,19 +116,5 @@ const (
 
 type Length struct {
 	Kind  LengthKind
-	Value float32 // px, percent (0..1 or 0..100—pick one), em
-}
-
-type UsedWidth struct {
-	MarginL, MarginR   float32
-	BorderL, BorderR   float32
-	PaddingL, PaddingR float32
-	ContentW           float32
-	FrameW             float32
-	FrameX             float32
-	ContentX           float32
-}
-
-func computeUsedWidth(node *LayoutNode, style *ComputedStyle, ctx ResolveCtx) UsedWidth {
-	return UsedWidth{}
+	Value float32 // px, percent (0..1), em
 }

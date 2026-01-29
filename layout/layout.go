@@ -10,6 +10,16 @@ func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, er
 	return buildBlockContainer(gen, renderRoot, BoxBlock, rootID)
 }
 
+// E -> used values: resolve margins/padding/borders/widths into a table keyed by BoxID.
+func ResolveUsedValues(root *LayoutNode, ctx ResolveContext) (UsedValuesTable, error) {
+	used := make(UsedValuesTable)
+	if root == nil {
+		return used, nil
+	}
+	resolveUsedValues(root, ctx, used)
+	return used, nil
+}
+
 // E -> F: compute block geometry; call a black-box inline layouter for BoxAnonymousInline owners.
 func ComputeLayoutWithConstraints(
 	root *LayoutNode,
