@@ -8,9 +8,9 @@ It is a planning artifact; do not treat it as the final contract.
 ## Box Tree (E) checklist — fields and rules to freeze
 
 Identity:
-- Choose one: `BoxId` (unique per box) vs `NodeId` (shared across split fragments).
-- If using `NodeId` only, side tables must use `(NodeId, BoxKind, fragmentIndex)` as key.
-- If using `BoxId`, define how to derive for anonymous and split fragments.
+- `BoxId` is unique per box (including anonymous).
+- `NodeId` is shared across split fragments for source mapping only.
+- Side tables are keyed by `BoxId`.
 
 Core node shape:
 - `ID` (stable identity)
@@ -24,7 +24,7 @@ TextRef:
 - `Range [Start,End)` in bytes; drop empty at build time.
 
 Used values:
-- Either stored on node (as in overview) or in `UsedValuesTable[BoxId]`.
+- Stored in `UsedValuesTable[BoxId]` (not on the structural node).
 - Define `Margin/Padding/Border` units: px float.
 
 Geometry fields:
@@ -78,7 +78,7 @@ Ownership:
 - Identity stability:
   - IDs for real boxes are stable across passes; split inline fragments keep identity policy consistent.
 - Anonymous handling:
-  - Anonymous boxes are deterministic (ID policy explicitly defined and tested).
+  - Anonymous boxes are deterministic and have unique BoxIds.
 - Geometry consistency:
   - `Frame.W/H == Content.W/H + padding + border` (within epsilon).
   - `Frame` and `Content` coordinates are relative to parent content box.

@@ -28,8 +28,8 @@ Avoid "fat mutable nodes" that mix structure with frequently changing derived da
 ## 3) Stable identity
 
 - Boxes have stable IDs across passes.
-- Anonymous boxes use ID=0 (as per contract).
-- Split inline fragments may share the same ID.
+- BoxId is unique per box (including anonymous).
+- Split inline fragments may share the same NodeId.
 - Dropping empty text ranges must not destabilize other IDs.
 
 ---

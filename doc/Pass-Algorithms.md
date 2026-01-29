@@ -126,7 +126,7 @@ function layoutBlockContainer(node, cb, used, geom, lines, inline, intrinsic):
 
   if node is inline-only block container:
     lineBoxes = inline.LayoutInline(node.anonymousInline, content.W, makeAtomicSizer(...))
-    if node.BoxId != 0:
+    if shouldStoreLines(node):
       lines[node.BoxId] = lineBoxes
     content.H = extent(lineBoxes)
   else:
@@ -142,6 +142,8 @@ function layoutBlockContainer(node, cb, used, geom, lines, inline, intrinsic):
   frame.H = content.H + u.Padding.Top + u.Padding.Bottom + u.Border.Top + u.Border.Bottom
   geom[node.BoxId] = {Frame: frame, Content: content}
 ```
+
+Note: `shouldStoreLines(node)` is a policy decision (e.g., store only for non-anonymous block owners).
 
 ### Test outline (normal scope)
 

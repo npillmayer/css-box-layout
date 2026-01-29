@@ -40,7 +40,7 @@ Inputs:
 - Layout box tree `E` and containing block context (width, etc.).
 
 Outputs:
-- Used edges (margin, padding, border) and used widths.
+- Used values table (edges + used widths), keyed by BoxId.
 
 Responsibilities:
 - Resolve lengths (px/%/em/auto) into used values.
@@ -71,12 +71,11 @@ Box kinds:
 - BoxInlineBlock (atomic inline; contains a block formatting context internally)
 
 LayoutNode (minimal):
-- ID NodeID (DOM/render ID; anonymous boxes use ID=0; split inline fragments may share the same ID)
+- ID NodeID (DOM/render ID; split inline fragments may share the same ID)
 - Box BoxKind
 - Style *ComputedStyle
 - Children []*LayoutNode
 - Text TextRef (BoxText only)
-- Used edges: Margin, Padding, Border
 - Geometry: Frame Rect (border box), Content Rect (content box)
 
 TextRef:
@@ -85,7 +84,8 @@ TextRef:
 
 LayoutResult (F):
 - Root *LayoutNode (same tree with geometry filled)
-- LinesByBlock map[NodeID][]LineBox (only for ID != 0)
+- LinesByBlock map[BoxId][]LineBox (only for non-anonymous owners, per policy)
+- Used values table is a separate pass output: `UsedValuesTable[BoxId]`.
 
 ---
 
@@ -145,4 +145,4 @@ Intrinsic measurer:
 
 - Box tree structure (anonymous wrappers, split+hoist, inline-block internal block formatting) is correctness-critical.
 - Used edges must be resolved before line breaking.
-- IDs are stable; anonymous boxes are ID=0; split inline fragments may share IDs.
+- IDs are stable; BoxId is unique per box; split inline fragments may share NodeIDs.
