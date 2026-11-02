@@ -1,158 +1,164 @@
-# Pass Algorithms + Test Outlines (Step 4)
+# Pass Algorithms and Test Outlines
 
-This document sketches the algorithms for each pass and outlines normal-scope, table-driven test cases. It is intentionally concise and avoids rare edge cases for now.
+These are target-behavior sketches, not executable code or claims of completed
+implementation. Current API signatures are in `doc/Pass-Signatures.md`;
+`doc/CSS-Algo-Overview.md` is authoritative. Detailed open work and acceptance
+criteria are in `doc/Current-Checklist.md`.
 
-Authoritative signatures and package layout: `doc/Pass-Signatures.md`.
+## Pass 1: BuildLayoutTree
 
----
+The root sketch assumes a block render root. The public entry point currently
+forces BoxBlock; general root display handling remains unspecified.
 
-## Pass 1: BuildLayoutTree (D -> E)
-
-### Algorithm sketch (pseudocode)
-```
-function BuildLayoutTree(root StyNodeView) -> LayoutNode:
+```text
+BuildLayoutTree(root):
+  if root is nil: return nil
   return buildBlockContainer(root, BoxBlock)
 
-function buildBlockContainer(node StyNodeView, boxKind BoxKind) -> LayoutNode:
-  flowItems = buildInlineOrBlockFlow(node)
-  children = normalizeBlockChildren(flowItems)
-  return LayoutNode{
-    BoxId: newBoxId(node),
-    NodeId: sourceNodeId(node),
-    Kind: boxKind,
-    Style: node,
-    Children: children,
-  }
+buildBlockContainer(node, kind):
+  flows = concatenate(buildFlow(child) for child in node.Children())
+  return box(kind, sourceIdentity(node), computedStyle(node),
+             normalizeBlockChildren(flows))
 
-function buildInlineOrBlockFlow(node StyNodeView) -> []FlowItem:
-  display = node.ComputedStyle("display")
-  if display == "none": return []
+buildFlow(node):
+  if node is nil or display(node) == none: return []
+  if node is text:
+    if textRange(node) is empty: return []
+    return [FlowInline(textBox(node))]
+  if display(node) == inline-block:
+    return [FlowInline(buildBlockContainer(node, BoxInlineBlock))]
+  if display(node) == block:
+    return [FlowBlock(buildBlockContainer(node, BoxBlock))]
+  if display(node) == inline:
+    flows = concatenate(buildFlow(child) for child in node.Children())
+    return wrapInlineRunsForElement(node, flows)
+  return unsupported-display error
 
-  if isTextNode(node.HTMLNode()):
-    text = textRange(node.HTMLNode)
-    if text.isEmpty(): return []
-    return [FlowInline(BoxText(node, text))]
+normalizeBlockChildren(flows):
+  if flows is empty: return [BoxAnonymousInline([])]
+  if all items are FlowBlock: return their nodes
+  if all items are FlowInline: return [BoxAnonymousInline(their nodes)]
+  wrap each maximal inline run as:
+    BoxAnonymousBlock(BoxAnonymousInline(copy of run))
+  retain block items between runs in order
 
-  kind = boxKindFromDisplay(display)
-
-  if kind is inline:
-    flows = []
-    for child in node.Children():
-      flows += buildInlineOrBlockFlow(child)
-    if containsBlockFlow(flows):
-      return splitAndHoistInline(node, flows)
-    return [FlowInline(BoxInline(node, inlineChildren(flows)))]
-
-  if kind is block:
-    flows = []
-    for child in node.Children():
-      flows += buildInlineOrBlockFlow(child)
-    blockChildren = normalizeBlockChildren(flows)
-    return [FlowBlock(BoxBlock(node, blockChildren))]
-
-function normalizeBlockChildren(flowItems []FlowItem) -> []*LayoutNode:
-  if all blocks:
-    return block nodes
-  if all inlines:
-    return [BoxAnonymousInline(inline nodes)]
-  else:
-    wrap each maximal inline run into:
-      BoxAnonymousBlock( BoxAnonymousInline(run) )
-    keep block nodes between runs
-    return children
-
-function splitAndHoistInline(node StyNodeView, flows []FlowItem) -> []FlowItem:
-  split inline runs into BoxInline fragments (same NodeId, unique BoxId)
-  hoist FlowBlock items unchanged
-  return concatenated flow items
+wrapInlineRunsForElement(node, flows):
+  wrap each non-empty inline run in a BoxInline fragment
+  preserve source NodeID and style; assign unique BoxID per fragment
+  keep FlowBlock items between fragments unchanged
+  if flows is empty: return one empty BoxInline for node
 ```
 
-### Test outline (normal scope)
+Each box, including anonymous wrappers, needs a unique deterministic BoxID.
+Construction must preserve separate child lists for separate runs. Style
+conversion, anonymous style rules, and external text-source plumbing are not
+specified by the shorthand helpers. Atomic inline-block internals are excluded
+from the outer B3 purity traversal and validated as their own block containers.
 
-| Case | Input shape | Expected output | Invariants checked |
-|---|---|---|---|
-| Block-only children | block with block children | children unchanged | B1 block-only |
-| Inline-only children | block with inline children | single BoxAnonymousInline child | B1 inline-only, B2 |
-| Mixed inline/block | block with inline + block | anonymous blocks for inline runs | B1, B2 |
-| Inline contains block | inline node with block descendant | split inline fragments + hoisted block | B3 |
-| BoxText leaf | text node | BoxText with no children | B4 |
+| Test | Expected result |
+|---|---|
+| Block-only children | Block children retained in order |
+| Inline-only children | One anonymous inline root |
+| Empty container / dropped empty text | Empty anonymous inline root |
+| Multiple inline runs separated by blocks | Distinct wrappers and child lists |
+| Nested inline containing block | Split fragments and hoisted block flow |
+| Inline-block with internal blocks | Atomic outer inline; normalized inner container |
+| Text leaf | Non-empty range, no children |
+| Styles and identity | Preserved source style/NodeID, unique BoxIDs |
 
----
+## Pass 2: ResolveUsedValues
 
-## Pass 2: ResolveUsedValues (E -> used values)
-
-### Algorithm sketch (pseudocode)
-```
-function ResolveUsedValues(root, ctx):
-  table = new UsedValuesTable
-  walk(root, ctx.ContainingBlock, table)
+```text
+ResolveUsedValues(root, ctx):
+  table = fresh UsedValuesTable
+  walk(root, ctx, table)
   return table
 
-function walk(node, containingBlock, table):
-  used = resolveEdges(node.style, containingBlock)
-  used.ContentWidth = computeUsedWidth(node.style, containingBlock, used)
-  table[node.BoxId] = used
-  for child in node.Children:
-    walk(child, childContainingBlock(containingBlock, used), table)
+walk(node, ctx, table):
+  resolve node edges and known width using explicit style/context
+  preserve distinction between auto width and explicit zero
+  record result by BoxID
+  for each child:
+    resolve using the containing block established by this node,
+    or inherited containing block for structural inline nodes
 ```
 
-Note: inline-block resolves specified width here; `width:auto` defers to intrinsic sizing in FlowLayout.
-Note: percent lengths are represented as 0..1 (e.g., 0.10 = 10%).
+Lengths use px, fractional percentages (0..1), em, or auto. A fixed-width
+inline-block establishes its own content width for descendants. Auto-width
+inline-blocks need a final width from intrinsic sizing before descendant
+percentages and auto widths can be finalized. The scheduling/representation
+for this dependency is still open; this sketch does not prescribe a premature
+walk using the outer width as the final descendant context.
 
-### Test outline (normal scope)
+Horizontal auto-margin distribution also needs explicit semantics. The current
+implementation discards its auto flags; zero is not a statement of the intended
+final rule.
 
-| Case | Input style | Expected used values | Notes |
-|---|---|---|---|
-| Fixed px padding | padding:10px | padding resolved to 10 | deterministic |
-| Percent padding | padding:10% | resolved vs containing block width | percent resolution |
-| Auto margins | margin-left/right:auto | flags or resolved per rule | horizontal behavior |
-| Width auto | width:auto | fills remaining width | no margins collapsing |
-| Border widths | border:1px | border resolved to 1 | known floats |
+| Test | Expected result |
+|---|---|
+| Px / percentage / em edges | Values use the documented width/font context |
+| Auto block width | Available content width after edges |
+| Fixed and percentage widths | Correct containing block basis |
+| Auto margins | Agreed distribution or explicit documented deferral |
+| Fixed-width inline-block descendants | Use inline-block content width |
+| Auto versus zero inline-block width | Distinct states; correct later sizing |
+| Build -> resolve | Render styles reach used values |
 
----
+## Pass 3: FlowLayout
 
-## Pass 3: FlowLayout (E + used values -> F)
+The sketch constructs fresh output tables. It does not authorize writes to
+input nodes. Any optional geometry mirrors require an ownership/copying design.
 
-### Algorithm sketch (pseudocode)
-```
-function FlowLayout(root, used, inline, intrinsic, ctx):
-  geom = new LayoutGeometryTable
-  lines = new LinesByBlock
-  layoutBlockContainer(root, ctx.ContainingBlock, used, geom, lines, inline, intrinsic)
-  return LayoutResult{ Root: root, Geometry: geom, Lines: lines }
+```text
+FlowLayout(root, used, inline, intrinsic, ctx):
+  geom = fresh geometry table
+  lines = fresh line table
+  layoutContainer(root, frameOrigin=(0,0))
+  return {Root: root, Geometry: geom, Lines: lines}
 
-function layoutBlockContainer(node, cb, used, geom, lines, inline, intrinsic):
-  u = used[node.BoxId]
-  frame = computeFrame(cb, u)
-  content = computeContent(frame, u)
-  geom[node.BoxId] = {Frame: frame, Content: content}
+layoutContainer(node, frameOrigin):
+  u = required used values for node
+  frame = border box at frameOrigin with width contentWidth + horizontal edges
+  content = box at frameOrigin + top/left border and padding
+  content.W = u.ContentWidth
 
-  if node is inline-only block container:
-    lineBoxes = inline.LayoutInline(node.anonymousInline, content.W, makeAtomicSizer(...))
-    if shouldStoreLines(node):
-      lines[node.BoxId] = lineBoxes
-    content.H = extent(lineBoxes)
+  if node has one BoxAnonymousInline child:
+    lineBoxes = inline.LayoutInline(child, content.W, atomicSizer)
+    if node is BoxBlock or BoxInlineBlock:
+      lines[node.BoxID] = lineBoxes
+    content.H = max(0, all line.Y + line.H)
   else:
     y = 0
     for child in node.Children:
-      layoutBlockContainer(child, childCB(content, used[child.BoxId]), ...)
-      childGeom = geom[child.BoxId]
-      y += used[child.BoxId].Margin.Top
-      childGeom.Frame.Y = y
-      y += childGeom.Frame.H + used[child.BoxId].Margin.Bottom
+      y += used[child].Margin.Top
+      layoutContainer(child, (used[child].Margin.Left, y))
+      y += geom[child].Frame.H + used[child].Margin.Bottom
     content.H = y
 
-  frame.H = content.H + u.Padding.Top + u.Padding.Bottom + u.Border.Top + u.Border.Bottom
-  geom[node.BoxId] = {Frame: frame, Content: content}
+  frame.H = content.H + vertical padding and border
+  geom[node.BoxID] = {frame, content}
 ```
 
-Note: `shouldStoreLines(node)` is a policy decision (e.g., store only for non-anonymous block owners).
+Child origins are relative to the parent's content box: do not add the parent's
+Content.X/Y to those origins. Each child's own Content origin includes that
+child's border/padding offset. Line frames likewise remain relative to their
+owner's content box.
 
-### Test outline (normal scope)
+Atomic sizing must choose content width (retaining the max-content approximation
+for auto), establish correct descendant resolution, and lay out internal content
+at that width before returning border-box dimensions. Returned sizes and stored
+geometry must agree. Final atomic placement and geometry coverage for inline
+nodes/text need an integration design; the block sketch does not supply them.
 
-| Case | Input tree | Expected layout | Notes |
-|---|---|---|---|
-| Block stacking | parent with 2 block children | y offsets stack with margins | no collapsing |
-| Inline-only block | block with BoxAnonymousInline | lines stored + content height | delegate inline layouter |
-| Frame/content math | node with padding/border | Frame = Content + edges | epsilon check |
-| Coordinate convention | nested blocks | coordinates relative to parent content | origin (0,0) |
+| Test | Expected result |
+|---|---|
+| Block stacking | Vertical margins retained without collapsing |
+| Nested padded/bordered blocks | Parent-content-relative coordinates |
+| Inline-only block | Content height equals line extent |
+| Anonymous block owner | No stored line entry, but correct content height |
+| Atomic fixed / auto / zero width | Correct internal width, height, border-box return |
+| Geometry consistency | Frame equals Content plus edges; table agrees with sizing |
+| Repeated layout | Input immutability and stable identities |
+
+Geometry entries for structural inline nodes, text, and inline roots remain an
+explicit coverage decision. Do not claim full-tree geometry from these sketches.

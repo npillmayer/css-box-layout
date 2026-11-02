@@ -3,6 +3,11 @@
 Authoritative algorithm contract: `doc/CSS-Algo-Overview.md`.
 This document defines the functional-style constraints and memoization-readiness rules for implementing the contract.
 
+Status: these are design requirements. Current FlowLayout writes geometry onto
+input nodes and therefore does not satisfy input immutability. Checklist task 7
+tracks reconciliation; optional mirrors need an explicit ownership/copying
+design. Private construction of fresh output tables is compatible with purity.
+
 ---
 
 ## 1) Core rules
@@ -18,8 +23,8 @@ This document defines the functional-style constraints and memoization-readiness
 
 Prefer structural trees + side tables:
 - BoxTree / LayoutNode for structure
-- UsedValuesTable keyed by BoxId
-- Layout results (fragments, line boxes) keyed by BoxId
+- UsedValuesTable keyed by BoxID
+- Layout results (fragments, line boxes) keyed by BoxID
 
 Avoid "fat mutable nodes" that mix structure with frequently changing derived data.
 
@@ -28,8 +33,8 @@ Avoid "fat mutable nodes" that mix structure with frequently changing derived da
 ## 3) Stable identity
 
 - Boxes have stable IDs across passes.
-- BoxId is unique per box (including anonymous).
-- Split inline fragments may share the same NodeId.
+- BoxID is unique per box (including anonymous).
+- Split inline fragments may share the same NodeID.
 - Dropping empty text ranges must not destabilize other IDs.
 
 ---

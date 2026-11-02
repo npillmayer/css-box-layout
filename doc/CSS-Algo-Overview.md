@@ -2,6 +2,9 @@
 
 This document is the single, authoritative contract for the core CSS layout pipeline in this repo. It consolidates the spec surface previously spread across `doc/Algo-Spine.md` and `doc/Functional.md`.
 
+Implementation status and open work: `doc/Exec-Roadmap.md` and
+`doc/Current-Checklist.md`. Requirements here are not claims of completed code.
+
 ---
 
 ## 1) Scope and assumptions
@@ -40,11 +43,14 @@ Inputs:
 - Layout box tree `E` and containing block context (width, etc.).
 
 Outputs:
-- Used values table (edges + used widths), keyed by BoxId.
+- Used values table (edges + used widths), keyed by BoxID.
 
 Responsibilities:
 - Resolve lengths (px/%/em/auto) into used values.
-- Make padding/border/margins available before line breaking.
+- Make padding/border/margins available before the line-breaking decisions that use them.
+- Auto inline-block width is deferred to intrinsic sizing. How descendant used
+  values are resolved against that final width remains an open pass-boundary
+  design question (checklist tasks 2 and 3); do not treat provisional widths as final.
 Notes:
 - Percent lengths are represented as 0..1 in `Length.Value` (e.g., 0.10 = 10%).
 
@@ -73,22 +79,24 @@ Box kinds:
 - BoxInlineBlock (atomic inline; contains a block formatting context internally)
 
 LayoutNode (minimal):
-- ID NodeID (DOM/render ID; split inline fragments may share the same ID)
+- BoxID BoxID (unique box identity, including anonymous boxes and fragments)
+- NodeID NodeID (source identity; split inline fragments may share it)
 - Box BoxKind
 - Style *ComputedStyle
 - Children []*LayoutNode
 - Text TextRef (BoxText only)
-- Geometry: Frame Rect (border box), Content Rect (content box)
+- Optional geometry mirrors: Frame Rect (border box), Content Rect (content box);
+  ownership must satisfy the immutable-input requirement.
 
 TextRef:
 - TextRef{ Source TextSourceID, Range: [Start,End) }
 - Empty ranges are dropped at build time.
 
 LayoutResult (F):
-- Root *LayoutNode (same tree; geometry may be mirrored on nodes)
-- Geometry table `LayoutGeometryTable[BoxId]` (authoritative)
-- LinesByBlock map[BoxId][]LineBox (stored for BoxBlock and BoxInlineBlock owners only)
-- Used values table is a separate pass output: `UsedValuesTable[BoxId]`.
+- Root *LayoutNode (structural tree reference; geometry table is authoritative)
+- Geometry table `LayoutGeometryTable[BoxID]` (authoritative)
+- LinesByBlock map[BoxID][]LineBox (stored for BoxBlock and BoxInlineBlock owners only)
+- Used values table is a separate pass output: `UsedValuesTable[BoxID]`.
 
 ---
 
@@ -98,12 +106,18 @@ B1. Block-container normalization
 - Every block container (BoxBlock, BoxAnonymousBlock, BoxInlineBlock) has children in exactly one shape:
   1) Block-only: all children are block-level boxes
   2) Inline-only: exactly one child of kind BoxAnonymousInline
+- Empty containers use the inline-only shape with an empty BoxAnonymousInline.
+- Block-container capability is distinct from outer block-level participation:
+  BoxInlineBlock is atomic inline, even though it is a block container internally.
 
 B2. Inline formatting contexts are explicit
 - Inline formatting always starts at BoxAnonymousInline.
 
 B3. Inline subtree purity
-- No block-level boxes appear under BoxAnonymousInline.
+- No block-level flow participants appear within an inline formatting context.
+- An inline-block is an atomic boundary: its internal block descendants belong
+  to its own context. Validation does not descend through that boundary as part
+  of the outer inline-purity check.
 - Inline elements that contain blocks are split and hoisted.
 
 B4. BoxText is leaf
@@ -148,4 +162,14 @@ Intrinsic measurer:
 
 - Box tree structure (anonymous wrappers, split+hoist, inline-block internal block formatting) is correctness-critical.
 - Used edges must be resolved before line breaking.
-- IDs are stable; BoxId is unique per box; split inline fragments may share NodeIDs.
+- IDs are stable; BoxID is unique per box; split inline fragments may share NodeIDs.
+
+## 8) Open representation decisions
+
+- Functional constraints require immutable pass inputs. Current code mutates
+  node geometry; optional geometry mirroring needs an ownership/copying design
+  compatible with that requirement. Mirroring is not permission to mutate inputs.
+- Define geometry coverage for structural inline nodes, text, and anonymous
+  inline roots; a single rectangle may not represent fragmented inline content.
+- Anonymous styles, auto-width state, and horizontal auto-margin distribution
+  need explicit semantics. These are tracked work, not newly frozen deferrals.
