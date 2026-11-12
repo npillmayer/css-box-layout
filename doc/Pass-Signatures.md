@@ -89,7 +89,9 @@ func FlowLayout(
 
 `ComputeLayoutWithConstraints` has the same signature as FlowLayout and forwards
 to it as a compatibility wrapper. BuildLayoutTree uses the RenderNode stub;
-`doc/Tree-Type.md` describes the unfinished read-only adapter proposal.
+`doc/Tree-Type.md` describes the current typed Style/Text projection contract
+and the unfinished read-only adapter proposal. RenderNode.Style and Text are
+snapshotted during construction; external source/paint lookup remains adapter-owned.
 
 ```go
 type ResolveContext struct {

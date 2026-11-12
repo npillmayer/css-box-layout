@@ -7,7 +7,14 @@ func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, er
 	}
 	gen := newBoxIDGen()
 	rootID := gen.newRoot(renderRoot.ID)
-	return buildBlockContainer(gen, renderRoot, BoxBlock, rootID)
+	root, err := buildBlockContainer(gen, renderRoot, BoxBlock, rootID)
+	if err != nil {
+		return nil, err
+	}
+	if gen.err != nil {
+		return nil, gen.err
+	}
+	return root, nil
 }
 
 // E -> used values: resolve margins/padding/borders/widths into a table keyed by BoxID.

@@ -1,9 +1,9 @@
 package layout
 
 import (
-	"golang.org/x/net/html"
+	"fmt"
 
-	"github.com/npillmayer/css-box-layout/text"
+	"golang.org/x/net/html"
 )
 
 type FlowKind uint8
@@ -23,12 +23,20 @@ func BlockItem(n *LayoutNode) FlowItem  { return FlowItem{Kind: FlowBlock, Node:
 
 // Entry point for a block container (BoxBlock / BoxAnonymousBlock / BoxInlineBlock):
 func buildBlockContainer(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID) (*LayoutNode, error) {
+	return buildBlockContainerWithFont(gen, r, box, boxID, 0)
+}
+
+func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID, inheritedFont float32) (*LayoutNode, error) {
 	if r == nil {
 		return nil, nil
 	}
+	style, err := buildStyle(r, inheritedFont)
+	if err != nil {
+		return nil, err
+	}
 	flow := make([]FlowItem, 0, len(r.Children()))
 	for _, child := range r.Children() {
-		items, err := buildInlineFlow(gen, child, boxID)
+		items, err := buildInlineFlowWithFont(gen, child, boxID, style.FontSizePx)
 		if err != nil {
 			return nil, err
 		}
@@ -38,7 +46,9 @@ func buildBlockContainer(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID)
 	if err != nil {
 		return nil, err
 	}
+	setAnonymousStyles(children, style.FontSizePx)
 	return &LayoutNode{
+		Style:    style,
 		BoxID:    boxID,
 		NodeID:   r.ID,
 		Box:      box,
@@ -49,6 +59,10 @@ func buildBlockContainer(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID)
 
 // Builds an inline-level subtree, but may return hoisted blocks as FlowBlock items:
 func buildInlineFlow(gen *boxIDGen, r *RenderNode, parentBoxID BoxID) ([]FlowItem, error) {
+	return buildInlineFlowWithFont(gen, r, parentBoxID, 0)
+}
+
+func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, inheritedFont float32) ([]FlowItem, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -58,11 +72,19 @@ func buildInlineFlow(gen *boxIDGen, r *RenderNode, parentBoxID BoxID) ([]FlowIte
 		return nil, nil
 	}
 
+	style, err := buildStyle(r, inheritedFont)
+	if err != nil {
+		return nil, err
+	}
 	if isTextNode(r.HTMLNode()) {
-		text := buildText(r)
+		text, err := buildText(r)
+		if err != nil {
+			return nil, err
+		}
 		if text == nil {
 			return nil, nil
 		}
+		text.Style = style
 		text.BoxID = gen.newChild(parentBoxID)
 		text.NodeID = r.ID
 		return []FlowItem{InlineItem(text)}, nil
@@ -76,18 +98,19 @@ func buildInlineFlow(gen *boxIDGen, r *RenderNode, parentBoxID BoxID) ([]FlowIte
 	case "inline":
 		flow := make([]FlowItem, 0, len(r.Children()))
 		for _, child := range r.Children() {
-			items, err := buildInlineFlow(gen, child, parentBoxID)
+			items, err := buildInlineFlowWithFont(gen, child, parentBoxID, style.FontSizePx)
 			if err != nil {
 				return nil, err
 			}
 			flow = append(flow, items...)
 		}
 		if containsBlockFlow(flow) {
-			proto := &LayoutNode{NodeID: r.ID, Box: BoxInline, FC: FCInline}
+			proto := &LayoutNode{Style: style, NodeID: r.ID, Box: BoxInline, FC: FCInline}
 			return wrapInlineRunsForElement(gen, proto, flow, parentBoxID), nil
 		}
 		boxID := gen.newChild(parentBoxID)
 		return []FlowItem{InlineItem(&LayoutNode{
+			Style:    style,
 			BoxID:    boxID,
 			NodeID:   r.ID,
 			Box:      BoxInline,
@@ -96,14 +119,14 @@ func buildInlineFlow(gen *boxIDGen, r *RenderNode, parentBoxID BoxID) ([]FlowIte
 		})}, nil
 	case "inline-block":
 		boxID := gen.newChild(parentBoxID)
-		node, err := buildBlockContainer(gen, r, BoxInlineBlock, boxID)
+		node, err := buildBlockContainerWithFont(gen, r, BoxInlineBlock, boxID, inheritedFont)
 		if err != nil {
 			return nil, err
 		}
 		return []FlowItem{InlineItem(node)}, nil
 	case "block":
 		boxID := gen.newChild(parentBoxID)
-		node, err := buildBlockContainer(gen, r, BoxBlock, boxID)
+		node, err := buildBlockContainerWithFont(gen, r, BoxBlock, boxID, inheritedFont)
 		if err != nil {
 			return nil, err
 		}
@@ -113,21 +136,24 @@ func buildInlineFlow(gen *boxIDGen, r *RenderNode, parentBoxID BoxID) ([]FlowIte
 	}
 }
 
-func buildText(r *RenderNode) *LayoutNode { // returns BoxText leaf
+func buildText(r *RenderNode) (*LayoutNode, error) {
 	if r == nil || r.HTMLNode() == nil {
-		return nil
+		return nil, nil
 	}
-	data := r.HTMLNode().Data
-	if data == "" {
-		return nil
+	if r.Text == nil {
+		if r.HTMLNode().Data == "" {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("node %d: nonempty text requires a source TextRef", r.ID)
 	}
-	return &LayoutNode{
-		Box: BoxText,
-		Text: text.TextRef{
-			Source: 0,
-			Range:  text.TextRange{Start: 0, End: uint64(len(data))},
-		},
+	ref := *r.Text
+	if ref.Range.End < ref.Range.Start {
+		return nil, fmt.Errorf("node %d: reversed text range", r.ID)
 	}
+	if ref.Range.End == ref.Range.Start {
+		return nil, nil
+	}
+	return &LayoutNode{Box: BoxText, Text: ref}, nil
 }
 
 /*
@@ -153,7 +179,7 @@ This single function enforces the core invariant across:
 */
 func normalizeBlockChildren(gen *boxIDGen, flow []FlowItem, parentBoxID BoxID) ([]*LayoutNode, error) {
 	if len(flow) == 0 {
-		return nil, nil
+		return []*LayoutNode{wrapInAnonymousInline(gen, parentBoxID, nil)}, nil
 	}
 
 	hasBlock := false
@@ -188,7 +214,9 @@ func normalizeBlockChildren(gen *boxIDGen, flow []FlowItem, parentBoxID BoxID) (
 		if len(inlineRun) == 0 {
 			return
 		}
-		children = append(children, wrapInlineRunAsAnonymousBlock(gen, parentBoxID, inlineRun))
+		// Retained runs must not share the buffer reused for subsequent children.
+		run := append([]*LayoutNode(nil), inlineRun...)
+		children = append(children, wrapInlineRunAsAnonymousBlock(gen, parentBoxID, run))
 		inlineRun = inlineRun[:0]
 	}
 
@@ -245,6 +273,7 @@ func wrapInlineRunsForElement(gen *boxIDGen, proto *LayoutNode, flow []FlowItem,
 		out = append(out, InlineItem(&LayoutNode{
 			BoxID:    gen.newChild(parentBoxID),
 			NodeID:   proto.NodeID,
+			Style:    proto.Style,
 			Box:      proto.Box,
 			FC:       proto.FC,
 			Children: append([]*LayoutNode(nil), run...),

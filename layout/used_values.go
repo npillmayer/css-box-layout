@@ -29,7 +29,9 @@ type ComputedStyle struct {
 	FontSizePx float32
 }
 
-func defaultComputedStyle() ComputedStyle {
+// DefaultComputedStyle returns auto width and zero edges. Set fields on this
+// value before passing it to RenderNode.Style; a zero Width means explicit 0px.
+func DefaultComputedStyle() ComputedStyle {
 	return ComputedStyle{
 		Width:   Length{Kind: LenAuto},
 		Margin:  EdgeLengths{},
@@ -37,6 +39,8 @@ func defaultComputedStyle() ComputedStyle {
 		Border:  EdgeLengths{},
 	}
 }
+
+func defaultComputedStyle() ComputedStyle { return DefaultComputedStyle() }
 
 func resolveLength(l Length, ctx ResolveContext) (px float32, isAuto bool) {
 	switch l.Kind {
@@ -152,6 +156,10 @@ func resolveUsedValues(node *LayoutNode, ctx ResolveContext, table UsedValuesTab
 		return
 	}
 	style := styleOrDefault(node.Style)
+	// em lengths use this element's computed font size, not its parent's.
+	if style.FontSizePx > 0 {
+		ctx.FontSizePx = style.FontSizePx
+	}
 
 	margin, padding, border, _ := resolveEdges(style, ctx)
 	contentW := resolveContentWidth(node.Box, style, ctx, margin, padding, border)

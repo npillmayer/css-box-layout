@@ -171,5 +171,8 @@ Intrinsic measurer:
   compatible with that requirement. Mirroring is not permission to mutate inputs.
 - Define geometry coverage for structural inline nodes, text, and anonymous
   inline roots; a single rectangle may not represent fragmented inline content.
-- Anonymous styles, auto-width state, and horizontal auto-margin distribution
-  need explicit semantics. These are tracked work, not newly frozen deferrals.
+- Auto-width state and horizontal auto-margin distribution need explicit
+  semantics. These are tracked work, not newly frozen deferrals.
+- The current typed adapter subset and anonymous styles are specified in
+  `doc/Tree-Type.md`: anonymous wrappers inherit font size, have auto width and
+  zero edges; real boxes preserve copied styles and supplied text references.

@@ -1,6 +1,6 @@
 # Execution Roadmap
 
-High-level milestones for the core layout pipeline, reviewed on 2026-11-02.
+High-level milestones for the core layout pipeline, reviewed on 2026-11-02; integration sequencing aligned on 2026-11-12.
 `doc/CSS-Algo-Overview.md` is the authoritative algorithm contract.
 `doc/Current-Checklist.md` holds prioritized tasks and detailed acceptance criteria.
 Implementation status below does not imply that all invariants are validated.
@@ -10,7 +10,8 @@ Implementation status below does not imply that all invariants are validated.
 Status: the core contract exists, supported by `doc/Algo-Spine.md` (sequencing)
 and `doc/Functional.md` (purity and memoization readiness).
 
-Remaining: reconcile inline-block boundaries in B3, geometry coverage, and
+B3 boundary wording is clarified in the core contract. Remaining: align
+validation predicates, geometry coverage, and
 optional geometry mirrors with immutable pass inputs. Track these under
 checklist task 7; settle any ambiguity needed by a fix before implementing it.
 
@@ -23,8 +24,13 @@ Frozen decisions for the current phase:
 
 - `BoxID` is unique per box; `NodeID` is for source mapping and may be shared by
   split inline fragments. All side tables use `BoxID`.
-- Anonymous IDs are deterministic, derived from parent BoxID and run index;
-  no shared sentinel ID. The implementation must guarantee uniqueness.
+- Anonymous IDs are deterministic from the allocation parent and run/traversal
+  order, with build-local collision resolution; no shared sentinel ID.
+- Generated BoxIDs are nonzero and unique within a build. Candidate arithmetic
+  uses an allocated-ID set and deterministic probing, including wraparound.
+  Identical builds and omission of empty text preserve IDs; arbitrary structural
+  edits need not. Allocation parents may precede normalization wrappers, so IDs
+  do not encode final tree paths. NodeID is the source association across edits.
 - Used values live in `UsedValuesTable[BoxID]`, outside the structural tree.
 - `LayoutGeometryTable[BoxID]` is authoritative. Optional node mirrors must agree
   with it; their compatibility with pure pass inputs remains to be resolved.
@@ -91,14 +97,18 @@ across passes. Existing tests do not establish full pipeline correctness.
 ## 5) Complete Pass 1: BuildLayoutTree
 
 Status: anonymous wrapping and split/hoist logic are implemented with basic
-tests. BoxIDs are assigned deterministically, but uniqueness is not safeguarded.
+tests. Mixed-run slice ownership and empty normalization are fixed. BoxIDs now
+have collision protection and regression coverage for uniqueness and stability.
 
-Remaining: transport computed styles and define anonymous styles (task 1),
-normalize empty containers (task 4), strengthen identity guarantees (task 5),
-and validate distinct mixed inline runs and atomic inline-block boundaries.
+Typed style/source transport (task 1), empty normalization (task 4), identity
+protection (task 5), and distinct mixed runs (task 8) have regression coverage.
+Anonymous wrappers use auto width, zero edges, and inherited font size.
+Remaining: external adapter fixture/source lookup and broader supported behavior.
 
-CSSDOM adapter and text-source integration remain deferred plumbing work;
-style transport through the existing stub is required for the current pipeline.
+Minimal source-reference plumbing and supported typed style transport are
+implemented for task 1 / M1; `doc/Tree-Type.md` documents their input rules.
+General CSSDOM adapter integration remains separate; selection/caret mapping is
+still deferred. Core tests do not establish working tytui wiring.
 
 ## 6) Complete Pass 2: ResolveUsedValues
 
@@ -120,14 +130,29 @@ mutation with functional constraints (task 7 and the validation checklist).
 
 ## 8) Execution order and completion gate
 
-Follow the checklist's priorities:
+The recommended next track is the bounded document experiment described in
+[Document-Layout-Integration.md](Document-Layout-Integration.md). Use the
+[checklist crosswalk](Current-Checklist.md#execution-order-and-integration-crosswalk)
+for task ownership and acceptance targets:
 
-1. Preserve styles (task 1) and jointly resolve inline-block sizing and descendant
-   widths (tasks 2 and 3). Settle the necessary pass-boundary design first.
-2. Enforce empty normalization and identity guarantees (tasks 4 and 5).
-3. Audit unused abstractions and settle incomplete behavior (task 6).
-4. Finish documentation reconciliation (task 7), updating affected contracts as
-   decisions are made rather than postponing required design work.
+1. M1: preserve styles/source references and distinct runs, normalize empty
+   containers, and enforce identity guarantees (tasks 1, 8, 4, 5).
+2. M2: decide height/retention/request semantics, units/baselines, and ownership
+   (task 9), then update contracts and implement the selected boundary.
+3. M3-M4: prove fake-paragraph placement, nested coordinates, resize, immutable
+   snapshots, and failure handling (tasks 10 and 11).
+4. M5-M6: connect synthetic typography and real-font proofs in tytui, with core
+   fixes upstream. Update affected documentation alongside each decision (task 7).
+5. Later: jointly address inline-block sizing and descendant resolution (tasks
+   2 and 3), plus remaining abstraction and behavior cleanup (task 6).
+
+M1 and coordinate regressions can proceed while M2 proposals are discussed.
+Explicit group height and anonymous-group retention remain proposals, not frozen
+changes to the rules above. The decision gate must resolve these conflicts before
+dependent API changes. The experiment uses explicit non-auto margins; this does
+not silently defer auto margins for the broader engine.
+
+Finishing the document experiment does not complete the broader core roadmap.
 
 The current phase is complete when the agreed structural, identity, used-value,
 geometry, and immutability acceptance criteria have tests; a styled end-to-end

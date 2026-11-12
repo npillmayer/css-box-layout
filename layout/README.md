@@ -11,12 +11,13 @@ This package implements the core CSS box layout pipeline. It defines the layout 
 ## Files (overview)
 - `box.go`: core layout types (LayoutNode, BoxKind, geometry, edges).
 - `boxid.go`: deterministic BoxID generation.
+- `build_style.go`: typed style validation, snapshots, and anonymous inheritance.
 - `flow.go`: Pass 1 helpers (flow items, normalizeBlockChildren, split+hoist).
 - `layout.go`: public entry points for layout passes.
 - `interfaces.go`: interfaces for inline layout and intrinsic measurement.
 - `render.go`: minimal render-node stub for BuildLayoutTree (to be replaced by CSSDOM adapter).
 - `stubs.go`: temporary types/placeholders used during early implementation.
-- `*_test.go`: unit tests for pass-1 behavior and invariants.
+- `*_test.go`: construction, identity, source/style, used-value, and flow tests.
 
 ## Notes
 - CSSDOM creation, line breaking, and text shaping are external concerns and are integrated via interfaces.
@@ -64,3 +65,40 @@ if err != nil {
 }
 _ = res
 ```
+
+## Supplying styles and text sources
+
+The builder reads display from RenderNode.Styles and box values from the typed
+RenderNode.Style field. It does not parse CSS lengths. For example:
+
+```go
+style := layout.DefaultComputedStyle()
+style.Width = layout.Length{Kind: layout.LenPx, Value: 240}
+style.FontSizePx = 16
+root.Style = &style
+```
+
+A text node must carry its adapter-owned source reference:
+
+```go
+leaf := &layout.RenderNode{
+    ID: 2,
+    HTML: &html.Node{Type: html.TextNode, Data: "hello"},
+    Text: &text.TextRef{
+        Source: 7,
+        Range: text.TextRange{Start: 100, End: 105},
+    },
+}
+root.ChildrenNodes = []*layout.RenderNode{leaf}
+```
+
+Here `text` is `github.com/npillmayer/css-box-layout/text`. The adapter supplies
+source 7 and validates the range against its bytes. Supplied ranges are copied
+without rebasing; HTML.Data is not the storage contract. The builder drops empty
+ranges and rejects reversed ranges or nonempty text without a reference.
+
+Nil Style uses defaults; a non-nil zero style has explicit width 0px. FontSizePx
+zero means inherit/fallback, not explicit CSS zero. Anonymous wrappers inherit
+font size but not box edges. See [Tree-Type.md](../doc/Tree-Type.md) for the supported
+subset and adapter responsibilities. Run `go test ./...` and `go vet ./...` for
+validation.

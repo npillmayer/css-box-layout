@@ -1,6 +1,7 @@
 package layout
 
 import (
+	"github.com/npillmayer/css-box-layout/text"
 	"testing"
 
 	"golang.org/x/net/html"
@@ -18,6 +19,7 @@ func newRenderElement(id NodeID, display string, children ...*RenderNode) *Rende
 func newRenderText(id NodeID, data string) *RenderNode {
 	return &RenderNode{
 		ID:     id,
+		Text:   &text.TextRef{Source: text.TextSourceID(id), Range: text.TextRange{End: uint64(len(data))}},
 		HTML:   &html.Node{Type: html.TextNode, Data: data},
 		Styles: map[string]string{"display": "inline"},
 	}
@@ -216,5 +218,66 @@ func TestBuildBlockContainer_MixedInlineBlock(t *testing.T) {
 	}
 	if node.Children[1].Box != BoxBlock {
 		t.Fatalf("expected block child preserved")
+	}
+}
+
+func TestBuildLayoutTree_MixedInlineRunsPreserveSources(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		runLengths []int
+	}{
+		{name: "text_block_text", runLengths: []int{1, 1}},
+		{name: "shorter_later_run", runLengths: []int{3, 1}},
+		{name: "longer_later_run", runLengths: []int{1, 3}},
+		{name: "multiple_unequal_runs", runLengths: []int{2, 1, 3}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var input []*RenderNode
+			var wantRuns [][]NodeID
+			var wantBlocks []NodeID
+			nextID := NodeID(2)
+			for i, length := range tc.runLengths {
+				if i > 0 {
+					input = append(input, newRenderElement(nextID, "block"))
+					wantBlocks = append(wantBlocks, nextID)
+					nextID++
+				}
+				var ids []NodeID
+				for j := 0; j < length; j++ {
+					input = append(input, newRenderText(nextID, "text"))
+					ids = append(ids, nextID)
+					nextID++
+				}
+				wantRuns = append(wantRuns, ids)
+			}
+			root, err := BuildLayoutTree(newRenderElement(1, "block", input...), BuildOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(root.Children) != 2*len(wantRuns)-1 {
+				t.Fatalf("got %d children, want %d", len(root.Children), 2*len(wantRuns)-1)
+			}
+			for i, ids := range wantRuns {
+				wrapper := root.Children[2*i]
+				if wrapper.Box != BoxAnonymousBlock || len(wrapper.Children) != 1 || wrapper.Children[0].Box != BoxAnonymousInline {
+					t.Fatalf("run %d: expected anonymous block with one anonymous inline root", i)
+				}
+				run := wrapper.Children[0].Children
+				if len(run) != len(ids) {
+					t.Fatalf("run %d: got %d text nodes, want %d", i, len(run), len(ids))
+				}
+				for j, id := range ids {
+					if run[j].Box != BoxText || run[j].NodeID != id {
+						t.Errorf("run %d child %d: got kind %v source %d, want text source %d", i, j, run[j].Box, run[j].NodeID, id)
+					}
+				}
+				if i < len(wantBlocks) {
+					block := root.Children[2*i+1]
+					if block.Box != BoxBlock || block.NodeID != wantBlocks[i] {
+						t.Errorf("block %d: got kind %v source %d, want block source %d", i, block.Box, block.NodeID, wantBlocks[i])
+					}
+				}
+			}
+		})
 	}
 }
