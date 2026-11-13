@@ -1,7 +1,7 @@
 # Current Checklist
 
 Working implementation and validation checklist, reviewed against `layout/` on
-2026-11-02; cross-checked with the integration assessment on 2026-11-12.
+2026-11-02; integration milestones updated through core M4 on 2026-11-13.
 This is a planning artifact, not the algorithm contract.
 `doc/CSS-Algo-Overview.md` is authoritative; frozen decisions are recorded in
 `doc/Exec-Roadmap.md`. Unchecked tasks below remain open.
@@ -23,10 +23,10 @@ This is a planning artifact, not the algorithm contract.
   `UsedValuesTable[BoxID]`, with resolved lengths in pixels. Percent values use
   0..1. Code and the refreshed signature documentation use `float32`; the integration
   conversion/precision policy remains to be decided in task 9.
-- Results: `LayoutResult.Root` references the tree;
-  `LayoutGeometryTable[BoxID]` is authoritative. Geometry may be mirrored on
-  nodes under the core contract, but input mutation conflicts with the functional
-  constraints and needs reconciliation.
+- Results: `LayoutResult.Root` shares the immutable structural tree;
+  `LayoutGeometryTable[BoxID]` is fresh per invocation and exclusively owns
+  derived geometry. No node mirrors remain. Published trees, styles, and result
+  tables are read-only by ownership contract, not enforced by Go.
 - Coordinates: Frame is the border box, Content is the content box, both relative
   to the parent content box; root origin is (0,0). Margins are separate.
 - Empty block containers receive one empty `BoxAnonymousInline` child. This is
@@ -52,7 +52,8 @@ does not declare the external adapter or broader core complete.
 | Implement accepted boundary and prove placement | 9, 10 | M2-M3 | Core tests with fake paragraphs; explicit widths and full extents |
 | Prove resize and snapshots | 11 | M4 | Core immutability plus tytui publication/retention checks |
 | Connect paragraph implementations and proof | Accepted boundary, 7 follow-through | M5-M6 | tytui integration; core fixes remain upstream |
-| Extend beyond the bounded experiment | 2, 3; remaining 6 and 7 | Later track | Inline-blocks/intrinsics and broader cleanup are not first-experiment prerequisites |
+| Fixed-width recursive inline-block extension | 2A, 3A, relevant 7 | Separate core/adapter track | Contract and fake-adapter proof first; not a prerequisite for M5-M6 |
+| Auto sizing and broader cleanup | 2B, 3B; remaining 6 and 7 | Follow-up | Intrinsics/speculation follow fixed-width acceptance |
 
 Task 9 core changes and error checks are implemented; real adapter conversion
 and publication remain. M3-M4 now use the accepted extent-only contract;
@@ -83,27 +84,82 @@ using definite widths and explicit non-auto margins.
   normalization; the shared sample resolves group widths 240/120/240px. No
   selection/caret subsystem or general CSSDOM adapter is required to prove this.
 
-### 2. Repair inline-block sizing - later atomic-inline track
+### 2. Recursive inline-block sizing and placement - fixed-width first
 
-- [ ] Distinguish auto width from explicit zero, apply the chosen content width
-  before internal layout, and return dimensions including padding and borders.
-- [ ] Keep authoritative geometry and any node mirrors consistent.
-- Current gap: `atomicSizer` computes a width but lays out using the old used
-  value, then overwrites only node widths with the content width.
-- Acceptance: auto, fixed, and zero widths; nonzero padding/borders;
-  width-sensitive line breaking; returned dimensions agree with geometry.
-- Coordinate with task 3 before finalizing the sizing implementation.
+Agreed direction: retain synchronous core -> paragraph -> AtomicSizer -> core
+recursion. Core owns internal geometry; the paragraph adapter owns atomic line
+placement, keyed by the existing BoxID. Construction and callback recursion exist;
+correct recursive sizing/placement is not yet established. See integration
+section 4.1 for the collaboration contract. All steps below are still open.
 
-### 3. Resolve inline-block descendant widths - later atomic-inline track
+#### 2A. Fixed-width implementation sequence (with 3A)
 
-- [ ] Use the inline-block's content width for descendant used values when its
-  width is known. Define resolution when auto width is determined by sizing.
-- Current gap: `childResolveContext` uses the outer containing width even for
-  fixed-width inline-blocks.
-- Acceptance: child widths and percentage padding use the final inline-block
-  content width. Document how late width determination fits the pass boundaries
-  and ensures resolved edges are available before internal line breaking.
-- Preserve the current max-content approximation; true shrink-to-fit is deferred.
+1. [ ] Specify placement ownership concretely before code changes: typed adapter
+   placement record keyed by atomic BoxID, containing-group association, coordinate
+   origin, and once-only composition with core geometry. Decide how final placement
+   is exposed without treating the current zero-origin entry as a final position.
+   Define the first fixture's vertical alignment and margin policy explicitly;
+   general baseline alignment remains separate. Preserve extent-only returns.
+2. [ ] Add build -> resolve -> flow regression fixtures with ordinary inline
+   spans surrounding at least two nested inline-block boundaries. Preserve IDs,
+   source/style references, and block children inside an atomic boundary; do not
+   hoist them into the outer paragraph. Separate outer-flow classification from
+   block-container capability where validation needs it (task 7).
+3. [ ] Implement fixed CSS-pixel content widths, including explicit zero, without
+   calling intrinsic measurement or clamping to remaining line width. Distinguish
+   auto from zero and define explicit rejection of unsupported auto sizing in the
+   bounded fixture. Complete 3A before inner paragraph callbacks. Return finite
+   border-box W/H including padding/borders; margins remain separate.
+4. [ ] Exercise a reentrant fake paragraph adapter: stop outer traversal at each
+   atomic item, call AtomicSizer, retain inner groups separately, then resume the
+   outer call and retain its final placement by BoxID. Use one accepted sizing
+   call per atomic box per invocation; reject unsupported repeated trials.
+5. [ ] Verify final nested document origins, outer line fitting/overflow and
+   following-sibling heights, nonzero edges, explicit-zero/empty contents, and
+   all inner/outer typed associations. Inject an inner failure after earlier
+   success; discard the whole pending document while preserving previous results
+   and immutable inputs. Re-run at new outer widths; fixed atomic widths stay
+   fixed. Run full tests, vet, and race checks.
+
+Acceptance: independently specified widths, border-box sizes, composed positions,
+and call nesting agree across at least two atomic boundaries. Fake-adapter proof
+must not be described as real tytui support; actual adapter wiring has its own
+integration gate. First step is the placement/alignment contract, not auto sizing.
+
+#### 2B. Follow-up after fixed-width acceptance
+
+- [ ] Apply chosen auto width before internal layout; add checked intrinsic
+  dependencies and width-sensitive measurements. Coordinate with 3B.
+- [ ] Design acceptance/discard for speculative widths and repeated group calls,
+  covering geometry, typed paragraph results, and placement together.
+- [ ] Extend atomic alignment to the required baseline/margin behavior without
+  restoring core paragraph line summaries.
+- Current sizing gaps: auto width is not propagated into internal layout, and
+  returned width currently omits border/padding. M4 fixed mutation, not sizing.
+- True shrink-to-fit remains deferred; the current max-content approximation is
+  not a claim of CSS-complete auto sizing.
+
+### 3. Resolve inline-block descendant widths - paired with task 2
+
+#### 3A. Fixed-width prerequisite
+
+- [ ] Use each fixed inline-block's content width as its descendants' containing
+  width, recursively. Resolve child percentage widths and percentage edges before
+  invoking inner LayoutInline; ordinary inline wrappers must preserve this basis.
+- [ ] Test multiple nested fixed widths with percentage-sized block descendants,
+  nonzero edges, and explicit-zero atomic content width. Available callback width
+  must be the owner's content width, not its border-box or outer paragraph width.
+- Current gap: `childResolveContext` still uses the outer containing width even
+  for fixed-width inline-blocks. Repair without mutating input trees/tables.
+
+#### 3B. Late width determination (after 2A/3A)
+
+- [ ] Define invocation-local descendant resolution after auto width is selected,
+  including the used-values view seen by nested callbacks. Never mutate caller
+  tables or publish provisional geometry/retained results as accepted output.
+- Acceptance: every internal line-breaking decision sees edges and descendant
+  widths resolved against the selected content width; pass dependencies remain
+  explicit. Caching and true shrink-to-fit are not part of this first extension.
 
 ### 4. Enforce empty-container normalization - immediate / M1
 
@@ -135,6 +191,11 @@ using definite widths and explicit non-auto margins.
 
 ### 6. Resolve unused abstractions and incomplete behavior - scoped cleanup
 
+- [x] Remove the unused `glyphing` package and its superseded line/glyph result
+  sketches. No imports were found in this repository or the local Go repositories
+  searched; unknown external consumers may need migration. Concrete paragraph
+  results remain adapter-owned; no replacement core package is introduced.
+
 - [ ] Audit repository-wide references to `BoxMetrics`, `InlineIntrinsic`, and
   `StyNodeView` before removing or integrating them. Lack of internal use alone
   does not establish that an exported API can be removed safely.
@@ -150,8 +211,8 @@ using definite widths and explicit non-auto margins.
 
 - [ ] Align actual signatures, adapter boundaries, numeric types, and result
   representation across the contract, signature sketches, and package README.
-- [ ] Document the ownership solution implemented under task 11; do not treat
-  node mutation as a documentation-only issue.
+- [x] Document task 11 ownership: structural inputs remain read-only; fresh
+  result tables exclusively own geometry, with no node mirrors.
 - B3 wording is now clarified in the core contract. Remaining work:
 - [ ] Align validation predicates: `IsBlockLevel` currently includes
   `BoxInlineBlock`, although inline-blocks are permitted as atomic inline items.
@@ -185,7 +246,7 @@ using definite widths and explicit non-auto margins.
   and wrapped adapter failures. Return nil LayoutResult on failure.
 - [x] Update core contracts/signatures and prove behavior with typed fake adapters.
 - [ ] Implement real unit conversion/rounding and snapshot publication in tytui;
-  full node-geometry immutability still belongs to task 11.
+  core input immutability is implemented and tested under task 11.
 - Acceptance: full extent flows without line summaries; typed results stay outside
   core. Fake tests pass for all three groups, trailing space, zero-width empty
   groups, and errors. The actual paragraph engine is not wired yet.
@@ -204,16 +265,26 @@ using definite widths and explicit non-auto margins.
 - Acceptance: independently specified positions match; paragraph-local lines
   are not restacked and parent transforms are applied exactly once.
 
-### 11. Preserve snapshots through resize and errors - M4
+### 11. Preserve snapshots through resize and errors - core complete / M4
 
-- [ ] Remove input-node geometry mutation or implement agreed copy/ownership
-  semantics; keep geometry, paragraph references, and paint snapshots consistent.
-- [ ] Recompute used values for a 120px -> 90px width change; use a fake whose
+- [x] Remove input-node geometry mutation, including atomic-sizing callbacks.
+  Geometry lives only in fresh result tables; results share the structural root.
+- [x] Recompute used values for a 120px -> 90px width change; use a fake whose
   height changes, and verify following siblings move by that height difference.
-- [ ] Verify a failed run leaves the previous successful result usable.
-- Acceptance: old table and Root views do not disagree after a second layout;
-  retained paragraph data stays valid. Core owns layout purity; tytui owns atomic
-  publication of its complete document result. No caching is required.
+- [x] Verify a failed run leaves the previous successful result usable, including
+  invocation-local typed paragraph retention and paint in a fake document adapter.
+- [ ] Exercise complete document publication with the actual tytui adapter.
+- Verified 2026-11-13: root constraints 240px -> 180px change G2 width 120px ->
+  90px, H2 36px -> 48px, G3 Y 60px -> 72px, and root height 72px -> 84px.
+  Failure after an earlier successful callback preserves old results; a later
+  successful rerun is deterministic. Shared read-only inputs support concurrent
+  flows. Full tests, vet, and race checks pass.
+- Ownership: caller and callbacks must not mutate shared trees/styles or published
+  tables. New style/structure requires a new tree; resized constraints require
+  fresh used values, not a new tree. No caching or defensive deep copy is added.
+- Acceptance: old geometry and Root remain consistent; retained paragraph data
+  stays valid. Core owns layout purity; tytui owns atomic publication of its
+  complete document result. The fake fixture does not prove real tytui wiring.
 
 ## Validation checklist
 
@@ -236,7 +307,8 @@ These are acceptance targets, not claims that existing tests prove them.
 - [x] Validate explicit extent and adapter-owned typed associations, including
   anonymous groups, trailing space, and empty results (core fake-adapter tests).
 - [ ] Atomic sizes match stored geometry when the later atomic-inline track runs.
-- [ ] Repeated layout preserves the agreed input-immutability and identity rules.
+- [x] Repeated layout preserves input immutability and identity, including
+  resize, failure, atomic callbacks, and concurrent read-only runs (core tests).
 
 Margin collapsing, floats/positioning, fine inline metrics/fragments, bidi,
 vertical writing modes, selection/caret DOM mapping, adjacent text merging, and caching

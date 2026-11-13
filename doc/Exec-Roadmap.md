@@ -1,6 +1,7 @@
 # Execution Roadmap
 
-High-level milestones for the core layout pipeline, reviewed on 2026-11-02; integration sequencing aligned on 2026-11-12.
+High-level milestones for the core layout pipeline, reviewed on 2026-11-02;
+integration sequencing aligned through core M4 on 2026-11-13.
 `doc/CSS-Algo-Overview.md` is the authoritative algorithm contract.
 `doc/Current-Checklist.md` holds prioritized tasks and detailed acceptance criteria.
 Implementation status below does not imply that all invariants are validated.
@@ -11,9 +12,9 @@ Status: the core contract exists, supported by `doc/Algo-Spine.md` (sequencing)
 and `doc/Functional.md` (purity and memoization readiness).
 
 B3 boundary wording is clarified in the core contract. Remaining: align
-validation predicates, geometry coverage, and
-optional geometry mirrors with immutable pass inputs. Track these under
-checklist task 7; settle any ambiguity needed by a fix before implementing it.
+validation predicates and geometry coverage. Track these under checklist task 7;
+settle any ambiguity needed by a fix before implementing it. M4 establishes
+table-only geometry and immutable structural inputs, with no node mirrors.
 
 ## 2) Freeze IRs and invariants
 
@@ -32,8 +33,10 @@ Frozen decisions for the current phase:
   edits need not. Allocation parents may precede normalization wrappers, so IDs
   do not encode final tree paths. NodeID is the source association across edits.
 - Used values live in `UsedValuesTable[BoxID]`, outside the structural tree.
-- `LayoutGeometryTable[BoxID]` is authoritative. Optional node mirrors must agree
-  with it; their compatibility with pure pass inputs remains to be resolved.
+- `LayoutGeometryTable[BoxID]` exclusively owns geometry and is fresh per flow.
+  LayoutResult.Root shares the immutable structural tree. No node mirrors remain.
+  Callers/adapters must treat published trees, styles, and results as read-only.
+  Resize recomputes used values; changed styles/structure require a new tree.
 - Frame is the border box; Content excludes padding and borders. Margins remain
   separate. Coordinates are relative to parent content boxes; root origin is (0,0).
 - Empty block containers receive one empty `BoxAnonymousInline` child.
@@ -46,9 +49,19 @@ Frozen decisions for the current phase:
 - Text references use a stable `TextSourceID` and non-empty `[Start,End)` byte
   ranges. Empty ranges are dropped without destabilizing other IDs.
 - Inline-blocks are atomic inline participants with an internal block container;
-  atomic sizing returns border-box dimensions.
+  atomic sizing returns border-box dimensions. Retain recursive delegation:
+  LayoutInline -> AtomicSizer -> core -> inner LayoutInline. Adapters must be
+  reentrant and preserve suspended outer-call state.
+- Core owns atomic internal geometry; the paragraph adapter owns final atomic
+  line placement, associated by existing BoxID. Concrete placement/composition
+  and alignment interfaces remain to be specified; size alone is not placement.
+- Fixed CSS-pixel recursive inline-block support comes before auto sizing:
+  checklist 2A/3A starts with placement/alignment contract, then regression fixtures,
+  correct sizing/resolution, and a reentrant fake-adapter proof. One accepted
+  sizing call per atomic box per invocation initially; speculative trials follow
+  only with nested-result acceptance/discard semantics (2B/3B).
 
-Remaining: define anonymous styles, explicit auto-width state, geometry scope,
+Anonymous style rules are implemented. Remaining: explicit auto-width state, geometry scope,
 and validation predicates that distinguish block containers from block-level
 flow participants. The detailed validation checklist lives in
 `doc/Current-Checklist.md`; these are requirements, not completed checks.
@@ -131,9 +144,10 @@ trailing space, anonymous/empty groups, and input/output error handling.
 
 Nested parent-content-relative coordinates are fixed and regression-tested with
 three-level nesting and nonzero edges (task 10, 2026-11-13).
-Remaining: repair atomic sizing and geometry consistency (task 2), define geometry
-coverage, and reconcile node
-mutation with functional constraints (task 7 and the validation checklist).
+M4 removes all node geometry writes, including atomic callbacks. Resize/failure
+and concurrent-read regressions pass, including full tests, vet, and race checks.
+Remaining: repair atomic sizing and geometry consistency (task 2), and define
+geometry coverage (task 7 and the validation checklist).
 
 ## 8) Execution order and completion gate
 
@@ -150,13 +164,17 @@ for task ownership and acceptance targets:
    snapshots, and failure handling (tasks 10 and 11).
 4. M5-M6: connect synthetic typography and real-font proofs in tytui, with core
    fixes upstream. Update affected documentation alongside each decision (task 7).
-5. Later: jointly address inline-block sizing and descendant resolution (tasks
-   2 and 3), plus remaining abstraction and behavior cleanup (task 6).
+5. Separate extension: fixed-width recursive inline-blocks (tasks 2A/3A), starting
+   with concrete placement/alignment ownership and multi-level regression fixtures.
+   Auto sizing/speculation follow under 2B/3B; broader cleanup remains task 6.
+   This extension is not a prerequisite for the bounded M5-M6 document proof.
 
 M2 extent-only return and adapter-owned typed retention are agreed and implemented
-in the core. Actual conversion/retention wiring in tytui remains open. Next core
-work is M4 snapshot purity; M3 nested-coordinate fixes are implemented and tested. The experiment uses explicit non-auto margins; this does
-not silently defer auto margins for the broader engine.
+in the core. M3 coordinates and M4 snapshot purity are implemented and tested.
+Next is tytui integration toward M5: complete the actual source adapter, unit
+conversion, typed retention, and publication checks left open in M1/M2/M4.
+The experiment uses explicit non-auto margins; this does not silently defer
+auto margins for the broader engine.
 
 Finishing the document experiment does not complete the broader core roadmap.
 

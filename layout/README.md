@@ -119,7 +119,25 @@ Do not return lines or a payload. `layout.LineBox`, `LinesByBlock`, and
 adapter's concrete result table, which must include anonymous groups too.
 
 Create that table per invocation and publish it with successful document geometry
-only. Discard partial adapter state after errors. Nested coordinates now use parent-content-relative placement. Core snapshot
-purity remains separately tracked; nil LayoutResult on error does
-not yet guarantee unchanged input-node mirrors. Atomic inline sizing remains
-unfinished. The extent-only tests use normal block flow and fake typed paragraphs.
+only. Discard partial adapter state after errors. Nested coordinates use
+parent-content-relative placement. Atomic inline sizing remains unfinished.
+The extent-only tests use normal block flow and fake typed paragraphs.
+
+## Snapshot ownership and geometry migration
+
+`LayoutNode.Frame` and `LayoutNode.Content` are removed. Read geometry through
+`res.Geometry[node.BoxID].Frame` and `.Content` instead. Each FlowLayout invocation
+owns a fresh geometry table; success and failure leave the input tree, used values,
+and previous results unchanged, provided callbacks honor the read-only contract.
+
+`res.Root` shares the structural input rather than copying it. Keep that tree,
+its styles, and published result tables immutable for their lifetime. Go does not
+enforce this contract. Build a new tree for changed styles/structure. For resized
+constraints, reuse the tree and call ResolveUsedValues again before FlowLayout;
+changing LayoutContext alone does not recompute widths.
+
+Adapters retain concrete paragraph results and paint per invocation, publishing
+them with geometry only after complete success. Core tests exercise this ownership
+pattern with a fake document adapter; real tytui publication remains integration
+work. Resize, failed callbacks, atomic-callback immutability, and concurrent
+read-only layouts have regression coverage. No caching is introduced.

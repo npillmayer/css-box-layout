@@ -10,7 +10,8 @@
 - `doc/Pass-Signatures.md`: pass boundaries, signatures, and provisional package structure.
 - `doc/Pass-Algorithms.md`: per-pass pseudocode sketches and test outlines.
 - `doc/Tree-Type.md`: CSSDOM tree types and traversal interface.
-- The repo includes early Go stubs under `layout/`, `glyphing/`, and `text/`.
+- Core layout code lives under `layout/`; source-reference types live under `text/`.
+- Glyph representations and line breaking belong to external typography services.
 
 ## Build, Test, and Development Commands
 - No build, run, or test commands are defined yet.

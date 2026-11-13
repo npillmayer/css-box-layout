@@ -106,8 +106,9 @@ final rule.
 
 ## Pass 3: FlowLayout
 
-The sketch constructs fresh output tables. It does not authorize writes to
-input nodes. Any optional geometry mirrors require an ownership/copying design.
+The implementation and sketch construct fresh output tables without writes to
+input nodes. Results share the immutable structural root; there are no geometry
+mirrors on nodes. Callbacks must honor the same read-only input contract.
 
 ```text
 FlowLayout(root, used, inline, intrinsic, ctx):

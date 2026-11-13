@@ -1,7 +1,8 @@
 # Document Layout Integration
 
 Assessment and implementation plan, 2026-11-12. Extent-only boundary now implemented
-in the core; actual tytui integration remains outstanding.
+in the core; M3/M4 core verification updated 2026-11-13. Actual tytui integration
+remains outstanding.
 
 This document evaluates the collaboration proposed in tytui's
 [three document-layout views](../../tytui/doc/DOCUMENT_LAYOUT_VIEWS.md), especially
@@ -73,7 +74,8 @@ Verification during the assessment:
 
 These probes established implementation gaps. Mixed-run corruption now has a
 fix and regression tests (M1). The coordinate probe now has a three-level
-regression and fix (M3, 2026-11-13); snapshot purity remains open (M4). Empty-container normalization and build-local identity guarantees are also
+regression and fix (M3, 2026-11-13); M4 removes node geometry mirrors and verifies
+snapshot purity. Empty-container normalization and build-local identity guarantees are also
 implemented and regression-tested; see M1 and the current checklist.
 
 ## 3. Agreed paragraph boundary (core implemented)
@@ -113,11 +115,13 @@ The adapter explicitly records successful paragraph calls in local state and
 publishes that table with geometry, source correspondence, and separate paint only
 after the whole layout succeeds. Failure discards partial adapter state. The first
 experiment assumes one accepted result per group per invocation; speculative or
-repeated requests need an acceptance policy before being supported. Full snapshot
-purity of shared node geometry is still task 11, not solved by this table alone.
+repeated requests need an acceptance policy before being supported. Core snapshot
+purity is implemented under task 11: structural nodes contain no geometry, and
+FlowLayout writes only to its invocation's fresh geometry table.
 
 Used.Lookup returns value copies; callers must not mutate the group or input maps
-while layout runs. Source/style lookup is explicit immutable adapter state keyed
+throughout the lifetime of shared snapshots. Source/style lookup is explicit
+immutable adapter state keyed
 by source identities. Flow validates used-value presence, finite/nonnegative
 widths and box edges (signed margins allowed) before invoking callbacks. Invalid
 extents and wrapped adapter errors return nil LayoutResult. Tests demonstrate
@@ -137,11 +141,68 @@ three typed retained results, zero-width empty groups, trailing space, and error
 | Errors | Missing used values, unsupported material, and invalid dimensions must fail explicitly rather than silently produce zero geometry |
 | Result lifetime | Publish complete immutable snapshots; failed layout must not replace the previous successful document result |
 | Resize | Recompute relevant used values and rerun paragraph layout at new widths; caching and incremental invalidation are deferred |
-| Atomic items | Excluded initially; existing AtomicSizer signatures do not establish working sizing, descendant resolution, or placement |
+| Atomic items | Excluded from M1-M6 initially; fixed-width recursive extension is planned in section 4.1 and checklist 2A/3A |
 
-Geometry tables already survive later runs independently, but shared node mirrors
-break full snapshot consistency. Prefer keeping derived geometry out of input
-nodes; if mirrors remain, define copying/ownership before claiming immutability.
+Geometry tables survive later runs independently; LayoutNode has no geometry
+mirrors. Results share a structural tree that callers/adapters must keep immutable,
+including styles. Reuse that tree for changed constraints and recompute used
+values; build a new tree for style/structure edits. Published result tables also
+remain read-only by ownership contract. Core cannot roll back arbitrary callback
+side effects; the adapter must discard failed invocation state.
+
+### 4.1. Agreed recursive inline-block extension
+
+Decision, 2026-11-13: retain the existing recursive callback direction. An
+inline-block is atomic to its outer paragraph, but its internal block container
+can hold inline groups and further inline-blocks. Ordinary inline spans do not
+start new paragraph calls. The same adapter instance can be reentered:
+
+```text
+core: outer block
+  -> LayoutInline(outer group)
+     -> AtomicSizer.SizeInlineBlock(A, available width)
+        -> core: A's internal block layout
+           -> LayoutInline(inner group)
+              -> AtomicSizer.SizeInlineBlock(B, ...)
+                 -> core: B's contents -> LayoutInline(...)
+              <- B's border-box size
+           <- inner extent
+     <- A's border-box size
+  <- outer extent
+```
+
+Core owns internal geometry. The paragraph adapter owns each atomic item's final
+line placement, associated by the existing inline-block BoxID, not by a new vlist
+identity. Outer extraction must stop at the atomic boundary rather than flatten
+its text into the outer group. Inner groups retain their own Group.BoxID/OwnerID
+associations. Nested calls use call-local working state and share only the
+invocation's explicit result collections; they must not overwrite outer state.
+
+This direction is agreed, but the placement API is not yet specified. The current
+SizeInlineBlock result gives dimensions only and leaves the core entry at a
+provisional origin. Before implementing placement, define the typed placement
+record, its containing-group association and coordinate basis, and how it composes
+with internal geometry exactly once. State whether/how final placement enters the
+geometry table; do not silently reinterpret the existing parent-content-relative
+contract. No opaque core paragraph payload or line-summary return is needed.
+
+Start with fixed CSS-pixel widths (including zero), recursive descendant
+resolution, border/padding accounting, and a reentrant fake adapter. Fixed widths
+are not reduced to the remaining line width; the outer paragraph handles fitting
+or overflow. Specify a bounded alignment/margin policy for the fixture rather than
+claiming baseline-correct CSS behavior from W/H alone. General atomic baseline
+alignment needs a separate contract, not paragraph line summaries in the core.
+
+Permit one accepted sizing call per atomic box per invocation in the first proof.
+Auto/intrinsic sizing and speculative width trials follow later, with explicit
+acceptance/discard of all nested geometry, retained paragraphs, and placements.
+An inner failure aborts publication of the entire pending document snapshot.
+
+Current code supports construction and recursive delegation; the M4 atomic test
+only proves a single callback's immutability/error path. Sizing, descendant widths,
+final placement, and multi-level reentrancy still need implementation and tests.
+The ordered plan is checklist 2A/3A; auto sizing follows under 2B/3B. This extension
+does not expand the initial M1-M6 fixture or imply real tytui wiring is complete.
 
 ## 5. Milestones and acceptance tests
 
@@ -152,12 +213,14 @@ Keep typography's existing single-paragraph results as controls.
 Execution tracking lives in the [checklist crosswalk](Current-Checklist.md#execution-order-and-integration-crosswalk):
 M1 maps to tasks 1/8/4/5; M2 to task 9 and relevant documentation in 7;
 M3 to task 10; M4 to task 11. M5-M6 are primarily tytui integration work.
-Inline-block tasks 2/3 remain a later track, not prerequisites for this fixture.
+Inline-block tasks 2A/3A form a separate fixed-width-first extension, not
+prerequisites for this fixture; auto sizing follows under 2B/3B.
 Task numbers are stable identifiers rather than scheduling order.
 
 The M2 core API and fake-adapter tests are implemented under the agreed boundary.
 Actual unit conversion and typed publication in tytui remain integration work.
-M3 nested-coordinate fixes are core-tested; M4 snapshot purity remains open.
+M3 nested coordinates and M4 snapshot purity are core-tested. Actual document
+publication in tytui still needs integration verification.
 
 ### M1. Preserve the document through box construction
 
@@ -215,10 +278,20 @@ geometry under root-edge changes. `go test ./...` and `go vet ./...` pass.
 
 ### M4. Verify resize and snapshot ownership
 
-- [ ] Change G2 width from 120px to 90px and recompute used values.
-- [ ] Have the fake return a deliberately different H2 at that width.
-- [ ] Preserve the previous geometry, paragraph payloads, and paint associations.
-- [ ] Inject a failed run and verify the prior successful snapshot stays usable.
+- [x] Change G2 width from 120px to 90px and recompute used values.
+- [x] Have the fake return a deliberately different H2 at that width.
+- [x] Preserve previous geometry, typed paragraph results, and paint associations
+  in a fake document adapter with invocation-local state.
+- [x] Inject a failed run and verify the prior successful snapshot stays usable.
+- [ ] Verify complete snapshot publication through the real tytui adapter.
+
+Core verification completed 2026-11-13: root constraints 240px -> 180px give
+G2 widths 120px -> 90px, H2 36px -> 48px, G3 Y 60px -> 72px, and root height
+72px -> 84px. Failure after one successful group leaves both old layouts and
+publication untouched; a subsequent successful run remains deterministic.
+Additional tests cover atomic-callback input immutability and concurrent flows
+sharing read-only inputs. Full tests, vet, and race checks pass. This does not
+establish actual typography/paint integration.
 
 Acceptance: G3 moves from H1+H2 to H1+H2', and root height follows. The old result
 remains internally consistent. A real narrower paragraph need not change height;
@@ -248,8 +321,10 @@ The supported subset and remaining exclusions are recorded with the fixture.
 ## 6. Decision and tracking discipline
 
 Remaining decisions/work: concrete adapter conversion/rounding and retained
-precision, geometry mirror ownership, and future speculative-call acceptance.
-Extent-only return and adapter-owned typed retention are settled; do not reopen
+precision, actual document publication, concrete atomic placement/alignment
+interfaces, and future speculative-call acceptance.
+Table-only geometry with shared immutable structural input, extent-only return,
+and adapter-owned typed retention are settled; do not reopen
 them as competing core-payload proposals.
 
 When a proposal is accepted, update the core contract and pass signatures, record

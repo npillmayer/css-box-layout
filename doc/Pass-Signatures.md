@@ -16,8 +16,9 @@ Open changes are tracked in `doc/Current-Checklist.md`.
   design for descendant resolution; current boundaries do not solve this by
   themselves (checklist tasks 2 and 3).
 
-Core passes are intended to be pure transforms with explicit dependencies.
-Current FlowLayout mutates nodes; this remains an implementation/design gap.
+Core passes use explicit dependencies. FlowLayout leaves its tree and used
+values unchanged and owns a fresh geometry table. LayoutResult.Root shares the
+read-only structural tree; changed styles/structure require a new tree.
 
 ## 2) Current shared types
 
@@ -38,8 +39,6 @@ type LayoutNode struct {
     Style *ComputedStyle
     Children []*LayoutNode
     Text text.TextRef
-    Frame Rect
-    Content Rect
 }
 
 type UsedValues struct {
@@ -151,10 +150,30 @@ integration task, not a new baseline convention in the core.
 
 Missing used values and invalid widths/edges fail before callbacks. Invalid extents
 fail, and callback errors are wrapped with group/owner identity. Flow returns nil
-on failure, but node mirror mutation remains a task-11 gap. Atomic sizing still
-returns border-box dimensions and intrinsic measurement content width; the later
-inline-block fixes remain necessary. The legacy glyphing sketches are not this
-public paragraph boundary.
+on failure without mutating inputs or earlier results, provided callbacks honor
+the read-only contract. Atomic sizing is specified to return border-box dimensions
+and intrinsic measurement content width; the later inline-block fixes remain
+necessary. Glyph representations and line-breaking results belong to external
+typography services, not to a separate package in this module.
+
+### Recursive atomic callbacks: agreed direction, incomplete implementation
+
+LayoutInline may synchronously call req.Atomic.SizeInlineBlock. That invokes core
+block layout for the atomic box, which can reenter the same InlineLayouter for
+inner groups and repeat at further atomic boundaries. Adapters need call-local
+working state; traversal must not flatten atomic contents into the outer group.
+
+The current SizeInlineBlock signature returns size only. Core owns internal
+geometry; the adapter owns final atomic line placement keyed by BoxID. A concrete
+placement record/composition contract and bounded alignment/margin policy must be
+specified before implementation; the provisional origin is not final placement.
+No new signature is frozen here. Extent-only paragraph returns remain unchanged.
+
+Checklist 2A/3A plans fixed CSS-pixel widths (including zero), recursive descendant
+resolution, border-box sizes, and a reentrant fake-adapter proof first. One accepted
+sizing call per atomic box per invocation is the initial target. Auto/intrinsic
+sizing and repeated/speculative calls require later acceptance/discard semantics
+for all nested results. See integration section 4.1 for ownership details.
 
 ## 5) Package organization and remaining decisions
 
@@ -165,5 +184,6 @@ ownership must be designed to avoid import cycles before splitting packages.
 
 Checklist task 7 covers API/document alignment, input immutability, geometry
 coverage, and numeric representation. Tasks 2 and 3 cover explicit auto-width
-state and descendant resolution. Any optional geometry mirrors must preserve
-the authoritative table and the agreed input ownership rules.
+state and descendant resolution. Geometry exists only in LayoutResult.Geometry;
+LayoutNode.Frame/Content have been removed. Published trees, styles, and result
+tables must remain read-only for their lifetime, not only during a layout call.

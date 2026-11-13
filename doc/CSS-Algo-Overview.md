@@ -86,16 +86,17 @@ LayoutNode (minimal):
 - Style *ComputedStyle
 - Children []*LayoutNode
 - Text TextRef (BoxText only)
-- Optional geometry mirrors: Frame Rect (border box), Content Rect (content box);
-  ownership must satisfy the immutable-input requirement.
+- No derived geometry on nodes; Frame and Content exist only in the result table.
 
 TextRef:
 - TextRef{ Source TextSourceID, Range: [Start,End) }
 - Empty ranges are dropped at build time.
 
 LayoutResult (F):
-- Root *LayoutNode (structural tree reference; geometry table is authoritative)
-- Geometry table `LayoutGeometryTable[BoxID]` (authoritative)
+- Root *LayoutNode (shared immutable structural tree reference)
+- Geometry table `LayoutGeometryTable[BoxID]` (fresh per invocation, authoritative)
+- Published trees, styles, and result tables are read-only by ownership contract.
+  Reuse the tree for resized constraints; build a new tree for style/structure edits.
 - No core line table or opaque paragraph payload. The integration layer retains
   a typed group-BoxID -> owner-BoxID + paragraph-result table per invocation.
 - Used values table is a separate pass output: `UsedValuesTable[BoxID]`.
@@ -149,14 +150,34 @@ Inline layouter (black box):
     No new BoxID is allocated for the vlist. Repeated/speculative group calls
     require an acceptance policy before they are supported.
   - UsedValuesView returns value copies. Treat Group and input tables as read-only
-    during the call. Adapter-owned source/style lookup is explicit adapter state.
+    for the lifetime of shared snapshots. Adapter-owned source/style lookup is
+    explicit immutable adapter state.
   - Flow validates used-value presence and finite/nonnegative widths and box
     edges (margins may be negative) before callbacks. Invalid extents and callback
     failures return an error with no LayoutResult; adapter errors are wrapped.
-    This does not yet make input node geometry mutation transactional (task 11).
+    The core never mutates the input tree or used values, on success or failure.
+    Callbacks must honor the read-only contract; discard partial retained state.
 
 Atomic sizer:
 - SizeInlineBlock(node, maxWidthRemaining) -> (borderBoxW, borderBoxH)
+- Agreed recursive direction: outer LayoutInline calls AtomicSizer; core lays out
+  the inline-block's contents and calls LayoutInline for its inner groups. An
+  ordinary inline span stays within its current group. Adapters must be reentrant:
+  nested calls cannot overwrite the suspended outer call's working state.
+- Core owns internal box geometry; the paragraph adapter owns final placement
+  of the atomic item in its line, associated by the inline-block's existing BoxID.
+  SizeInlineBlock provides sizing, not final placement. The placement record and
+  its composition with core geometry must be specified before claiming support;
+  current zero-origin atomic geometry is not a final parent-relative position.
+- Implement fixed CSS-pixel widths, including explicit zero, before auto sizing.
+  Fixed content width is not clamped to the remaining line width; outer paragraph
+  layout owns line fitting/overflow. Returned size includes border/padding, not
+  margins. Descendants resolve against the inline-block's content width.
+- Atomic alignment/margin participation needs an explicit bounded policy and
+  eventual baseline contract; this does not change the extent-only paragraph
+  return or add line summaries to core. Repeated/speculative sizing remains
+  unsupported until acceptance/discard semantics cover nested geometry and
+  retained results. See checklist tasks 2/3 for scope, tests, and open details.
 
 Intrinsic measurer:
 - MaxContentWidth(node) -> contentBoxW
@@ -185,9 +206,6 @@ Intrinsic measurer:
 
 ## 8) Open representation decisions
 
-- Functional constraints require immutable pass inputs. Current code mutates
-  node geometry; optional geometry mirroring needs an ownership/copying design
-  compatible with that requirement. Mirroring is not permission to mutate inputs.
 - Define geometry coverage for structural inline nodes, text, and anonymous
   inline roots; a single rectangle may not represent fragmented inline content.
 - Auto-width state and horizontal auto-margin distribution need explicit

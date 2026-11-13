@@ -8,6 +8,8 @@ import (
 
 type Edges struct{ Top, Right, Bottom, Left float32 }
 
+// LayoutNode is structural input. Geometry belongs only to LayoutResult.Geometry;
+// callers and adapters must treat a published tree and its styles as immutable.
 type LayoutNode struct {
 	BoxID    BoxID
 	NodeID   NodeID
@@ -16,10 +18,6 @@ type LayoutNode struct {
 	Style    *ComputedStyle
 	Children []*LayoutNode
 	Text     text.TextRef // For BoxText only (range in base rope)
-
-	// Computed during layout: border/content rects relative to parent content box.
-	Frame   Rect // border box (recommended)
-	Content Rect // content box
 }
 
 type BoxKind uint8
@@ -85,17 +83,14 @@ func (a atomicSizer) SizeInlineBlock(n *LayoutNode, maxWidth float32) (float32, 
 		usedW = min(maxWidth, maxContent)
 	}
 
-	// Layout internal contents as a block container with usedW.
+	// Internal layout still uses the resolved table; auto-width propagation is
+	// a separate sizing task. All derived geometry stays in the invocation table.
 	err := layoutBlockContainer(n, a.used, a.geom, a.inline, a.intrinsic)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	// After layoutBlockContainer, n.Frame.H is known; width is usedW.
-	n.Frame.W = usedW
-	n.Content.W = usedW
-
-	return usedW, n.Frame.H, nil
+	return usedW, a.geom[n.BoxID].Frame.H, nil
 }
 
 type LengthKind uint8

@@ -71,9 +71,6 @@ func TestFlowLayout_NestedContentRelativeCoordinates(t *testing.T) {
 		if got != expected {
 			t.Errorf("source %d: geometry=%+v, want %+v", id, got, expected)
 		}
-		if n.Frame != got.Frame || n.Content != got.Content {
-			t.Errorf("source %d: node mirror disagrees", id)
-		}
 	}
 	if !reflect.DeepEqual(calls, []BoxID{bySource[3].BoxID, bySource[4].BoxID, bySource[5].BoxID}) {
 		t.Fatalf("unexpected paragraph order: %v", calls)

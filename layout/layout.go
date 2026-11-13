@@ -29,7 +29,9 @@ func ResolveUsedValues(root *LayoutNode, ctx ResolveContext) (UsedValuesTable, e
 	return used, nil
 }
 
-// E -> F: compute block geometry; call a black-box inline layouter for BoxAnonymousInline owners.
+// FlowLayout computes fresh geometry without mutating root or used. Callbacks
+// must honor the read-only input contract and keep retained results per invocation.
+// On failure no result is returned; previous results and inputs remain unchanged.
 func FlowLayout(
 	root *LayoutNode,
 	used UsedValuesTable,
@@ -70,6 +72,9 @@ func ComputeLayoutWithConstraints(
 	return FlowLayout(root, used, inline, intrinsic, ctx, opts)
 }
 
+// LayoutResult owns a fresh geometry table and shares the immutable structural
+// root. Treat results as read-only; use a new tree for changed styles/structure.
+// FlowLayout does not retain or mutate the caller's used-values table.
 type LayoutResult struct {
 	Root     *LayoutNode
 	Geometry LayoutGeometryTable
@@ -128,8 +133,6 @@ func layoutBlockContainer(
 		return fmt.Errorf("box %d: non-finite layout dimensions", node.BoxID)
 	}
 	geom[node.BoxID] = LayoutGeometry{Frame: frame, Content: content}
-	node.Frame = frame
-	node.Content = content
 	return nil
 }
 
@@ -158,8 +161,6 @@ func layoutBlockChildrenVertical(
 		childGeom.Content.X += childGeom.Frame.X
 		childGeom.Content.Y += childGeom.Frame.Y
 		geom[child.BoxID] = childGeom
-		child.Frame = childGeom.Frame
-		child.Content = childGeom.Content
 		y += childGeom.Frame.H + cu.Margin.Bottom
 	}
 	return y, nil

@@ -3,10 +3,12 @@
 Authoritative algorithm contract: `doc/CSS-Algo-Overview.md`.
 This document defines the functional-style constraints and memoization-readiness rules for implementing the contract.
 
-Status: these are design requirements. Current FlowLayout writes geometry onto
-input nodes and therefore does not satisfy input immutability. Checklist task 7
-tracks reconciliation; optional mirrors need an explicit ownership/copying
-design. Private construction of fresh output tables is compatible with purity.
+Status: FlowLayout now constructs fresh geometry tables without mutating its
+structural tree or used-values input (M4, 2026-11-13). Results share the structural
+root, with no node geometry mirrors. Callers and adapters must treat that tree,
+its styles, and published tables as immutable; Go does not enforce this ownership
+contract. Build a new tree for changed styles/structure. Adapter state is local
+to an invocation and published with geometry only after complete success.
 
 ---
 
