@@ -42,8 +42,8 @@ experiment. Paragraph bidi capability does not imply outer RTL layout support.
 
 ## 2. Readiness assessment
 
-The existing callback direction is suitable, but the complete document path is
-not ready. The following table preserves the original pre-fix assessment from 2026-11-12;
+The complete document path is not ready. The callback scheduling design has been
+superseded by section 4.1. The following table preserves the original pre-fix assessment from 2026-11-12;
 it is not current implementation status. See milestones and section 3 for progress.
 
 | Area | Current behavior | Integration consequence |
@@ -95,8 +95,9 @@ width, but does not resize the containing block. Both dimensions must be finite
 and nonnegative. Empty groups may reserve space without dummy lines. Ink bounds
 are a different quantity. Core no longer derives height from line rectangles.
 
-The request carries Group (BoxAnonymousInline), OwnerID, definite ContentWidth in
-CSS pixels, a read-only UsedValuesView, and AtomicSizer. Group.BoxID identifies
+The implemented request carries Group (BoxAnonymousInline), OwnerID, definite
+ContentWidth in CSS pixels, a read-only UsedValuesView, and AtomicSizer. The planned
+fixed-width extension replaces AtomicSizer with prepared-item access (section 4.1). Group.BoxID identifies
 an existing group B; OwnerID identifies its existing owner A. The returned extent
 sets A's content height. No new box or BoxID is created for the vlist.
 
@@ -150,59 +151,102 @@ values; build a new tree for style/structure edits. Published result tables also
 remain read-only by ownership contract. Core cannot roll back arbitrary callback
 side effects; the adapter must discard failed invocation state.
 
-### 4.1. Agreed recursive inline-block extension
+### 4.1. Core-owned recursive inline-block preparation
 
-Decision, 2026-11-13: retain the existing recursive callback direction. An
-inline-block is atomic to its outer paragraph, but its internal block container
-can hold inline groups and further inline-blocks. Ordinary inline spans do not
-start new paragraph calls. The same adapter instance can be reentered:
+Revised decision: core owns discovery, dependency scheduling, and sizing of nested
+inline-blocks. This supersedes the earlier adapter-driven AtomicSizer callback
+plan. The existing Go API still exposes that callback; this section is the target
+design, not implemented behavior.
+
+InlineRequest carries a normalized group tree, not one source-text span. Core
+traverses ordinary inline descendants to find atomic boundaries. Each inline-block
+is laid out as its own block container, recursively preparing any inner groups
+and stacking internal block children before its border-box size is complete.
+Ordinary inline spans do not create extra paragraph calls. Normalization already
+handles block-flow material that must be split/hoisted; this is not a fallback
+for arbitrary block children in an inline group.
+
+Only after all atomic children of a group are ready does core call its external
+InlineLayouter. Prefer recursive core helpers initially; an explicit work stack
+would implement the same dependency order and is not required now. Constraints
+flow downward; completed dimensions flow upward. No outer adapter call is active
+while an inner group is being laid out, so atomic scheduling no longer requires
+adapter reentrancy. Invocation-local result retention is still required.
+
+#### Prepared items at the core/adapter boundary
+
+Replace the external sizing callback with read-only prepared-item access,
+conceptually `PreparedAtomics: atomic BoxID -> measured item`. The exact Go type
+and lookup signature remain open. Each item exposes its existing identity and
+finite border-box dimensions, not an opaque paragraph payload. The mapping for
+one group covers its atomic boundaries through ordinary inline descendants;
+items inside those atomic subtrees belong to the corresponding inner requests.
+Core must guarantee complete preparation before delegation; missing entries are
+errors, not requests for adapter-initiated layout. Keep input trees and used-value
+tables immutable and prepared data scoped to the current invocation.
+
+The adapter walks the group to translate text/styles, treats inline-blocks as
+leaves, and looks up their prepared dimensions. It must not schedule layout or
+flatten their internal text into the outer paragraph. P need not depend on core
+types; an engine-local item ID can map back to the existing BoxID.
+
+#### Two adapter/P contracts remain open
+
+1. **Atomic-item input (adapter -> P):** an indivisible item anchored in the
+   prepared paragraph sequence, with identity, measured border-box dimensions,
+   and explicit alignment, margin, and break behavior. Choose typed mixed
+   text/object items or placeholder plus attachment table. Preserve source
+   correspondence: a prepared-input anchor is not a fabricated source byte range
+   containing the inner text. Prepared dimensions do not define this P interface.
+2. **Final-placement output (P -> adapter/compositor):** preserve the same identity
+   through line breaking and expose accepted paragraph-local placement. Specify
+   the typed record, containing-group association, reference point, units, and
+   once-only composition with internal geometry. Core owns internal geometry;
+   P determines line placement, which the adapter retains. Decide whether/how
+   placement enters the core geometry table; its provisional atomic origin is
+   not final parent-relative placement. Do not silently reinterpret coordinates.
+
+These contracts do not add line summaries or an opaque core paragraph payload.
+LayoutInline continues to return only the overall extent.
+
+#### Fixed-width example and acceptance
+
+For a 200px paragraph containing `Hello `, inline-block A (fixed 40px, inner text
+`small note`), and ` world.`, with zero edges:
 
 ```text
-core: outer block
-  -> LayoutInline(outer group)
-     -> AtomicSizer.SizeInlineBlock(A, available width)
-        -> core: A's internal block layout
-           -> LayoutInline(inner group)
-              -> AtomicSizer.SizeInlineBlock(B, ...)
-                 -> core: B's contents -> LayoutInline(...)
-              <- B's border-box size
-           <- inner extent
-     <- A's border-box size
-  <- outer extent
+core: prepare outer group G
+  discover A; defer external call for G
+  core: lay out A and prepare inner group H
+    H has no atomic children
+    -> adapter.LayoutInline(H, width=40, prepared={}) -> P("small note")
+    <- extent, say H=24; adapter retains inner paragraph
+  finish A's size 40x24; record prepared item A for G
+  -> adapter.LayoutInline(G, width=200, prepared={A: 40x24})
+     -> P([Text("Hello "), AtomicItem(A, 40x24), Text(" world.")])
+     <- retained outer paragraph with A's final placement
+  <- overall outer extent
 ```
 
-Core owns internal geometry. The paragraph adapter owns each atomic item's final
-line placement, associated by the existing inline-block BoxID, not by a new vlist
-identity. Outer extraction must stop at the atomic boundary rather than flatten
-its text into the outer group. Inner groups retain their own Group.BoxID/OwnerID
-associations. Nested calls use call-local working state and share only the
-invocation's explicit result collections; they must not overwrite outer state.
+The item notation is conceptual, not an existing API. A has structural identity
+before preparation, size before outer delegation, and final position afterward.
+Publish inner/outer paragraphs, placements, and geometry only after the entire
+layout succeeds. An inner failure prevents the dependent outer call and discards
+the whole pending document without replacing an earlier successful snapshot.
 
-This direction is agreed, but the placement API is not yet specified. The current
-SizeInlineBlock result gives dimensions only and leaves the core entry at a
-provisional origin. Before implementing placement, define the typed placement
-record, its containing-group association and coordinate basis, and how it composes
-with internal geometry exactly once. State whether/how final placement enters the
-geometry table; do not silently reinterpret the existing parent-content-relative
-contract. No opaque core paragraph payload or line-summary return is needed.
+Start with fixed CSS-pixel widths including zero, correct descendant resolution,
+and border/padding accounting. Fixed widths are not clamped to remaining line
+width; outer P handles fitting/overflow. Define a bounded alignment/margin policy
+rather than claiming full baseline-correct CSS from W/H alone. Prepare each atomic
+box once per invocation in the initial proof. Auto/intrinsic sizing and speculative
+trials require later measurement and nested-result acceptance/discard semantics;
+a different stack representation does not solve those dependencies.
 
-Start with fixed CSS-pixel widths (including zero), recursive descendant
-resolution, border/padding accounting, and a reentrant fake adapter. Fixed widths
-are not reduced to the remaining line width; the outer paragraph handles fitting
-or overflow. Specify a bounded alignment/margin policy for the fixture rather than
-claiming baseline-correct CSS behavior from W/H alone. General atomic baseline
-alignment needs a separate contract, not paragraph line summaries in the core.
-
-Permit one accepted sizing call per atomic box per invocation in the first proof.
-Auto/intrinsic sizing and speculative width trials follow later, with explicit
-acceptance/discard of all nested geometry, retained paragraphs, and placements.
-An inner failure aborts publication of the entire pending document snapshot.
-
-Current code supports construction and recursive delegation; the M4 atomic test
-only proves a single callback's immutability/error path. Sizing, descendant widths,
-final placement, and multi-level reentrancy still need implementation and tests.
-The ordered plan is checklist 2A/3A; auto sizing follows under 2B/3B. This extension
-does not expand the initial M1-M6 fixture or imply real tytui wiring is complete.
+Current code still uses adapter-driven AtomicSizer callbacks. M4 tests their
+immutability, not core-owned preparation. Checklist 2A/3A covers API migration,
+core scheduling, prepared-item input, final-placement output, and multi-level
+regressions; 2B/3B covers later auto sizing. This extension is not a prerequisite
+for the initial M1-M6 fixture and does not establish actual tytui integration.
 
 ## 5. Milestones and acceptance tests
 
@@ -321,8 +365,9 @@ The supported subset and remaining exclusions are recorded with the fixture.
 ## 6. Decision and tracking discipline
 
 Remaining decisions/work: concrete adapter conversion/rounding and retained
-precision, actual document publication, concrete atomic placement/alignment
-interfaces, and future speculative-call acceptance.
+precision, actual document publication, concrete atomic-item input and
+final-placement output interfaces (including alignment and source mapping),
+and future speculative-call acceptance.
 Table-only geometry with shared immutable structural input, extent-only return,
 and adapter-owned typed retention are settled; do not reopen
 them as competing core-payload proposals.

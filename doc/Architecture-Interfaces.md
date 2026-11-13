@@ -42,9 +42,9 @@ flowchart TB
 
     CSS --> BUILD
     TS -.->|"text access through references"| IL
-    FLOW -->|"delegate inline layout / request intrinsic widths"| IL
+    FLOW -->|"core-owned recursive preparation"| FLOW
+    FLOW -->|"delegate ready group + prepared atomic items / intrinsic queries"| IL
     IL -->|"overall extent only"| FLOW
-    IL -->|"AtomicSizer callback:<br/>size inline-block contents"| FLOW
 ```
 
 ## Interface responsibilities and current status
@@ -63,9 +63,13 @@ flowchart TB
   results stay in an invocation-local adapter table; the integration layer joins
   them with geometry after success. `IntrinsicMeasurer` supplies max-content
   widths independently; it need not share an implementation.
-- **Atomic sizing:** the inline layouter calls the core's `AtomicSizer` to size
-  an inline-block's internal contents. This is a callback relationship, not a
-  package-import cycle. It returns border-box dimensions.
+- **Atomic preparation (target):** core discovers and recursively lays out atomic
+  subtrees before delegating each group. The adapter receives read-only prepared
+  border-box items keyed by BoxID, translates them for P, and retains their final
+  placements. It does not initiate sizing. The diagram shows this target; Go still
+  exposes the superseded AtomicSizer callback pending checklist 2A/3A migration.
+  Concrete prepared-item access, P's atomic input, and placement output remain open;
+  see [integration section 4.1](Document-Layout-Integration.md#41-core-owned-recursive-inline-block-preparation).
 
 ## Reading the pipeline
 

@@ -109,6 +109,8 @@ final rule.
 The implementation and sketch construct fresh output tables without writes to
 input nodes. Results share the immutable structural root; there are no geometry
 mirrors on nodes. Callbacks must honor the same read-only input contract.
+The following sketch describes the implemented callback-based API, not the
+new core-owned atomic-preparation target described after it.
 
 ```text
 FlowLayout(root, used, inline, intrinsic, ctx):
@@ -145,11 +147,34 @@ Content.X/Y to those origins. Each child's own Content origin includes that
 child's border/padding offset. Paragraph-local geometry remains in the adapter-owned typed result, placed at
 the owner's content origin; no line summaries return to block flow.
 
-Atomic sizing must choose content width (retaining the max-content approximation
-for auto), establish correct descendant resolution, and lay out internal content
-at that width before returning border-box dimensions. Returned sizes and stored
-geometry must agree. Final atomic placement and geometry coverage for inline
-nodes/text need an integration design; the block sketch does not supply them.
+Target fixed-width scheduling (not implemented): replace the Atomic callback
+in that sketch with core preparation before external delegation:
+
+```text
+prepareGroup(group):
+  prepared = fresh group-local collection
+  walk ordinary inline descendants in order:
+    at atomic boundary A:
+      resolve descendants against A's fixed content width
+      layoutContainer(A)  // recursively prepares inner groups; stacks block children
+      prepared[A.BoxID] = measured border-box item
+      do not traverse A's descendants again as members of this group
+  return readOnly(prepared)
+
+before calling inline.LayoutInline for a group:
+  prepared = prepareGroup(group)  // failure prevents the external call
+  extent = inline.LayoutInline({Group: group, ..., PreparedAtomics: prepared})
+```
+
+PreparedAtomics is conceptual, not a defined Go field. Each atomic box is prepared
+once per invocation initially; external inner calls finish before the outer call
+starts. Adapters translate prepared leaves without initiating layout. No explicit
+TODO stack is required. Input trees/tables remain immutable. Auto/intrinsic sizing
+and speculative trials require a later dependency/acceptance design.
+
+Returned sizes and geometry must agree. Atomic input to P and final placement
+output still need concrete contracts; prepared dimensions are not final positions.
+Geometry coverage for inline nodes/text also remains open. See checklist 2A/3A.
 
 | Test | Expected result |
 |---|---|
@@ -158,6 +183,7 @@ nodes/text need an integration design; the block sketch does not supply them.
 | Inline-only block | Content height equals returned overall extent, including trailing space |
 | Anonymous block owner | Extent applied; adapter retains typed result by group and owner IDs |
 | Atomic fixed / auto / zero width | Correct internal width, height, border-box return |
+| Dependency scheduling (target) | Inner groups finish first; complete prepared items; no reentrant outer adapter call |
 | Geometry consistency | Frame equals Content plus edges; table agrees with sizing |
 | Repeated layout | Input immutability and stable identities |
 

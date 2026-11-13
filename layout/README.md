@@ -111,6 +111,14 @@ placement through the owning block's content geometry. `req.ContentWidth` is
 CSS-pixel content width; `req.Used.Lookup(id)` exposes resolved value copies.
 Treat the group and caller inputs as read-only.
 
+The current request still exposes `Atomic` for sizing callbacks. The agreed
+fixed-width extension instead makes core discover and recursively lay out atomic
+subtrees before calling the outer adapter, supplying read-only prepared items by
+BoxID. This migration is not implemented yet; exact replacement types remain open.
+The adapter will translate already-sized items for P, not schedule layout. See
+[the integration design](../doc/Document-Layout-Integration.md#41-core-owned-recursive-inline-block-preparation)
+and checklist 2A/3A for prepared access, atomic input, and final-placement output.
+
 Return the full finite, nonnegative layout extent, including paragraph-owned
 trailing space. H determines flow height; W does not resize the containing block.
 Zero width and empty results are valid; empty groups may reserve nonzero height.

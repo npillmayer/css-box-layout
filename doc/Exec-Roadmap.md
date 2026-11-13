@@ -48,18 +48,24 @@ Frozen decisions for the current phase:
   only on success. Group/owner identities already exist; no vlist BoxID is added.
 - Text references use a stable `TextSourceID` and non-empty `[Start,End)` byte
   ranges. Empty ranges are dropped without destabilizing other IDs.
-- Inline-blocks are atomic inline participants with an internal block container;
-  atomic sizing returns border-box dimensions. Retain recursive delegation:
-  LayoutInline -> AtomicSizer -> core -> inner LayoutInline. Adapters must be
-  reentrant and preserve suspended outer-call state.
-- Core owns atomic internal geometry; the paragraph adapter owns final atomic
-  line placement, associated by existing BoxID. Concrete placement/composition
-  and alignment interfaces remain to be specified; size alone is not placement.
-- Fixed CSS-pixel recursive inline-block support comes before auto sizing:
-  checklist 2A/3A starts with placement/alignment contract, then regression fixtures,
-  correct sizing/resolution, and a reentrant fake-adapter proof. One accepted
-  sizing call per atomic box per invocation initially; speculative trials follow
-  only with nested-result acceptance/discard semantics (2B/3B).
+- Inline-blocks are atomic inline participants with an internal block container.
+  Core owns recursive discovery, sizing, and dependency scheduling: finish inner
+  groups and atomic block stacks before delegating an outer group. Prefer recursive
+  core helpers; an explicit work stack is optional. This supersedes adapter-driven
+  AtomicSizer callbacks and removes that reason for adapter reentrancy.
+- Replace the request's external sizing callback with read-only group-local
+  prepared items keyed by existing atomic BoxID. Exact lookup/item types remain
+  open; current code still exposes AtomicSizer. The adapter translates already-sized
+  items and retains P's final placements; core owns internal geometry.
+- Two adapter/P contracts remain open: anchored atomic-item input with identity,
+  dimensions, source mapping and alignment/margin/break policy; final-placement
+  output preserving identity and defining coordinate composition. Preparation is
+  sizing, not placement; extent-only returns remain unchanged.
+- Fixed CSS-pixel recursive support comes before auto sizing. Checklist 2A/3A
+  specifies prepared access and both adapter/P contracts, then dependency-order
+  fixtures, core scheduling/sizing/resolution, API migration, and fake-adapter
+  proof. Prepare each atomic once per invocation initially. Auto sizing and
+  speculative trials follow with nested-result acceptance/discard (2B/3B).
 
 Anonymous style rules are implemented. Remaining: explicit auto-width state, geometry scope,
 and validation predicates that distinguish block containers from block-level
@@ -165,7 +171,8 @@ for task ownership and acceptance targets:
 4. M5-M6: connect synthetic typography and real-font proofs in tytui, with core
    fixes upstream. Update affected documentation alongside each decision (task 7).
 5. Separate extension: fixed-width recursive inline-blocks (tasks 2A/3A), starting
-   with concrete placement/alignment ownership and multi-level regression fixtures.
+   with prepared-item access and both adapter/P contracts, then dependency-order
+   fixtures, core scheduling, and migration away from external sizing callbacks.
    Auto sizing/speculation follow under 2B/3B; broader cleanup remains task 6.
    This extension is not a prerequisite for the bounded M5-M6 document proof.
 

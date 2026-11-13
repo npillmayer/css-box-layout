@@ -156,24 +156,34 @@ and intrinsic measurement content width; the later inline-block fixes remain
 necessary. Glyph representations and line-breaking results belong to external
 typography services, not to a separate package in this module.
 
-### Recursive atomic callbacks: agreed direction, incomplete implementation
+### Target: core-owned scheduling and prepared atomic items
 
-LayoutInline may synchronously call req.Atomic.SizeInlineBlock. That invokes core
-block layout for the atomic box, which can reenter the same InlineLayouter for
-inner groups and repeat at further atomic boundaries. Adapters need call-local
-working state; traversal must not flatten atomic contents into the outer group.
+The Go signatures above describe the current API, including AtomicSizer. The
+agreed target replaces InlineRequest.Atomic with read-only prepared-item access,
+conceptually `PreparedAtomics: BoxID -> measured item`; exact types/signatures
+remain open. Do not treat this sketch as an implemented API.
 
-The current SizeInlineBlock signature returns size only. Core owns internal
-geometry; the adapter owns final atomic line placement keyed by BoxID. A concrete
-placement record/composition contract and bounded alignment/margin policy must be
-specified before implementation; the provisional origin is not final placement.
-No new signature is frozen here. Extent-only paragraph returns remain unchanged.
+Core traverses the group through ordinary inline descendants, lays out each
+atomic boundary's internal block container recursively, and calls external
+LayoutInline only after all atomic items for that group have finite border-box
+sizes. Inner groups finish before outer delegation. Prefer recursive core helpers;
+an explicit work stack is optional, not a distinct contract. Adapter reentrancy
+for atomic scheduling is no longer required. Auto sizing is a later design task.
 
-Checklist 2A/3A plans fixed CSS-pixel widths (including zero), recursive descendant
-resolution, border-box sizes, and a reentrant fake-adapter proof first. One accepted
-sizing call per atomic box per invocation is the initial target. Auto/intrinsic
-sizing and repeated/speculative calls require later acceptance/discard semantics
-for all nested results. See integration section 4.1 for ownership details.
+The request still carries a group tree, not a source-text span. Prepared access
+covers this group's atomic boundaries, not items inside their independent inner
+groups. Data is read-only and invocation-scoped; missing preparation must fail.
+The adapter translates text/styles and sized atomic leaves without scheduling
+layout or flattening inner text. Core owns geometry; the adapter retains P's
+placements by identity mapped to BoxID.
+
+Two adapter/P contracts also remain missing: anchored atomic-item input with
+identity, dimensions, source mapping and alignment/margin/break policy; and
+identity-preserving final-placement output with coordinate composition. P need
+not import core types. Prepared sizes are not final placement, and the concrete
+input/output representations are not frozen. LayoutInline remains extent-only.
+Checklist 2A/3A tracks the API migration and fixed-width proof; 2B/3B tracks auto
+sizing and speculative-result acceptance. See integration section 4.1.
 
 ## 5) Package organization and remaining decisions
 

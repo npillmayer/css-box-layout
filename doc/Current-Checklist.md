@@ -86,45 +86,55 @@ using definite widths and explicit non-auto margins.
 
 ### 2. Recursive inline-block sizing and placement - fixed-width first
 
-Agreed direction: retain synchronous core -> paragraph -> AtomicSizer -> core
-recursion. Core owns internal geometry; the paragraph adapter owns atomic line
-placement, keyed by the existing BoxID. Construction and callback recursion exist;
-correct recursive sizing/placement is not yet established. See integration
-section 4.1 for the collaboration contract. All steps below are still open.
+Agreed direction: core discovers and recursively lays out atomic subtrees before
+calling the outer InlineLayouter. The adapter translates already-prepared items;
+it does not initiate sizing. This supersedes the callback-based plan; current Go
+code still exposes AtomicSizer. See integration section 4.1. All steps remain open.
 
 #### 2A. Fixed-width implementation sequence (with 3A)
 
-1. [ ] Specify placement ownership concretely before code changes: typed adapter
-   placement record keyed by atomic BoxID, containing-group association, coordinate
-   origin, and once-only composition with core geometry. Decide how final placement
-   is exposed without treating the current zero-origin entry as a final position.
-   Define the first fixture's vertical alignment and margin policy explicitly;
-   general baseline alignment remains separate. Preserve extent-only returns.
-2. [ ] Add build -> resolve -> flow regression fixtures with ordinary inline
-   spans surrounding at least two nested inline-block boundaries. Preserve IDs,
-   source/style references, and block children inside an atomic boundary; do not
-   hoist them into the outer paragraph. Separate outer-flow classification from
-   block-container capability where validation needs it (task 7).
-3. [ ] Implement fixed CSS-pixel content widths, including explicit zero, without
-   calling intrinsic measurement or clamping to remaining line width. Distinguish
-   auto from zero and define explicit rejection of unsupported auto sizing in the
-   bounded fixture. Complete 3A before inner paragraph callbacks. Return finite
+1. [ ] Specify read-only prepared-item access in InlineRequest to replace Atomic:
+   atomic BoxID -> measured border-box item, group-local coverage, lifetime, and
+   explicit missing-entry errors. Preserve Group, OwnerID, Used, and extent-only
+   returns. Also specify both adapter/P contracts: anchored input with identity,
+   dimensions, source mapping, alignment/margin/break policy; final-placement
+   output preserving identity, containing group, reference point, units, and
+   once-only composition. Choose typed items versus placeholder/attachments and
+   decide whether/how placement enters core geometry. No concrete API is frozen.
+2. [ ] Add build -> resolve -> flow fixtures with ordinary inline spans around
+   at least two nested inline-block boundaries, including internal block children.
+   Preserve source/style/BoxID associations and do not hoist atomic contents.
+   Validate outer-flow participation separately from container capability (task 7).
+   Assert inner-before-outer delegation, complete prepared lookups, one preparation
+   per atomic box, and no nested/reentrant external LayoutInline calls.
+3. [ ] Implement recursive core preparation: traverse ordinary inline descendants,
+   stop at atomic boundaries and lay out each internal block container (including
+   nested groups and block stacks), then publish its dimensions into the current
+   group's read-only prepared view before external delegation. Use fixed CSS-pixel
+   widths including explicit zero; do not call intrinsic measurement or clamp to
+   remaining line width. Complete 3A before internal layout. Distinguish auto from
+   zero and reject unsupported auto cases in the bounded fixture. Validate finite
    border-box W/H including padding/borders; margins remain separate.
-4. [ ] Exercise a reentrant fake paragraph adapter: stop outer traversal at each
-   atomic item, call AtomicSizer, retain inner groups separately, then resume the
-   outer call and retain its final placement by BoxID. Use one accepted sizing
-   call per atomic box per invocation; reject unsupported repeated trials.
-5. [ ] Verify final nested document origins, outer line fitting/overflow and
-   following-sibling heights, nonzero edges, explicit-zero/empty contents, and
-   all inner/outer typed associations. Inject an inner failure after earlier
-   success; discard the whole pending document while preserving previous results
-   and immutable inputs. Re-run at new outer widths; fixed atomic widths stay
-   fixed. Run full tests, vet, and race checks.
+4. [ ] Migrate InlineRequest and adapters/tests from Atomic callbacks to prepared
+   lookup; remove the externally exposed sizing callback from this path. A fake P
+   accepts mixed text/atomic input and returns identity-bearing placements. Start
+   with Text("Hello "), AtomicItem(A), Text(" world."): inner text reaches only
+   inner P, the outer adapter sees A already sized, and identity/anchor mapping
+   survives line breaking. Extend to the two-level fixture. Adapters retain typed
+   inner/outer results but do not schedule layout; no explicit TODO stack is needed.
+5. [ ] Verify final nested origins, line fitting/overflow, following-sibling
+   heights, nonzero edges, explicit-zero/empty contents, and all typed associations.
+   Inject an inner failure after earlier successful work: the dependent outer
+   layouter must not run, partial invocation state is discarded, inputs and older
+   snapshots stay unchanged. Resize outer constraints: fixed atomic widths stay
+   fixed. Run full tests, vet, and race checks; update API docs and historical tests.
 
-Acceptance: independently specified widths, border-box sizes, composed positions,
-and call nesting agree across at least two atomic boundaries. Fake-adapter proof
-must not be described as real tytui support; actual adapter wiring has its own
-integration gate. First step is the placement/alignment contract, not auto sizing.
+Acceptance: core completes every group's atomic dependencies before delegation;
+input anchors survive as matching output placements; independent widths, sizes,
+composed positions, and call order agree across two atomic boundaries. Fake proof
+is not real tytui integration. First settle prepared-item access and both adapter/P
+contracts, not auto sizing. Exact item/placement types and full baseline alignment
+remain open.
 
 #### 2B. Follow-up after fixed-width acceptance
 

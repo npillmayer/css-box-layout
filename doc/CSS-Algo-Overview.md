@@ -137,7 +137,9 @@ B4. BoxText is leaf
 Inline layouter (black box):
 - LayoutInline(InlineRequest) -> InlineExtent{W,H}, error
   - Request: anonymous inline Group (Group.BoxID is the retention key), OwnerID,
-    definite ContentWidth in CSS pixels, a UsedValuesView, and AtomicSizer.
+    definite ContentWidth in CSS pixels, a UsedValuesView, and read-only prepared
+    atomic items (target). The implemented API still has AtomicSizer; see the
+    migration description below and current signatures in Pass-Signatures.md.
   - Extent is finite and nonnegative, including at zero available width. H is
     authoritative consumed height, including paragraph-owned trailing spacing;
     W may exceed available width but does not resize the owner's content width.
@@ -158,26 +160,35 @@ Inline layouter (black box):
     The core never mutates the input tree or used values, on success or failure.
     Callbacks must honor the read-only contract; discard partial retained state.
 
-Atomic sizer:
-- SizeInlineBlock(node, maxWidthRemaining) -> (borderBoxW, borderBoxH)
-- Agreed recursive direction: outer LayoutInline calls AtomicSizer; core lays out
-  the inline-block's contents and calls LayoutInline for its inner groups. An
-  ordinary inline span stays within its current group. Adapters must be reentrant:
-  nested calls cannot overwrite the suspended outer call's working state.
-- Core owns internal box geometry; the paragraph adapter owns final placement
-  of the atomic item in its line, associated by the inline-block's existing BoxID.
-  SizeInlineBlock provides sizing, not final placement. The placement record and
-  its composition with core geometry must be specified before claiming support;
-  current zero-origin atomic geometry is not a final parent-relative position.
-- Implement fixed CSS-pixel widths, including explicit zero, before auto sizing.
-  Fixed content width is not clamped to the remaining line width; outer paragraph
-  layout owns line fitting/overflow. Returned size includes border/padding, not
-  margins. Descendants resolve against the inline-block's content width.
-- Atomic alignment/margin participation needs an explicit bounded policy and
-  eventual baseline contract; this does not change the extent-only paragraph
-  return or add line summaries to core. Repeated/speculative sizing remains
-  unsupported until acceptance/discard semantics cover nested geometry and
-  retained results. See checklist tasks 2/3 for scope, tests, and open details.
+Atomic preparation (agreed target; API migration pending):
+- Core discovers atomic boundaries through ordinary inline descendants and lays
+  out each internal block container recursively before delegating its outer group.
+  Ordinary inline spans stay within the current group; nested block children are
+  stacked inside their atomic owner. Prefer recursive core helpers; an explicit
+  work stack is an equivalent implementation choice, not required machinery.
+- Replace external AtomicSizer callbacks with read-only prepared-item lookup by
+  existing atomic BoxID. Group-local items have complete finite border-box sizes
+  before LayoutInline starts. Missing preparation is an error. Current Go code
+  still exposes AtomicSizer; the concrete replacement types remain to be specified.
+- The adapter translates text/styles and prepared atomic leaves, not layout
+  scheduling. It must not flatten inner text into outer input. Inner paragraph
+  calls finish before the outer call starts; this no longer requires reentrancy
+  of the adapter. Input trees/tables stay immutable; prepared data is per invocation.
+- Two adapter/P contracts remain required: anchored atomic-item input with identity,
+  dimensions, source mapping, alignment/margin/break policy; and identity-preserving
+  final-placement output. Core owns internal geometry; P chooses line placement,
+  retained by the adapter and composed exactly once. Concrete representations and
+  whether/how placement enters the core geometry table remain open. Neither
+  prepared sizes nor provisional origins are final parent-relative positions.
+- Start with fixed CSS-pixel widths including zero; do not clamp them to remaining
+  line width. Resolve descendants against atomic content width before layout.
+  Border-box dimensions include padding/borders but not margins. Prepare each
+  atomic box once per invocation initially. Auto/intrinsic sizing and speculative
+  trials need later dependency and acceptance/discard semantics. Inner failure
+  prevents dependent outer delegation and aborts publication of pending results.
+- Preserve extent-only returns; no core line summaries or opaque paragraph payloads.
+  Checklist 2A/3A covers prepared access and bounded alignment policy; 2B/3B covers
+  later sizing and full alignment work.
 
 Intrinsic measurer:
 - MaxContentWidth(node) -> contentBoxW
