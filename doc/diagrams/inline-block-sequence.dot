@@ -1,0 +1,132 @@
+digraph Sequence {
+graph [rankdir=TB, bgcolor="#f6f4ef", pad=0.35, nodesep=0.45, ranksep=0.25, splines=polyline, fontname="Helvetica", fontsize=20, fontcolor="#18313c", labelloc=t, label="ONE INLINE-BLOCK / CALL ORDER\nProposed task 2A / read from top to bottom"];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#18313c", margin="0.15,0.10", width=2.75, color="#c2c9c9"];
+edge [color="#637780", arrowsize=0.7, penwidth=1.2];
+n0_0 [label="Core layout", group="lane0", fillcolor="#183f4b", fontcolor=white, color="#183f4b", fontsize=13];
+n0_1 [label="Inline adapter", group="lane1", fillcolor="#183f4b", fontcolor=white, color="#183f4b", fontsize=13];
+n0_2 [label="Paragraph engine P", group="lane2", fillcolor="#183f4b", fontcolor=white, color="#183f4b", fontsize=13];
+{rank=same; n0_0; n0_1; n0_2;}
+n0_0 -> n0_1 -> n0_2 [style=invis, weight=100];
+n1_0 [label="Prepare G at 200px\nDiscover atomic A: BoxID 42", group="lane0", fillcolor="#eaf0ee"];
+n1_1 [label="", group="lane1", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n1_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n1_0; n1_1; n1_2;}
+n1_0 -> n1_1 -> n1_2 [style=invis, weight=100];
+n0_0 -> n1_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n0_1 -> n1_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n0_2 -> n1_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n2_0 [label="Lay out A first\nDefer outer delegation", group="lane0", fillcolor="#eaf0ee"];
+n2_1 [label="", group="lane1", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n2_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n2_0; n2_1; n2_2;}
+n2_0 -> n2_1 -> n2_2 [style=invis, weight=100];
+n1_0 -> n2_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n1_1 -> n2_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n1_2 -> n2_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n3_0 [label="Call inner H\nwidth 40 / empty prepared view", group="lane0", fillcolor="#eaf0ee"];
+n3_1 [label="Receive inner request", group="lane1", fillcolor="#f2e8d9"];
+n3_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n3_0; n3_1; n3_2;}
+n3_0 -> n3_1 -> n3_2 [style=invis, weight=100];
+n2_0 -> n3_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n2_1 -> n3_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n2_2 -> n3_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n4_0 [label="", group="lane0", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n4_1 [label="Prepare inner text", group="lane1", fillcolor="#f2e8d9"];
+n4_2 [label="Lay out \"small note\"", group="lane2", fillcolor="#f2e8d9"];
+{rank=same; n4_0; n4_1; n4_2;}
+n4_0 -> n4_1 -> n4_2 [style=invis, weight=100];
+n3_0 -> n4_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n3_1 -> n4_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n3_2 -> n4_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n5_0 [label="", group="lane0", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n5_1 [label="Retain H result\nowner = 42", group="lane1", fillcolor="#f2e8d9"];
+n5_2 [label="Inner paragraph complete", group="lane2", fillcolor="#f2e8d9"];
+{rank=same; n5_0; n5_1; n5_2;}
+n5_0 -> n5_1 -> n5_2 [style=invis, weight=100];
+n4_0 -> n5_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n4_1 -> n5_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n4_2 -> n5_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n6_0 [label="Receive extent\nexample height 24", group="lane0", fillcolor="#eaf0ee"];
+n6_1 [label="Return extent\nno placements", group="lane1", fillcolor="#f2e8d9"];
+n6_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n6_0; n6_1; n6_2;}
+n6_0 -> n6_1 -> n6_2 [style=invis, weight=100];
+n5_0 -> n6_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n5_1 -> n6_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n5_2 -> n6_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n7_0 [label="Finish A: 40 x 24\nPrepared[42] = measured A", group="lane0", fillcolor="#eaf0ee"];
+n7_1 [label="", group="lane1", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n7_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n7_0; n7_1; n7_2;}
+n7_0 -> n7_1 -> n7_2 [style=invis, weight=100];
+n6_0 -> n7_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n6_1 -> n7_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n6_2 -> n7_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n8_0 [label="Call outer G\nwidth 200 / prepared A", group="lane0", fillcolor="#eaf0ee"];
+n8_1 [label="Receive outer request", group="lane1", fillcolor="#f2e8d9"];
+n8_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n8_0; n8_1; n8_2;}
+n8_0 -> n8_1 -> n8_2 [style=invis, weight=100];
+n7_0 -> n8_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n7_1 -> n8_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n7_2 -> n8_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n9_0 [label="", group="lane0", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n9_1 [label="Lookup branch BoxID 42\nSkip its inner text", group="lane1", fillcolor="#f2e8d9"];
+n9_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n9_0; n9_1; n9_2;}
+n9_0 -> n9_1 -> n9_2 [style=invis, weight=100];
+n8_0 -> n9_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n8_1 -> n9_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n8_2 -> n9_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n10_0 [label="", group="lane0", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n10_1 [label="Anchor whatsit 7\nPrivate mapping: 7 -> 42", group="lane1", fillcolor="#f2e8d9"];
+n10_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n10_0; n10_1; n10_2;}
+n10_0 -> n10_1 -> n10_2 [style=invis, weight=100];
+n9_0 -> n10_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n9_1 -> n10_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n9_2 -> n10_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n11_0 [label="", group="lane0", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n11_1 [label="Send mixed input", group="lane1", fillcolor="#f2e8d9"];
+n11_2 [label="Lay out Hello + whatsit + world", group="lane2", fillcolor="#f2e8d9"];
+{rank=same; n11_0; n11_1; n11_2;}
+n11_0 -> n11_1 -> n11_2 [style=invis, weight=100];
+n10_0 -> n11_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n10_1 -> n11_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n10_2 -> n11_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n12_0 [label="", group="lane0", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n12_1 [label="Retain outer result\nTranslate handle 7 -> BoxID 42", group="lane1", fillcolor="#f2e8d9"];
+n12_2 [label="Outer paragraph + item position", group="lane2", fillcolor="#f2e8d9"];
+{rank=same; n12_0; n12_1; n12_2;}
+n12_0 -> n12_1 -> n12_2 [style=invis, weight=100];
+n11_0 -> n12_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n11_1 -> n12_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n11_2 -> n12_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n13_0 [label="Receive extent +\nAtomicPlacement(42, x, y)", group="lane0", fillcolor="#eaf0ee"];
+n13_1 [label="Return accepted output", group="lane1", fillcolor="#f2e8d9"];
+n13_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n13_0; n13_1; n13_2;}
+n13_0 -> n13_1 -> n13_2 [style=invis, weight=100];
+n12_0 -> n13_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n12_1 -> n13_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n12_2 -> n13_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n14_0 [label="Validate and position A\nRelativeTo = outer owner", group="lane0", fillcolor="#eaf0ee"];
+n14_1 [label="", group="lane1", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+n14_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
+{rank=same; n14_0; n14_1; n14_2;}
+n14_0 -> n14_1 -> n14_2 [style=invis, weight=100];
+n13_0 -> n14_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n13_1 -> n14_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n13_2 -> n14_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
+n3_0:e -> n3_1:w [constraint=false, color="#183f4b", penwidth=1.6];
+n4_1:e -> n4_2:w [constraint=false, color="#183f4b", penwidth=1.6];
+n5_2:w -> n5_1:e [constraint=false, color="#183f4b", penwidth=1.6];
+n6_1:w -> n6_0:e [constraint=false, color="#183f4b", penwidth=1.6];
+n8_0:e -> n8_1:w [constraint=false, color="#183f4b", penwidth=1.6];
+n11_1:e -> n11_2:w [constraint=false, color="#183f4b", penwidth=1.6];
+n12_2:w -> n12_1:e [constraint=false, color="#183f4b", penwidth=1.6];
+n13_1:w -> n13_0:e [constraint=false, color="#183f4b", penwidth=1.6];
+foot [shape=plain, style="", fontsize=10, label="Inner call completes BEFORE outer adapter call starts.\nBoxID connects branch -> measurement -> whatsit -> geometry.\nDescendant-local geometry stays unchanged. Written design is authoritative."];
+n14_1 -> foot [style=invis];
+}

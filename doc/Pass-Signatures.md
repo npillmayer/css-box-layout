@@ -156,34 +156,91 @@ and intrinsic measurement content width; the later inline-block fixes remain
 necessary. Glyph representations and line-breaking results belong to external
 typography services, not to a separate package in this module.
 
-### Target: core-owned scheduling and prepared atomic items
+### Concrete task-2A proposal (not implemented)
 
-The Go signatures above describe the current API, including AtomicSizer. The
-agreed target replaces InlineRequest.Atomic with read-only prepared-item access,
-conceptually `PreparedAtomics: BoxID -> measured item`; exact types/signatures
-remain open. Do not treat this sketch as an implemented API.
+The signatures above remain the current Go API. The following proposed replacement
+records the agreed scheduling and BoxID association; it is not implemented code.
 
-Core traverses the group through ordinary inline descendants, lays out each
-atomic boundary's internal block container recursively, and calls external
-LayoutInline only after all atomic items for that group have finite border-box
-sizes. Inner groups finish before outer delegation. Prefer recursive core helpers;
-an explicit work stack is optional, not a distinct contract. Adapter reentrancy
-for atomic scheduling is no longer required. Auto sizing is a later design task.
+```go
+type PreparedAtomic struct {
+    BoxID        BoxID
+    BorderWidth  float32
+    BorderHeight float32
+}
 
-The request still carries a group tree, not a source-text span. Prepared access
-covers this group's atomic boundaries, not items inside their independent inner
-groups. Data is read-only and invocation-scoped; missing preparation must fail.
-The adapter translates text/styles and sized atomic leaves without scheduling
-layout or flattening inner text. Core owns geometry; the adapter retains P's
-placements by identity mapped to BoxID.
+type PreparedAtomicsView interface {
+    Lookup(BoxID) (PreparedAtomic, bool)
+}
 
-Two adapter/P contracts also remain missing: anchored atomic-item input with
-identity, dimensions, source mapping and alignment/margin/break policy; and
-identity-preserving final-placement output with coordinate composition. P need
-not import core types. Prepared sizes are not final placement, and the concrete
-input/output representations are not frozen. LayoutInline remains extent-only.
-Checklist 2A/3A tracks the API migration and fixed-width proof; 2B/3B tracks auto
-sizing and speculative-result acceptance. See integration section 4.1.
+type InlineRequest struct {
+    Group        *LayoutNode
+    OwnerID      BoxID
+    ContentWidth float32
+    Used         UsedValuesView
+    Atomics      PreparedAtomicsView // replaces AtomicSizer
+}
+
+type AtomicPlacement struct {
+    BoxID BoxID
+    X, Y  float32
+}
+
+type InlineResult struct {
+    Extent  InlineExtent
+    Atomics []AtomicPlacement
+}
+
+type InlineLayouter interface {
+    LayoutInline(InlineRequest) (InlineResult, error)
+}
+
+// Proposed extension; the current geometry type has no RelativeTo field.
+type LayoutGeometry struct {
+    RelativeTo BoxID
+    Frame      Rect
+    Content    Rect
+}
+```
+
+There is one prepared view per group/request, not per atomic node. Core finishes
+atomic subtrees before outer delegation and indexes each measured item by that
+node's existing BoxID. The adapter associates a branch using
+`req.Atomics.Lookup(node.BoxID)`, not a node pointer, NodeID, or rope offset.
+Lookup returns copies; returned BoxID matches the key. The view includes atomic
+boundaries reached through ordinary inline descendants, but not items inside
+those boundaries. Empty groups have an empty view. Data is invocation-scoped and
+read-only; missing entries are errors. Border dimensions are finite/nonnegative;
+margins are separate in Used.Lookup. Core does not expose retained paragraph data.
+
+The adapter skips atomic contents when extracting text, but inserts an ordered
+whatsit anchor. It may use BoxID directly or map a local handle back to BoxID.
+Rope placeholders, attachment tables, mixed-item representation, and internal
+position storage remain adapter choices; source mapping is explicit. Core never
+interprets those representations. P need not import core types.
+
+The output deliberately refines the earlier extent-only contract: extent plus
+placements of core-owned atomic boxes, never paragraph lines/glyphs or opaque
+payloads. AtomicPlacement.X/Y is the border-box origin in CSS pixels relative to
+request.OwnerID's content origin, after margin/alignment effects. No second margin
+addition occurs in core. Dimensions cannot be changed by the adapter. Exactly one
+placement per prepared item (including zero-sized items) is required; reject
+missing, duplicate, foreign-group or unknown IDs and non-finite coordinates.
+Negative coordinates are permitted. Validate the full result before applying it.
+
+RelativeTo names the geometry coordinate parent, not necessarily the structural
+parent: atomic entries use request.OwnerID, stacked blocks use their containing
+block, and the root uses zero. Core sets Frame.X/Y to the accepted placement and
+Content.X/Y to that origin plus own border/padding, preserving dimensions and all
+descendant-local rectangles. This makes placement part of authoritative geometry;
+retain no slice alias to adapter output and never reapply it during composition.
+Build final geometry privately and publish only after complete success.
+
+Core recursion finishes inner external calls before outer delegation; adapter
+reentrancy is not required. Checklist 2A/3A tracks implementation. P's concrete
+whatsit API and conversion remain integration work. The proposed initial bounded
+alignment policy is bottom margin edge to the line baseline, without exporting
+an inner paragraph baseline; confirm that fixture policy before coding. Full CSS
+baseline alignment, auto sizing and speculative trials remain follow-up work.
 
 ## 5) Package organization and remaining decisions
 

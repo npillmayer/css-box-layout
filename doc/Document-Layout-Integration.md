@@ -8,7 +8,8 @@ This document evaluates the collaboration proposed in tytui's
 [three document-layout views](../../tytui/doc/DOCUMENT_LAYOUT_VIEWS.md), especially
 View 3, and its [exploration](../../tytui/doc/DOCUMENT_LAYOUT_EXPLORATION.md).
 It records integration-specific reasoning and acceptance targets, not a second
-general roadmap. The extent-only return and adapter-owned typed retention are agreed. Remaining
+general roadmap. The current extent-only API and typed retention are implemented;
+section 4.1 proposes the narrow addition of atomic placements. Remaining
 implementation gaps and integration decisions are identified separately.
 
 The current authoritative contract remains
@@ -173,60 +174,103 @@ flow downward; completed dimensions flow upward. No outer adapter call is active
 while an inner group is being laid out, so atomic scheduling no longer requires
 adapter reentrancy. Invocation-local result retention is still required.
 
-#### Prepared items at the core/adapter boundary
+#### Concrete prepared-item and BoxID association proposal
 
-Replace the external sizing callback with read-only prepared-item access,
-conceptually `PreparedAtomics: atomic BoxID -> measured item`. The exact Go type
-and lookup signature remain open. Each item exposes its existing identity and
-finite border-box dimensions, not an opaque paragraph payload. The mapping for
-one group covers its atomic boundaries through ordinary inline descendants;
-items inside those atomic subtrees belong to the corresponding inner requests.
-Core must guarantee complete preparation before delegation; missing entries are
-errors, not requests for adapter-initiated layout. Keep input trees and used-value
-tables immutable and prepared data scoped to the current invocation.
+The concrete Go proposal is in [Pass-Signatures.md](Pass-Signatures.md#concrete-task-2a-proposal-not-implemented).
+It replaces request.Atomic with `Atomics PreparedAtomicsView`, whose
+`Lookup(BoxID) (PreparedAtomic, bool)` returns copied BoxID and border-box W/H.
+One view belongs to one group/request, not to each item. Core prepares the atomic
+subtree and inserts its measurements using that node's existing BoxID. All atomic
+boundaries in the group (through ordinary inline spans) must be present before
+external delegation; nested atomic interiors belong to their own requests.
 
-The adapter walks the group to translate text/styles, treats inline-blocks as
-leaves, and looks up their prepared dimensions. It must not schedule layout or
-flatten their internal text into the outer paragraph. P need not depend on core
-types; an engine-local item ID can map back to the existing BoxID.
+```text
+Group branch: BoxInlineBlock, BoxID=42
+  -> req.Atomics.Lookup(42)
+  -> PreparedAtomic{BoxID:42, BorderWidth:40, BorderHeight:24}
 
-#### Two adapter/P contracts remain open
+Adapter input: Text("Hello ") -- Whatsit(handle=7) -- Text(" world.")
+Adapter association: handle 7 -> BoxID 42
+Output to core: AtomicPlacement{BoxID:42, X:55, Y:3}
+```
 
-1. **Atomic-item input (adapter -> P):** an indivisible item anchored in the
-   prepared paragraph sequence, with identity, measured border-box dimensions,
-   and explicit alignment, margin, and break behavior. Choose typed mixed
-   text/object items or placeholder plus attachment table. Preserve source
-   correspondence: a prepared-input anchor is not a fabricated source byte range
-   containing the inner text. Prepared dimensions do not define this P interface.
-2. **Final-placement output (P -> adapter/compositor):** preserve the same identity
-   through line breaking and expose accepted paragraph-local placement. Specify
-   the typed record, containing-group association, reference point, units, and
-   once-only composition with internal geometry. Core owns internal geometry;
-   P determines line placement, which the adapter retains. Decide whether/how
-   placement enters the core geometry table; its provisional atomic origin is
-   not final parent-relative placement. Do not silently reinterpret coordinates.
+The adapter traverses ordinary inline descendants for text/styles. At an
+inline-block it retrieves the item, creates an ordered whatsit anchor, and skips
+the entire subtree for outer rope generation. Skipping text must not erase the
+item's position in the prepared sequence. BoxID can serve directly as the whatsit
+ID, or an adapter-local handle can map back to it. Node pointers, NodeID and rope
+offsets are not the core association key. Source correspondence and anchor offsets
+are explicit adapter data, not fabricated ranges containing inner text.
 
-These contracts do not add line summaries or an opaque core paragraph payload.
-LayoutInline continues to return only the overall extent.
+Prepared dimensions are finite nonnegative border-box sizes; margins are obtained
+separately via Used.Lookup. The view is read-only and invocation-scoped. Missing
+entries fail explicitly rather than triggering adapter-initiated sizing. No opaque
+paragraph payload or new vlist identity crosses this boundary.
+
+#### Whatsit input and final-placement output
+
+The concrete P input representation remains the adapter's choice: mixed typed
+items or rope placeholders with attachments. P must receive an indivisible item
+with identity, measurements and explicit alignment/margin/break behavior. P need
+not import core types. The adapter's internal position storage is also private.
+It translates the final accepted positions into the proposed core result:
+`InlineResult{Extent, Atomics: []AtomicPlacement}`.
+
+This deliberately refines the earlier extent-only return: atomic-box placements
+are added, not paragraph line summaries, glyphs or opaque payloads. Placement has
+BoxID and X/Y only. X/Y is the atomic border-box origin relative to the requesting
+owner's content origin in CSS pixels, after margin and alignment effects. Core
+must not add margins again or let placement alter prepared dimensions. Validate
+finite extent and coordinates, with exactly one placement per prepared item,
+including zero-sized items. Missing/duplicate/unknown/foreign-group IDs fail;
+negative coordinates are allowed. Validate all output before applying placements.
+
+Core owns the authoritative positioned boxes. The proposed LayoutGeometry.RelativeTo
+field records the coordinate parent explicitly: requesting OwnerID for an atomic
+box, containing block for a stacked block, and zero for root. This need not be the
+immediate structural parent (an ordinary inline span may have no rectangle).
+Core sets the atomic Frame origin from placement and its Content origin by adding
+own border/padding; it preserves dimensions and descendant-local coordinates.
+Document transforms follow RelativeTo and are applied exactly once, not also
+reapplied from the adapter's retained whatsit position.
+
+For the zero-edge example above, Geometry[42] becomes RelativeTo=outer OwnerID,
+Frame=(55,3,40,24), Content=(55,3,40,24). Its inner paragraph is retained under its
+own group with owner 42 and placed at that content origin. BoxID alone is not a
+cross-invocation key: prepared views, handles and accepted output belong to one
+layout invocation. Failed output must not alter old snapshots.
+
+These are concrete interface proposals, not implemented APIs. Actual typography
+item encoding, source/anchor mapping and conversion remain adapter work. Proposed
+first-slice alignment is the bottom margin edge at the line baseline without an
+inner paragraph baseline; confirm this bounded fixture policy before coding and
+do not claim complete CSS baseline alignment.
 
 #### Fixed-width example and acceptance
 
 For a 200px paragraph containing `Hello `, inline-block A (fixed 40px, inner text
 `small note`), and ` world.`, with zero edges:
 
-```text
-core: prepare outer group G
-  discover A; defer external call for G
-  core: lay out A and prepare inner group H
-    H has no atomic children
-    -> adapter.LayoutInline(H, width=40, prepared={}) -> P("small note")
-    <- extent, say H=24; adapter retains inner paragraph
-  finish A's size 40x24; record prepared item A for G
-  -> adapter.LayoutInline(G, width=200, prepared={A: 40x24})
-     -> P([Text("Hello "), AtomicItem(A, 40x24), Text(" world.")])
-     <- retained outer paragraph with A's final placement
-  <- overall outer extent
+##### Single-inline-block call sequence
+
+This visual aid illustrates the proposed task-2A interfaces, not the current Go
+implementation. The written contract and signature proposal remain authoritative.
+See the [layout process flowchart](Architecture-Interfaces.md#layout-process-flowchart)
+for the surrounding construction, resolution, block stacking, and recursion.
+A has BoxID 42; height 24 is illustrative test data, not a font measurement.
+
+![Proposed call order: complete inner paragraph, prepare atomic BoxID 42, then lay out the outer paragraph and apply its returned atomic placement.](diagrams/inline-block-sequence.svg)
+
+[Editable DOT source](diagrams/inline-block-sequence.dot). Regenerate from the repository root:
+
+```sh
+dot -Tsvg doc/diagrams/inline-block-sequence.dot -o doc/diagrams/inline-block-sequence.svg
 ```
+
+The inner paragraph call finishes before the outer adapter call starts. Core
+owns that ordering; BoxID connects the structural branch, prepared measurements,
+whatsit identity, and final geometry. The adapter owns its internal handle and
+position representation, and never initiates recursive sizing.
 
 The item notation is conceptual, not an existing API. A has structural identity
 before preparation, size before outer delegation, and final position afterward.
@@ -368,8 +412,9 @@ Remaining decisions/work: concrete adapter conversion/rounding and retained
 precision, actual document publication, concrete atomic-item input and
 final-placement output interfaces (including alignment and source mapping),
 and future speculative-call acceptance.
-Table-only geometry with shared immutable structural input, extent-only return,
-and adapter-owned typed retention are settled; do not reopen
+Table-only geometry with shared immutable structural input and adapter-owned
+typed retention are settled. The task-2A proposal adds atomic placements to the
+current extent-only return, not paragraph line summaries; do not reopen
 them as competing core-payload proposals.
 
 When a proposal is accepted, update the core contract and pass signatures, record

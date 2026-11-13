@@ -135,7 +135,8 @@ B4. BoxText is leaf
 - FlowLayout(root, usedValues, inlineLayouter, intrinsicMeasurer, containingBlock) -> LayoutResult
 
 Inline layouter (black box):
-- LayoutInline(InlineRequest) -> InlineExtent{W,H}, error
+- Current API: LayoutInline(InlineRequest) -> InlineExtent{W,H}, error
+- Task-2A proposal: LayoutInline(InlineRequest) -> InlineResult{Extent, Atomics}, error
   - Request: anonymous inline Group (Group.BoxID is the retention key), OwnerID,
     definite ContentWidth in CSS pixels, a UsedValuesView, and read-only prepared
     atomic items (target). The implemented API still has AtomicSizer; see the
@@ -169,7 +170,10 @@ Atomic preparation (agreed target; API migration pending):
 - Replace external AtomicSizer callbacks with read-only prepared-item lookup by
   existing atomic BoxID. Group-local items have complete finite border-box sizes
   before LayoutInline starts. Missing preparation is an error. Current Go code
-  still exposes AtomicSizer; the concrete replacement types remain to be specified.
+  still exposes AtomicSizer. The concrete proposal is request.Atomics with
+  PreparedAtomicsView.Lookup(BoxID) returning PreparedAtomic{BoxID, BorderWidth,
+  BorderHeight}; see Pass-Signatures.md. One view serves one group; the branch's
+  node.BoxID is its lookup key. Local whatsit handles map back to that same ID.
 - The adapter translates text/styles and prepared atomic leaves, not layout
   scheduling. It must not flatten inner text into outer input. Inner paragraph
   calls finish before the outer call starts; this no longer requires reentrancy
@@ -177,18 +181,25 @@ Atomic preparation (agreed target; API migration pending):
 - Two adapter/P contracts remain required: anchored atomic-item input with identity,
   dimensions, source mapping, alignment/margin/break policy; and identity-preserving
   final-placement output. Core owns internal geometry; P chooses line placement,
-  retained by the adapter and composed exactly once. Concrete representations and
-  whether/how placement enters the core geometry table remain open. Neither
-  prepared sizes nor provisional origins are final parent-relative positions.
+  retained by the adapter and reported as AtomicPlacement{BoxID, X, Y}. Proposed
+  X/Y is the border-box origin relative to request.OwnerID's content origin,
+  including alignment/margin effects. Core applies it without adding margins or
+  changing dimensions/descendant-local coordinates. Proposed geometry.RelativeTo
+  identifies that coordinate parent explicitly (root=0, stacked block=container,
+  atomic=request.OwnerID), not necessarily the structural parent. Validate exactly
+  one placement per prepared item, identity membership and finite coordinates
+  before applying; negative positions are allowed. P's input/position storage
+  remains private. Neither prepared sizes nor provisional origins are positions.
 - Start with fixed CSS-pixel widths including zero; do not clamp them to remaining
   line width. Resolve descendants against atomic content width before layout.
   Border-box dimensions include padding/borders but not margins. Prepare each
   atomic box once per invocation initially. Auto/intrinsic sizing and speculative
   trials need later dependency and acceptance/discard semantics. Inner failure
   prevents dependent outer delegation and aborts publication of pending results.
-- Preserve extent-only returns; no core line summaries or opaque paragraph payloads.
-  Checklist 2A/3A covers prepared access and bounded alignment policy; 2B/3B covers
-  later sizing and full alignment work.
+- The proposed InlineResult deliberately adds atomic placements to extent-only
+  returns, not line summaries or opaque paragraph payloads. All new types and
+  RelativeTo remain unimplemented. Checklist 2A/3A covers migration, prepared
+  access and bounded alignment policy; 2B/3B covers later sizing/full alignment.
 
 Intrinsic measurer:
 - MaxContentWidth(node) -> contentBoxW

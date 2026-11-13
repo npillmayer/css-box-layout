@@ -114,7 +114,10 @@ Treat the group and caller inputs as read-only.
 The current request still exposes `Atomic` for sizing callbacks. The agreed
 fixed-width extension instead makes core discover and recursively lay out atomic
 subtrees before calling the outer adapter, supplying read-only prepared items by
-BoxID. This migration is not implemented yet; exact replacement types remain open.
+BoxID. This migration is not implemented yet. The concrete proposal uses
+req.Atomics.Lookup(node.BoxID), InlineResult with extent plus atomic placements,
+and LayoutGeometry.RelativeTo for explicit coordinate parents. Whatsit encoding
+and internal position storage remain adapter-owned; local handles map to BoxID.
 The adapter will translate already-sized items for P, not schedule layout. See
 [the integration design](../doc/Document-Layout-Integration.md#41-core-owned-recursive-inline-block-preparation)
 and checklist 2A/3A for prepared access, atomic input, and final-placement output.

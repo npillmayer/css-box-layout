@@ -1,0 +1,50 @@
+digraph LayoutProcess {
+  graph [rankdir=TB, bgcolor="#f6f4ef", pad=0.35, nodesep=0.35, ranksep=0.48, splines=polyline, fontname="Helvetica", fontsize=20, fontcolor="#18313c", labelloc=t, label="LAYOUT PROCESS\nProposed task 2A / fixed-width atomic items"];
+  node [shape=box, style="rounded,filled", fillcolor="#ffffff", color="#c2c9c9", fontname="Helvetica", fontsize=11, fontcolor="#18313c", margin="0.18,0.12"];
+  edge [color="#637780", arrowsize=0.7, fontname="Helvetica", fontsize=10, fontcolor="#425b65"];
+  input [label="Styled render tree"];
+  build [label="BuildLayoutTree\nNormalize structure / assign BoxIDs"];
+  resolve [label="ResolveUsedValues\nKnown widths and edges"];
+  input -> build -> resolve;
+  subgraph cluster_core {
+    label="01  CORE / recursive container layout"; fontsize=14; color="#b9cccc"; style="rounded,filled"; fillcolor="#eaf0ee"; margin=18; labeljust=l;
+    enter [label="Lay out container\nRoot on first entry", fillcolor="#183f4b", fontcolor=white, color="#183f4b"];
+    kind [shape=diamond, style=filled, label="Contents?", fillcolor="#ffffff"];
+    blocks [shape=diamond, style=filled, label="Next block\nchild?"];
+    child [shape=box, peripheries=2, label="RECURSE: child container"];
+    stack [label="Place child in vertical stack"];
+    discover [label="Find atomic boundaries\nTraverse ordinary inline spans"];
+    atom [shape=diamond, style=filled, label="Next atomic\nitem?"];
+    recurse [shape=box, peripheries=2, label="RECURSE: atomic container\nFinish inner groups and block stacks"];
+    measured [label="Record measured border box\nPrepared view keyed by BoxID"];
+    ready [label="All atomic items ready\nDelegate group + width + prepared view", fillcolor="#183f4b", fontcolor=white, color="#183f4b"];
+    enter -> kind;
+    kind -> blocks [label="blocks"]; blocks -> child [label="yes"]; child -> stack; stack -> blocks;
+    kind -> discover [label="inline group"]; discover -> atom;
+    atom -> recurse [label="yes"]; recurse -> measured; measured -> atom;
+    atom -> ready [label="no"];
+  }
+  subgraph cluster_external {
+    label="02  EXTERNAL / adapter + paragraph engine P"; fontsize=14; color="#dbc5a8"; style="rounded,filled"; fillcolor="#f2e8d9"; margin=18; labeljust=l;
+    translate [label="Adapter: extract text and styles\nAtomic branch -> anchored whatsit"];
+    paragraph [label="P: lay out text and whatsits"];
+    retain [label="Adapter: retain paragraph result\nMap final positions back to BoxIDs"];
+    result [label="InlineResult\nOverall extent + atomic placements"];
+    translate -> paragraph -> retain -> result;
+  }
+  subgraph cluster_finish {
+    label="03  CORE / validate and finish"; fontsize=14; color="#b9cccc"; style="rounded,filled"; fillcolor="#eaf0ee"; margin=18; labeljust=l;
+    validate [shape=diamond, style=filled, label="Valid result?"];
+    apply [label="Apply atomic placements\nSet RelativeTo / preserve local descendants"];
+    finish [label="Finish container geometry\nReturn to caller", fillcolor="#183f4b", fontcolor=white, color="#183f4b"];
+    validate -> apply [label="yes"]; apply -> finish;
+  }
+  fail [label="Abort pending invocation\nKeep previous snapshot", fillcolor="#f6dfda", color="#b66955"];
+  publish [label="After root success only\nIntegration publishes geometry + retained results", fillcolor="#dce9df", color="#7b9b88"];
+  measured -> translate [style=invis];
+  resolve -> enter; ready -> translate; result -> validate;
+  blocks -> finish [label="no", minlen=2]; validate -> fail [label="no"];
+  finish -> publish [style=dashed, label="root return"];
+  legend [shape=plain, style="", fontsize=10, label="Double borders = recursive call, then resume caller.\nAny error aborts the invocation; only one failure edge is shown.\nWritten design is authoritative. Auto sizing is outside this view."];
+  publish -> legend [style=invis];
+}

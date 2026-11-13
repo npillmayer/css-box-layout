@@ -163,18 +163,30 @@ prepareGroup(group):
 
 before calling inline.LayoutInline for a group:
   prepared = prepareGroup(group)  // failure prevents the external call
-  extent = inline.LayoutInline({Group: group, ..., PreparedAtomics: prepared})
+  result = inline.LayoutInline({Group: group, ..., Atomics: prepared})
+  validate extent and exactly one finite placement per prepared item
+  for p in result.Atomics:
+    geom[p.BoxID].RelativeTo = groupOwnerID
+    set Frame origin to (p.X, p.Y); set Content origin plus own border/padding
+    preserve dimensions and descendant-local geometry
+  content.H = result.Extent.H
 ```
 
-PreparedAtomics is conceptual, not a defined Go field. Each atomic box is prepared
+Atomics and RelativeTo are proposed fields, not implemented Go fields. Use zero
+RelativeTo for the root and the containing block for stacked children. Adapter
+lookup uses the atomic branch's BoxID; core validates placement IDs against the
+same group-local view. Coordinates are border origins after margin/alignment;
+core adds no further margin and rejects the entire result before application if
+validation fails. Each atomic box is prepared
 once per invocation initially; external inner calls finish before the outer call
 starts. Adapters translate prepared leaves without initiating layout. No explicit
 TODO stack is required. Input trees/tables remain immutable. Auto/intrinsic sizing
 and speculative trials require a later dependency/acceptance design.
 
-Returned sizes and geometry must agree. Atomic input to P and final placement
-output still need concrete contracts; prepared dimensions are not final positions.
-Geometry coverage for inline nodes/text also remains open. See checklist 2A/3A.
+Returned sizes and geometry must agree. The concrete prepared-item/placement
+proposal is in Pass-Signatures.md; P's whatsit representation remains adapter-owned.
+Prepared dimensions are not final positions. Geometry coverage for inline
+nodes/text also remains open. See checklist 2A/3A.
 
 | Test | Expected result |
 |---|---|

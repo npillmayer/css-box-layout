@@ -31,7 +31,8 @@ This is a planning artifact, not the algorithm contract.
   to the parent content box; root origin is (0,0). Margins are separate.
 - Empty block containers receive one empty `BoxAnonymousInline` child. This is
   implemented by normalization and covered by empty-container regressions.
-- Inline layout returns overall extent only. H sets consumed content height;
+- Current inline layout returns overall extent only. Task 2A proposes adding
+  placements of core-owned atomic boxes, not lines. H sets consumed content height;
   paragraph lines/baselines/glyphs stay in an invocation-local typed adapter table
   keyed by group BoxID with owner BoxID, including anonymous owners. Core line
   storage and opaque payloads are removed; see task 9.
@@ -89,18 +90,20 @@ using definite widths and explicit non-auto margins.
 Agreed direction: core discovers and recursively lays out atomic subtrees before
 calling the outer InlineLayouter. The adapter translates already-prepared items;
 it does not initiate sizing. This supersedes the callback-based plan; current Go
-code still exposes AtomicSizer. See integration section 4.1. All steps remain open.
+code still exposes AtomicSizer. See integration section 4.1. The concrete proposal is recorded; implementation remains open.
 
 #### 2A. Fixed-width implementation sequence (with 3A)
 
-1. [ ] Specify read-only prepared-item access in InlineRequest to replace Atomic:
-   atomic BoxID -> measured border-box item, group-local coverage, lifetime, and
-   explicit missing-entry errors. Preserve Group, OwnerID, Used, and extent-only
-   returns. Also specify both adapter/P contracts: anchored input with identity,
-   dimensions, source mapping, alignment/margin/break policy; final-placement
-   output preserving identity, containing group, reference point, units, and
-   once-only composition. Choose typed items versus placeholder/attachments and
-   decide whether/how placement enters core geometry. No concrete API is frozen.
+1. [x] Record the concrete interface proposal: request.Atomics with
+   PreparedAtomicsView.Lookup(BoxID), PreparedAtomic border dimensions, and one
+   view per group. Associate each branch by node.BoxID; adapter whatsit handles
+   may map back to that ID. Propose InlineResult{Extent, Atomics} and
+   AtomicPlacement{BoxID, X, Y}, with border origins relative to OwnerID content.
+   Propose LayoutGeometry.RelativeTo for explicit coordinate parents. This records
+   the design only, not implementation. See Pass-Signatures.md's task-2A proposal.
+   Before coding, confirm bounded alignment/break policy and adapter-specific
+   whatsit/source mapping; representation and internal position storage stay
+   private. No paragraph line summaries or opaque core payloads are introduced.
 2. [ ] Add build -> resolve -> flow fixtures with ordinary inline spans around
    at least two nested inline-block boundaries, including internal block children.
    Preserve source/style/BoxID associations and do not hoist atomic contents.
@@ -115,12 +118,18 @@ code still exposes AtomicSizer. See integration section 4.1. All steps remain op
    remaining line width. Complete 3A before internal layout. Distinguish auto from
    zero and reject unsupported auto cases in the bounded fixture. Validate finite
    border-box W/H including padding/borders; margins remain separate.
-4. [ ] Migrate InlineRequest and adapters/tests from Atomic callbacks to prepared
-   lookup; remove the externally exposed sizing callback from this path. A fake P
+4. [ ] Implement the proposed request/result types and migrate adapters/tests:
+   replace Atomic callbacks with Atomics lookup and return extent plus placements.
+   Add RelativeTo for all geometry entries (root=0; stacked blocks=container;
+   atomics=request.OwnerID), validate output, and apply placements without moving
+   descendant-local rectangles or double-counting margins/transforms. A fake P
    accepts mixed text/atomic input and returns identity-bearing placements. Start
    with Text("Hello "), AtomicItem(A), Text(" world."): inner text reaches only
    inner P, the outer adapter sees A already sized, and identity/anchor mapping
-   survives line breaking. Extend to the two-level fixture. Adapters retain typed
+   survives line breaking. Test a local whatsit handle mapping back to BoxID and
+   reject missing/duplicate/unknown/foreign placements and non-finite positions;
+   include valid negative coordinates and zero-sized items. Extend to the
+   two-level fixture. Adapters retain typed
    inner/outer results but do not schedule layout; no explicit TODO stack is needed.
 5. [ ] Verify final nested origins, line fitting/overflow, following-sibling
    heights, nonzero edges, explicit-zero/empty contents, and all typed associations.
@@ -132,9 +141,9 @@ code still exposes AtomicSizer. See integration section 4.1. All steps remain op
 Acceptance: core completes every group's atomic dependencies before delegation;
 input anchors survive as matching output placements; independent widths, sizes,
 composed positions, and call order agree across two atomic boundaries. Fake proof
-is not real tytui integration. First settle prepared-item access and both adapter/P
-contracts, not auto sizing. Exact item/placement types and full baseline alignment
-remain open.
+is not real tytui integration. The concrete proposal is documented; first confirm
+fixture alignment/break policy and adapter mapping, then implement the dependency
+regressions. Full baseline alignment and auto sizing remain follow-up work.
 
 #### 2B. Follow-up after fixed-width acceptance
 

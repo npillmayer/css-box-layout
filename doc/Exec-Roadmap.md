@@ -40,7 +40,7 @@ Frozen decisions for the current phase:
 - Frame is the border box; Content excludes padding and borders. Margins remain
   separate. Coordinates are relative to parent content boxes; root origin is (0,0).
 - Empty block containers receive one empty `BoxAnonymousInline` child.
-- Inline layout returns overall extent only; its H sets owner content height,
+- The implemented inline API returns overall extent only; its H sets owner content height,
   including paragraph trailing space. Core line storage and opaque payloads are
   removed. This supersedes non-anonymous-only line retention.
 - Typed paragraph results belong to an invocation-local adapter table keyed by
@@ -54,13 +54,19 @@ Frozen decisions for the current phase:
   core helpers; an explicit work stack is optional. This supersedes adapter-driven
   AtomicSizer callbacks and removes that reason for adapter reentrancy.
 - Replace the request's external sizing callback with read-only group-local
-  prepared items keyed by existing atomic BoxID. Exact lookup/item types remain
-  open; current code still exposes AtomicSizer. The adapter translates already-sized
-  items and retains P's final placements; core owns internal geometry.
-- Two adapter/P contracts remain open: anchored atomic-item input with identity,
-  dimensions, source mapping and alignment/margin/break policy; final-placement
-  output preserving identity and defining coordinate composition. Preparation is
-  sizing, not placement; extent-only returns remain unchanged.
+  prepared items keyed by existing atomic BoxID. Concrete proposal:
+  request.Atomics PreparedAtomicsView with Lookup(BoxID) -> PreparedAtomic, copied
+  border dimensions, one view per group, branch lookup by node.BoxID. Local whatsit
+  IDs map back to BoxID; encoding/position storage stays private. Current code
+  still exposes AtomicSizer; core prepares sizes, P determines line placements.
+- Concrete output proposal: InlineResult{Extent, Atomics}, with each
+  AtomicPlacement carrying BoxID and border-origin X/Y relative to request.OwnerID
+  content. This narrowly extends extent-only returns, without paragraph summaries.
+  Proposed LayoutGeometry.RelativeTo makes coordinate parents explicit: atomic
+  owner, stacked-block container, or zero at root. Core validates then applies
+  placements once, without moving local descendants or adding margins again.
+  These types remain unimplemented; P input encoding and bounded alignment/break
+  policy still need integration decisions. See the task-2A signature proposal.
 - Fixed CSS-pixel recursive support comes before auto sizing. Checklist 2A/3A
   specifies prepared access and both adapter/P contracts, then dependency-order
   fixtures, core scheduling/sizing/resolution, API migration, and fake-adapter
