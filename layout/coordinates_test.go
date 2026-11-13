@@ -68,6 +68,10 @@ func TestFlowLayout_NestedContentRelativeCoordinates(t *testing.T) {
 	for id, expected := range want {
 		n := bySource[id]
 		got := result.Geometry[n.BoxID]
+		if id != 1 {
+			parent := map[NodeID]NodeID{2: 1, 3: 2, 4: 2, 5: 1}[id]
+			expected.RelativeTo = bySource[parent].BoxID
+		}
 		if got != expected {
 			t.Errorf("source %d: geometry=%+v, want %+v", id, got, expected)
 		}

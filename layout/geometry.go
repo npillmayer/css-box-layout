@@ -1,8 +1,10 @@
 package layout
 
+// LayoutGeometry uses an explicit content-coordinate parent; zero denotes root.
 type LayoutGeometry struct {
-	Frame   Rect
-	Content Rect
+	RelativeTo BoxID
+	Frame      Rect
+	Content    Rect
 }
 
 type LayoutGeometryTable map[BoxID]LayoutGeometry

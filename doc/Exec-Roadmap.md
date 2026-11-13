@@ -1,5 +1,15 @@
 # Execution Roadmap
 
+Implementation update: tasks 2A/3A and bounded auto-width tasks 2B/3B are
+implemented. Core measures nested intrinsic bounds, selects auto content widths,
+resolves descendants privately, then performs final layout. Fixed pixel widths
+including zero remain supported; percent/em widths on atomic boxes remain rejected.
+Percentage dependencies on unknown auto widths fail explicitly; definite bases
+remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
+Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
+Real tytui/P integration, full baseline behavior and speculative trials remain open.
+
+
 High-level milestones for the core layout pipeline, reviewed on 2026-11-02;
 integration sequencing aligned through core M4 on 2026-11-13.
 `doc/CSS-Algo-Overview.md` is the authoritative algorithm contract.
@@ -40,7 +50,7 @@ Frozen decisions for the current phase:
 - Frame is the border box; Content excludes padding and borders. Margins remain
   separate. Coordinates are relative to parent content boxes; root origin is (0,0).
 - Empty block containers receive one empty `BoxAnonymousInline` child.
-- The implemented inline API returns overall extent only; its H sets owner content height,
+- The inline API returns extent and atomic placements; its H sets owner content height,
   including paragraph trailing space. Core line storage and opaque payloads are
   removed. This supersedes non-anonymous-only line retention.
 - Typed paragraph results belong to an invocation-local adapter table keyed by
@@ -58,20 +68,20 @@ Frozen decisions for the current phase:
   request.Atomics PreparedAtomicsView with Lookup(BoxID) -> PreparedAtomic, copied
   border dimensions, one view per group, branch lookup by node.BoxID. Local whatsit
   IDs map back to BoxID; encoding/position storage stays private. Current code
-  still exposes AtomicSizer; core prepares sizes, P determines line placements.
+  uses Atomics lookup; core prepares sizes, P determines line placements.
 - Concrete output proposal: InlineResult{Extent, Atomics}, with each
   AtomicPlacement carrying BoxID and border-origin X/Y relative to request.OwnerID
   content. This narrowly extends extent-only returns, without paragraph summaries.
   Proposed LayoutGeometry.RelativeTo makes coordinate parents explicit: atomic
   owner, stacked-block container, or zero at root. Core validates then applies
   placements once, without moving local descendants or adding margins again.
-  These types remain unimplemented; P input encoding and bounded alignment/break
+  These types are implemented; P input encoding and bounded alignment/break
   policy still need integration decisions. See the task-2A signature proposal.
 - Fixed CSS-pixel recursive support comes before auto sizing. Checklist 2A/3A
   specifies prepared access and both adapter/P contracts, then dependency-order
   fixtures, core scheduling/sizing/resolution, API migration, and fake-adapter
-  proof. Prepare each atomic once per invocation initially. Auto sizing and
-  speculative trials follow with nested-result acceptance/discard (2B/3B).
+  proof. Prepare each atomic once per invocation initially. Auto sizing follows measurement-first 2B/3B; speculative trials and their
+  acceptance/discard protocol remain outside that slice.
 
 Anonymous style rules are implemented. Remaining: explicit auto-width state, geometry scope,
 and validation predicates that distinguish block containers from block-level
@@ -85,7 +95,17 @@ Keep frozen decisions here; no separate decision log is needed.
 - CSSDOM creation, line breaking, and text shaping are external concerns.
 - Used edges must be available before the line-breaking decisions that need them.
 - Margin collapsing is deferred; margins are preserved without collapsing.
-- True shrink-to-fit is deferred beyond the max-content approximation.
+- Bounded shrink-to-fit is accepted for 2B/3B, superseding the max-content-only
+  approximation plan. Full CSS intrinsic/cyclic-percentage semantics remain deferred.
+- IntrinsicMeasurer measures normalized groups, not whole atomic subtrees:
+  MeasureInline returns min/max content bounds, with edges-only input and nested
+  atomic border bounds keyed by BoxID. Core owns recursion and width selection.
+- Use containing-block available content width, not line remainder; select
+  min(max(minContent, availableContent), maxContent), resolve descendants privately,
+  then lay out once. Reject unknown-width percentage dependencies initially.
+  Measurement never publishes geometry or paragraph results. No speculative-layout
+  protocol or baseline expansion is required for this slice. The bounded interfaces are implemented;
+  see Pass-Signatures.md section 4.1 and checklist 2B/3B.
 - Floats, positioning, z-index, and stacking contexts are deferred.
 - Fine inline metrics, span-level line-height, and inline background/border
   fragments are deferred.
@@ -144,13 +164,13 @@ still deferred. Core tests do not establish working tytui wiring.
 Status: edge and width resolution, side-table output, and basic context tests
 exist. Auto inline-block width is currently represented as zero.
 
-Remaining: distinguish auto from explicit zero, correct inline-block descendant
-contexts (tasks 2 and 3), and settle auto-margin behavior (task 6). Resolution
+Fixed-width descendant contexts and explicit zero behavior are tested (3A).
+Late auto-width resolution (3B) is implemented; auto-margin behavior remains task 6. Resolution
 must preserve the agreed immutable-input contract.
 
 ## 7) Complete Pass 3: FlowLayout
 
-Status: block stacking, extent-only inline delegation, and geometry tables are
+Status: block stacking, extent-and-placement inline delegation, and geometry tables are
 implemented. Typed fake adapters verify group/owner requests, full extents,
 trailing space, anonymous/empty groups, and input/output error handling.
 
@@ -158,8 +178,9 @@ Nested parent-content-relative coordinates are fixed and regression-tested with
 three-level nesting and nonzero edges (task 10, 2026-11-13).
 M4 removes all node geometry writes, including atomic callbacks. Resize/failure
 and concurrent-read regressions pass, including full tests, vet, and race checks.
-Remaining: repair atomic sizing and geometry consistency (task 2), and define
-geometry coverage (task 7 and the validation checklist).
+Fixed-width recursive atomic sizing, placement and descendant resolution are
+implemented (2A/3A). Bounded auto/intrinsic sizing (2B/3B) is implemented. Broader geometry
+coverage remains task 7.
 
 ## 8) Execution order and completion gate
 

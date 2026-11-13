@@ -1,5 +1,15 @@
 # Core Algorithm Contract (CSS Box + Flow Layout)
 
+Implementation update: tasks 2A/3A and bounded auto-width tasks 2B/3B are
+implemented. Core measures nested intrinsic bounds, selects auto content widths,
+resolves descendants privately, then performs final layout. Fixed pixel widths
+including zero remain supported; percent/em widths on atomic boxes remain rejected.
+Percentage dependencies on unknown auto widths fail explicitly; definite bases
+remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
+Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
+Real tytui/P integration, full baseline behavior and speculative trials remain open.
+
+
 This document is the single, authoritative contract for the core CSS layout pipeline in this repo. It consolidates the spec surface previously spread across `doc/Algo-Spine.md` and `doc/Functional.md`.
 
 Implementation status and open work: `doc/Exec-Roadmap.md` and
@@ -135,11 +145,11 @@ B4. BoxText is leaf
 - FlowLayout(root, usedValues, inlineLayouter, intrinsicMeasurer, containingBlock) -> LayoutResult
 
 Inline layouter (black box):
-- Current API: LayoutInline(InlineRequest) -> InlineExtent{W,H}, error
-- Task-2A proposal: LayoutInline(InlineRequest) -> InlineResult{Extent, Atomics}, error
+- Current API: LayoutInline(InlineRequest) -> InlineResult{Extent, Atomics}, error
+- Implemented task-2A boundary: LayoutInline(InlineRequest) -> InlineResult{Extent, Atomics}, error
   - Request: anonymous inline Group (Group.BoxID is the retention key), OwnerID,
     definite ContentWidth in CSS pixels, a UsedValuesView, and read-only prepared
-    atomic items (target). The implemented API still has AtomicSizer; see the
+    atomic items (target). The implemented API uses Atomics; see the
     migration description below and current signatures in Pass-Signatures.md.
   - Extent is finite and nonnegative, including at zero available width. H is
     authoritative consumed height, including paragraph-owned trailing spacing;
@@ -170,7 +180,7 @@ Atomic preparation (agreed target; API migration pending):
 - Replace external AtomicSizer callbacks with read-only prepared-item lookup by
   existing atomic BoxID. Group-local items have complete finite border-box sizes
   before LayoutInline starts. Missing preparation is an error. Current Go code
-  still exposes AtomicSizer. The concrete proposal is request.Atomics with
+  uses request.Atomics with
   PreparedAtomicsView.Lookup(BoxID) returning PreparedAtomic{BoxID, BorderWidth,
   BorderHeight}; see Pass-Signatures.md. One view serves one group; the branch's
   node.BoxID is its lookup key. Local whatsit handles map back to that same ID.
@@ -193,16 +203,33 @@ Atomic preparation (agreed target; API migration pending):
 - Start with fixed CSS-pixel widths including zero; do not clamp them to remaining
   line width. Resolve descendants against atomic content width before layout.
   Border-box dimensions include padding/borders but not margins. Prepare each
-  atomic box once per invocation initially. Auto/intrinsic sizing and speculative
-  trials need later dependency and acceptance/discard semantics. Inner failure
+  atomic box once per invocation initially. Auto/intrinsic sizing follows the measurement-first 2B/3B design below;
+  speculative trials and their acceptance semantics remain later work. Inner failure
   prevents dependent outer delegation and aborts publication of pending results.
-- The proposed InlineResult deliberately adds atomic placements to extent-only
-  returns, not line summaries or opaque paragraph payloads. All new types and
-  RelativeTo remain unimplemented. Checklist 2A/3A covers migration, prepared
+- InlineResult deliberately adds atomic placements to extent-only
+  returns, not line summaries or opaque paragraph payloads. The types and RelativeTo are implemented. Checklist 2A/3A covers migration, prepared
   access and bounded alignment policy; 2B/3B covers later sizing/full alignment.
 
-Intrinsic measurer:
-- MaxContentWidth(node) -> contentBoxW
+Intrinsic measurement (implemented bounded 2B/3B design):
+- MaxContentWidth and InlineIntrinsic are removed. Auto sizing uses
+  MeasureInline(InlineMeasureRequest) -> IntrinsicWidths{MinContent, MaxContent}.
+  Current types are in Pass-Signatures.md section 4.1.
+- Core owns recursive measurement and block aggregation. A request has Group,
+  OwnerID, an edges-only view, and intrinsic atomic items keyed by existing BoxID.
+  Atomic bounds include padding/borders, not margins; external measurement adds
+  margins once. Its result is group content bounds, excluding owner edges.
+- Both bounds are finite/nonnegative and ordered. Min-content uses supported
+  minimum-content breaks; max-content preserves mandatory breaks but suppresses
+  optional wrapping. Nested atomics remain indivisible in outer measurement.
+- No available width, provisional content width, height, placement or retained
+  paragraph result crosses this boundary. Measurement does not publish geometry.
+- Core selects min(max(minContent, availableContent), maxContent), where available
+  content is containing-block content width minus own horizontal edges/margins,
+  clamped to zero, never remaining line space. It then re-resolves descendants
+  in invocation-local used values before one final accepted layout.
+- Reject percentage dependencies requiring an unknown auto width initially;
+  unresolved is not zero. Independently definite percentage bases remain usable.
+  No speculative-layout acceptance protocol is introduced in 2B/3B.
 
 ---
 
@@ -210,7 +237,8 @@ Intrinsic measurer:
 
 - Margin collapsing (margins preserved, not collapsed)
 - Floats, positioning, z-index, stacking contexts
-- True shrink-to-fit (beyond max-content approximation)
+- Full CSS intrinsic-sizing and cyclic-percentage semantics (bounded shrink-to-fit
+  is implemented under 2B/3B; this supersedes the max-content-only deferral)
 - Span-level line-height / fine inline metrics
 - Inline fragments for span backgrounds/borders
 - Bidi/RTL, vertical writing modes

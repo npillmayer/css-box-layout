@@ -8,7 +8,10 @@ import (
 
 type inlineFunc func(InlineRequest) (InlineExtent, error)
 
-func (f inlineFunc) LayoutInline(req InlineRequest) (InlineExtent, error) { return f(req) }
+func (f inlineFunc) LayoutInline(req InlineRequest) (InlineResult, error) {
+	e, err := f(req)
+	return InlineResult{Extent: e}, err
+}
 
 // Stand-in for P's concrete result: retained by the adapter, never by the core.
 type testParagraph struct{ body, trailing float32 }

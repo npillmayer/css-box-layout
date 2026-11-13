@@ -59,10 +59,10 @@ type emptyInlineRecorder struct {
 	width float32
 }
 
-func (r *emptyInlineRecorder) LayoutInline(req InlineRequest) (InlineExtent, error) {
+func (r *emptyInlineRecorder) LayoutInline(req InlineRequest) (InlineResult, error) {
 	r.calls++
 	r.root, r.width = req.Group, req.ContentWidth
-	return InlineExtent{}, nil
+	return InlineResult{}, nil
 }
 
 func TestFlowLayout_BuiltEmptyRoot(t *testing.T) {

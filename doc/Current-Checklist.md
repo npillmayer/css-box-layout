@@ -31,8 +31,8 @@ This is a planning artifact, not the algorithm contract.
   to the parent content box; root origin is (0,0). Margins are separate.
 - Empty block containers receive one empty `BoxAnonymousInline` child. This is
   implemented by normalization and covered by empty-container regressions.
-- Current inline layout returns overall extent only. Task 2A proposes adding
-  placements of core-owned atomic boxes, not lines. H sets consumed content height;
+- Inline layout returns extent plus placements of core-owned atomic boxes, not
+  lines. H sets consumed content height;
   paragraph lines/baselines/glyphs stay in an invocation-local typed adapter table
   keyed by group BoxID with owner BoxID, including anonymous owners. Core line
   storage and opaque payloads are removed; see task 9.
@@ -43,7 +43,7 @@ This is a planning artifact, not the algorithm contract.
 
 Task numbers are stable references, not execution order. The recommended next
 track is the bounded document experiment in
-[Document-Layout-Integration.md](Document-Layout-Integration.md). The extent-only API and typed retention are agreed and core-tested; this ordering
+[Document-Layout-Integration.md](Document-Layout-Integration.md). The extent/placement API and typed retention are core-tested; this ordering
 does not declare the external adapter or broader core complete.
 
 | Stage | Checklist tasks | Integration milestone | Gate / owner |
@@ -57,7 +57,7 @@ does not declare the external adapter or broader core complete.
 | Auto sizing and broader cleanup | 2B, 3B; remaining 6 and 7 | Follow-up | Intrinsics/speculation follow fixed-width acceptance |
 
 Task 9 core changes and error checks are implemented; real adapter conversion
-and publication remain. M3-M4 now use the accepted extent-only contract;
+and publication remain. M3-M4 establish extent-based flow; task 2A adds atomic placements;
 general dead-code cleanup and auto-margin implementation need not block a fixture
 using definite widths and explicit non-auto margins.
 
@@ -87,98 +87,80 @@ using definite widths and explicit non-auto margins.
 
 ### 2. Recursive inline-block sizing and placement - fixed-width first
 
-Agreed direction: core discovers and recursively lays out atomic subtrees before
-calling the outer InlineLayouter. The adapter translates already-prepared items;
-it does not initiate sizing. This supersedes the callback-based plan; current Go
-code still exposes AtomicSizer. See integration section 4.1. The concrete proposal is recorded; implementation remains open.
+Core-owned preparation and the task-2A API are implemented. External tytui/P
+integration remains separate; auto/intrinsic sizing remains task 2B.
 
-#### 2A. Fixed-width implementation sequence (with 3A)
+#### 2A. Fixed-width implementation sequence (with 3A) - core complete
 
-1. [x] Record the concrete interface proposal: request.Atomics with
-   PreparedAtomicsView.Lookup(BoxID), PreparedAtomic border dimensions, and one
-   view per group. Associate each branch by node.BoxID; adapter whatsit handles
-   may map back to that ID. Propose InlineResult{Extent, Atomics} and
-   AtomicPlacement{BoxID, X, Y}, with border origins relative to OwnerID content.
-   Propose LayoutGeometry.RelativeTo for explicit coordinate parents. This records
-   the design only, not implementation. See Pass-Signatures.md's task-2A proposal.
-   Before coding, confirm bounded alignment/break policy and adapter-specific
-   whatsit/source mapping; representation and internal position storage stay
-   private. No paragraph line summaries or opaque core payloads are introduced.
-2. [ ] Add build -> resolve -> flow fixtures with ordinary inline spans around
-   at least two nested inline-block boundaries, including internal block children.
-   Preserve source/style/BoxID associations and do not hoist atomic contents.
-   Validate outer-flow participation separately from container capability (task 7).
-   Assert inner-before-outer delegation, complete prepared lookups, one preparation
-   per atomic box, and no nested/reentrant external LayoutInline calls.
-3. [ ] Implement recursive core preparation: traverse ordinary inline descendants,
-   stop at atomic boundaries and lay out each internal block container (including
-   nested groups and block stacks), then publish its dimensions into the current
-   group's read-only prepared view before external delegation. Use fixed CSS-pixel
-   widths including explicit zero; do not call intrinsic measurement or clamp to
-   remaining line width. Complete 3A before internal layout. Distinguish auto from
-   zero and reject unsupported auto cases in the bounded fixture. Validate finite
-   border-box W/H including padding/borders; margins remain separate.
-4. [ ] Implement the proposed request/result types and migrate adapters/tests:
-   replace Atomic callbacks with Atomics lookup and return extent plus placements.
-   Add RelativeTo for all geometry entries (root=0; stacked blocks=container;
-   atomics=request.OwnerID), validate output, and apply placements without moving
-   descendant-local rectangles or double-counting margins/transforms. A fake P
-   accepts mixed text/atomic input and returns identity-bearing placements. Start
-   with Text("Hello "), AtomicItem(A), Text(" world."): inner text reaches only
-   inner P, the outer adapter sees A already sized, and identity/anchor mapping
-   survives line breaking. Test a local whatsit handle mapping back to BoxID and
-   reject missing/duplicate/unknown/foreign placements and non-finite positions;
-   include valid negative coordinates and zero-sized items. Extend to the
-   two-level fixture. Adapters retain typed
-   inner/outer results but do not schedule layout; no explicit TODO stack is needed.
-5. [ ] Verify final nested origins, line fitting/overflow, following-sibling
-   heights, nonzero edges, explicit-zero/empty contents, and all typed associations.
-   Inject an inner failure after earlier successful work: the dependent outer
-   layouter must not run, partial invocation state is discarded, inputs and older
-   snapshots stay unchanged. Resize outer constraints: fixed atomic widths stay
-   fixed. Run full tests, vet, and race checks; update API docs and historical tests.
+1. [x] Implement PreparedAtomicsView.Lookup(BoxID), one view per group, and
+   InlineResult{Extent, Atomics}; remove external AtomicSizer. Adapter-local whatsit
+   handles map back to existing BoxID. Paragraph payloads remain adapter-owned.
+2. [x] Test two nested atomic boundaries beneath ordinary inline spans, including
+   internal block stacks, source separation, inner-before-outer calls, and no
+   external reentrancy. Separate IsBlockLevel from IsBlockContainer.
+3. [x] Recursively prepare fixed-pixel atomics, including zero, before delegation;
+   use correct descendant widths/edges. Reject unsupported percent/em atomic
+   widths explicitly before callbacks (auto is added by 2B); no intrinsic calls or line-width clamping.
+4. [x] Apply validated placements using RelativeTo, preserving descendant-local
+   rectangles and adding no second margin. Test local whatsit handles, lookup
+   copies, missing/duplicate/foreign/unknown IDs, non-finite coordinates, valid
+   negative positions, and zero-sized items. Existing extent tests use a test-only
+   wrapper; production adapters must migrate to InlineResult.
+5. [x] Verify composed origins, margin/border/padding accounting, sibling movement,
+   fixed-width overflow on resize, inner failure suppressing outer delegation,
+   unchanged inputs/old snapshots, and deterministic recovery. Full tests, vet,
+   and race checks pass.
 
-Acceptance: core completes every group's atomic dependencies before delegation;
-input anchors survive as matching output placements; independent widths, sizes,
-composed positions, and call order agree across two atomic boundaries. Fake proof
-is not real tytui integration. The concrete proposal is documented; first confirm
-fixture alignment/break policy and adapter mapping, then implement the dependency
-regressions. Full baseline alignment and auto sizing remain follow-up work.
+The fake P breaks between input items, never within whatsits; an oversized item
+on an empty line overflows. Bottom margin edges align to the line baseline. Real
+P encoding, source mapping, font layout and publication still need integration.
 
-#### 2B. Follow-up after fixed-width acceptance
+#### 2B. Auto width through intrinsic bounds - core implemented
 
-- [ ] Apply chosen auto width before internal layout; add checked intrinsic
-  dependencies and width-sensitive measurements. Coordinate with 3B.
-- [ ] Design acceptance/discard for speculative widths and repeated group calls,
-  covering geometry, typed paragraph results, and placement together.
-- [ ] Extend atomic alignment to the required baseline/margin behavior without
-  restoring core paragraph line summaries.
-- Current sizing gaps: auto width is not propagated into internal layout, and
-  returned width currently omits border/padding. M4 fixed mutation, not sizing.
-- True shrink-to-fit remains deferred; the current max-content approximation is
-  not a claim of CSS-complete auto sizing.
+- [x] Implement MeasureInline, IntrinsicWidths, BoxID-keyed IntrinsicAtomicsView,
+  and edges-only ResolvedEdgesView. Remove MaxContentWidth and InlineIntrinsic.
+- [x] Measure nested atomic boundaries before outer groups; combine block child
+  contributions by maximum. Fixed atomics have equal border bounds; auto bounds
+  derive from content. Add borders/padding and margins once at their own boundary.
+- [x] Select min(max(minContent, availableContent), maxContent) against containing
+  block content width minus own horizontal edges/margins, clamped to zero.
+- [x] Validate missing services, unresolved edges/percentage dependencies, invalid
+  bounds, zero/empty content, min-content overflow, mandatory-break fake metrics,
+  nested fixed/auto items and definite percentage bases.
+- [x] Keep measurement separate from final layout and publication. Tests cover
+  ordered measurement/final calls, view copies, errors before final delegation,
+  snapshot preservation, resize, deterministic recovery, and concurrent read-only
+  inputs. Full tests, vet and race checks pass.
+
+Real typography measurement remains external. The fake measurers define explicit
+metrics; their successful tests do not prove real-font shaping integration.
+No speculative layouts or cross-invocation cache is introduced. Keep the existing
+bounded alignment policy; full baseline behavior remains separate work.
 
 ### 3. Resolve inline-block descendant widths - paired with task 2
 
-#### 3A. Fixed-width prerequisite
+#### 3A. Fixed-width prerequisite - implemented
 
-- [ ] Use each fixed inline-block's content width as its descendants' containing
-  width, recursively. Resolve child percentage widths and percentage edges before
-  invoking inner LayoutInline; ordinary inline wrappers must preserve this basis.
-- [ ] Test multiple nested fixed widths with percentage-sized block descendants,
-  nonzero edges, and explicit-zero atomic content width. Available callback width
-  must be the owner's content width, not its border-box or outer paragraph width.
-- Current gap: `childResolveContext` still uses the outer containing width even
-  for fixed-width inline-blocks. Repair without mutating input trees/tables.
+- [x] Resolve descendants against each inline-block's content width, preserving
+  that basis through ordinary inline wrappers.
+- [x] Verify nested fixed widths, percentage block widths/edges, and explicit-zero
+  containing width before inner paragraph calls, without mutating inputs.
 
-#### 3B. Late width determination (after 2A/3A)
+#### 3B. Late width determination - core implemented
 
-- [ ] Define invocation-local descendant resolution after auto width is selected,
-  including the used-values view seen by nested callbacks. Never mutate caller
-  tables or publish provisional geometry/retained results as accepted output.
-- Acceptance: every internal line-breaking decision sees edges and descendant
-  widths resolved against the selected content width; pass dependencies remain
-  explicit. Caching and true shrink-to-fit are not part of this first extension.
+- [x] Add WidthPending/EdgesPending state to UsedValues; unresolved auto width and
+  dependent percentages cannot masquerade as resolved zero.
+- [x] Expose only independently resolved BoxEdges during measurement. Reject
+  percentage edges or contributing widths needing an unknown auto basis. Do not
+  solve cyclic percentages or silently evaluate them against zero.
+- [x] Copy used values per invocation, choose auto width, and re-resolve descendants
+  against the chosen width. All pending resolution completes before any final
+  LayoutInline call; trees, caller tables and published snapshots remain unchanged.
+- [x] Test nested auto/fixed boundaries, definite percentage bases, border/margin
+  accounting, min-content overflow, zero width, resize and error recovery.
+- Acceptance met for the bounded subset: measure bounds -> select width -> resolve
+  descendants -> one final layout. Full CSS intrinsic/cyclic-percentage semantics,
+  speculative acceptance and global caching remain deferred.
 
 ### 4. Enforce empty-container normalization - immediate / M1
 
@@ -215,8 +197,7 @@ regressions. Full baseline alignment and auto sizing remain follow-up work.
   searched; unknown external consumers may need migration. Concrete paragraph
   results remain adapter-owned; no replacement core package is introduced.
 
-- [ ] Audit repository-wide references to `BoxMetrics`, `InlineIntrinsic`, and
-  `StyNodeView` before removing or integrating them. Lack of internal use alone
+- [ ] Audit repository-wide references to `BoxMetrics` and `StyNodeView` before removing or integrating them. Lack of internal use alone
   does not establish that an exported API can be removed safely.
 - [ ] Define the role of unused `BuildOptions`, `LayoutOptions`, and
   `LayoutContext`; remove unnecessary internal parameters where appropriate.
@@ -233,9 +214,8 @@ regressions. Full baseline alignment and auto sizing remain follow-up work.
 - [x] Document task 11 ownership: structural inputs remain read-only; fresh
   result tables exclusively own geometry, with no node mirrors.
 - B3 wording is now clarified in the core contract. Remaining work:
-- [ ] Align validation predicates: `IsBlockLevel` currently includes
-  `BoxInlineBlock`, although inline-blocks are permitted as atomic inline items.
-  Distinguish outer flow participation from internal block-container behavior.
+- [x] Separate IsBlockLevel (outer block flow) from IsBlockContainer (including
+  atomic inline-block interiors) in resolution and container dispatch.
 - [ ] Define which nodes require geometry entries; inline delegation currently
   does not populate geometry for ordinary inline/text nodes or the inline root.
 - Acceptance: one consistent description of the implemented pipeline, with

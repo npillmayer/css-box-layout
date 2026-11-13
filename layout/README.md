@@ -105,34 +105,34 @@ validation.
 
 ## Inline adapter migration
 
-Implement `LayoutInline(req layout.InlineRequest) (layout.InlineExtent, error)`.
-Use `req.Group.BoxID` as the typed paragraph retention key and `req.OwnerID` for
-placement through the owning block's content geometry. `req.ContentWidth` is
-CSS-pixel content width; `req.Used.Lookup(id)` exposes resolved value copies.
-Treat the group and caller inputs as read-only.
+Implement `LayoutInline(InlineRequest) (InlineResult, error)`. AtomicSizer is
+removed. Core resolves and lays out atomic interiors before outer delegation;
+`req.Atomics.Lookup(node.BoxID)` returns copied border-box dimensions for that
+branch. Do not flatten its inner text or initiate sizing. Retain paragraphs by
+Group.BoxID with OwnerID; local whatsit handles map to atomic BoxID.
 
-The current request still exposes `Atomic` for sizing callbacks. The agreed
-fixed-width extension instead makes core discover and recursively lay out atomic
-subtrees before calling the outer adapter, supplying read-only prepared items by
-BoxID. This migration is not implemented yet. The concrete proposal uses
-req.Atomics.Lookup(node.BoxID), InlineResult with extent plus atomic placements,
-and LayoutGeometry.RelativeTo for explicit coordinate parents. Whatsit encoding
-and internal position storage remain adapter-owned; local handles map to BoxID.
-The adapter will translate already-sized items for P, not schedule layout. See
-[the integration design](../doc/Document-Layout-Integration.md#41-core-owned-recursive-inline-block-preparation)
-and checklist 2A/3A for prepared access, atomic input, and final-placement output.
+Return full finite nonnegative Extent plus exactly one AtomicPlacement per
+prepared item. X/Y denotes the border origin relative to OwnerID content, already
+including margins/alignment. Negative positions are valid. Core rejects invalid
+identity coverage or dimensions and applies validated placements without keeping
+slice aliases. Extent-only adapters return `InlineResult{Extent: extent}`.
 
-Return the full finite, nonnegative layout extent, including paragraph-owned
-trailing space. H determines flow height; W does not resize the containing block.
-Zero width and empty results are valid; empty groups may reserve nonzero height.
-Do not return lines or a payload. `layout.LineBox`, `LinesByBlock`, and
-`LayoutResult.Lines` are removed. Paragraph lines/baselines/glyphs belong in the
-adapter's concrete result table, which must include anonymous groups too.
+LayoutGeometry.RelativeTo explicitly identifies the content-coordinate parent
+(root=0). Compose that chain once; do not reapply retained whatsit positions.
+Fixed pixel atomic widths (including zero) and auto widths are supported. Percent
+and em atomic widths still fail explicitly. For auto sizing, implement
+`IntrinsicMeasurer.MeasureInline(InlineMeasureRequest) (IntrinsicWidths, error)`;
+MaxContentWidth and InlineIntrinsic are removed. Core supplies nested intrinsic
+border bounds by BoxID and a resolved edges-only view. The service returns ordered,
+finite, nonnegative content bounds without publishing retained layout results.
 
-Create that table per invocation and publish it with successful document geometry
-only. Discard partial adapter state after errors. Nested coordinates use
-parent-content-relative placement. Atomic inline sizing remains unfinished.
-The extent-only tests use normal block flow and fake typed paragraphs.
+Core selects bounded shrink-to-fit width, re-resolves descendants in a private
+used-values table, then performs final layout once. UsedValues.WidthPending and
+EdgesPending mark provisional values from ResolveUsedValues; they are never exposed
+as final constraints. Percentage dependencies on unknown auto widths fail explicitly;
+percentages with definite bases remain supported. Fixed-width flow needs no
+intrinsic service. No speculative layout or cross-invocation cache is introduced. Real P wiring remains
+external. Full tests, vet and race checks cover this bounded implementation.
 
 ## Snapshot ownership and geometry migration
 

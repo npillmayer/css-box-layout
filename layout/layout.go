@@ -35,8 +35,8 @@ func ResolveUsedValues(root *LayoutNode, ctx ResolveContext) (UsedValuesTable, e
 func FlowLayout(
 	root *LayoutNode,
 	used UsedValuesTable,
-	inline InlineLayouter, // black box, produces overall group extent
-	intrinsic IntrinsicMeasurer, // provides initial max-content approximations
+	inline InlineLayouter, // black box, produces group extent and atomic placements
+	intrinsic IntrinsicMeasurer, // measures groups for auto sizing; fixed-width flow does not call it
 	ctx LayoutContext,
 	opts LayoutOptions,
 ) (*LayoutResult, error) {
@@ -49,8 +49,16 @@ func FlowLayout(
 	if err := validateUsedValues(root, used); err != nil {
 		return nil, err
 	}
+	if err := validateAtomicWidths(root); err != nil {
+		return nil, err
+	}
+	resolved, err := finalizeAutoWidths(root, used, intrinsic)
+	if err != nil {
+		return nil, err
+	}
+	used = resolved
 	geom := make(LayoutGeometryTable)
-	err := layoutBlockContainer(root, used, geom, inline, intrinsic)
+	err = layoutBlockContainer(root, used, geom, inline, intrinsic)
 	if err != nil {
 		return nil, err
 	}
@@ -107,20 +115,28 @@ func layoutBlockContainer(
 			return fmt.Errorf("box %d: inline layouter required", node.BoxID)
 		}
 		inlineRoot := node.Children[0]
-		extent, err := inline.LayoutInline(InlineRequest{
+		items, err := prepareAtomics(inlineRoot, used, geom, inline, intrinsic)
+		if err != nil {
+			return err
+		}
+		result, err := inline.LayoutInline(InlineRequest{
 			Group: inlineRoot, OwnerID: node.BoxID, ContentWidth: content.W,
-			Used:   usedValuesView{table: used},
-			Atomic: atomicSizer{inline: inline, intrinsic: intrinsic, used: used, geom: geom},
+			Used:    usedValuesView{table: used},
+			Atomics: preparedAtomicsView{items: items},
 		})
 		if err != nil {
 			return fmt.Errorf("inline group %d (owner %d): %w", inlineRoot.BoxID, node.BoxID, err)
 		}
+		extent := result.Extent
 		if !finite(extent.W) || !finite(extent.H) || extent.W < 0 || extent.H < 0 {
 			return fmt.Errorf("inline group %d: invalid layout extent %+v", inlineRoot.BoxID, extent)
 		}
+		if err := placeAtomics(result.Atomics, items, node.BoxID, geom); err != nil {
+			return fmt.Errorf("inline group %d: %w", inlineRoot.BoxID, err)
+		}
 		content.H = extent.H
 	} else {
-		h, err := layoutBlockChildrenVertical(node.Children, used, geom, inline, intrinsic)
+		h, err := layoutBlockChildrenVertical(node.BoxID, node.Children, used, geom, inline, intrinsic)
 		if err != nil {
 			return err
 		}
@@ -137,6 +153,7 @@ func layoutBlockContainer(
 }
 
 func layoutBlockChildrenVertical(
+	owner BoxID,
 	children []*LayoutNode,
 	used UsedValuesTable,
 	geom LayoutGeometryTable,
@@ -155,6 +172,7 @@ func layoutBlockChildrenVertical(
 			return 0, err
 		}
 		childGeom := geom[child.BoxID]
+		childGeom.RelativeTo = owner
 		// Child geometry is relative to the parent content origin, not its border box.
 		childGeom.Frame.X = cu.Margin.Left
 		childGeom.Frame.Y = y

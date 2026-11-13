@@ -1,5 +1,15 @@
 # Pass Algorithms and Test Outlines
 
+Implementation update: tasks 2A/3A and bounded auto-width tasks 2B/3B are
+implemented. Core measures nested intrinsic bounds, selects auto content widths,
+resolves descendants privately, then performs final layout. Fixed pixel widths
+including zero remain supported; percent/em widths on atomic boxes remain rejected.
+Percentage dependencies on unknown auto widths fail explicitly; definite bases
+remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
+Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
+Real tytui/P integration, full baseline behavior and speculative trials remain open.
+
+
 These are target-behavior sketches, not executable code or claims of completed
 implementation. Current API signatures are in `doc/Pass-Signatures.md`;
 `doc/CSS-Algo-Overview.md` is authoritative. Detailed open work and acceptance
@@ -104,51 +114,38 @@ final rule.
 | Auto versus zero inline-block width | Distinct states; correct later sizing |
 | Build -> resolve | Render styles reach used values |
 
+## Auto-width preparation before final flow
+
+ResolveUsedValues marks unresolved widths/edges as pending rather than final zero.
+FlowLayout copies the table before this phase and validates the supported subset:
+
+```text
+for each container in dependency order:
+  if auto inline-block:
+    measure its content bounds (recursive core traversal)
+      fixed child: equal content bounds plus its edges
+      auto child: measure its groups or combine block contributions
+      inline group: external MeasureInline with intrinsic atomic border bounds
+      reject percentage dependencies needing an unknown width
+    available = max(0, containing width - own horizontal margins/edges)
+    content width = min(max(min-content, available), max-content)
+    re-resolve descendants against chosen width in the private table
+  visit descendants, resolving further auto boundaries
+validate that no pending values reach final layout
+```
+
+Measurement publishes no paragraphs, placements or geometry. Invocation-local
+content bounds may be reused, but no speculative layout or global cache is needed.
+Only after this phase succeeds does the final flow below run. See current intrinsic
+interfaces in Pass-Signatures.md and acceptance coverage in checklist 2B/3B.
+
 ## Pass 3: FlowLayout
 
 The implementation and sketch construct fresh output tables without writes to
 input nodes. Results share the immutable structural root; there are no geometry
 mirrors on nodes. Callbacks must honor the same read-only input contract.
-The following sketch describes the implemented callback-based API, not the
-new core-owned atomic-preparation target described after it.
-
-```text
-FlowLayout(root, used, inline, intrinsic, ctx):
-  geom = fresh geometry table
-  layoutContainer(root, frameOrigin=(0,0))
-  return {Root: root, Geometry: geom}
-
-layoutContainer(node, frameOrigin):
-  u = required used values for node
-  frame = border box at frameOrigin with width contentWidth + horizontal edges
-  content = box at frameOrigin + top/left border and padding
-  content.W = u.ContentWidth
-
-  if node has one BoxAnonymousInline child:
-    extent = inline.LayoutInline({Group: child, OwnerID: node.BoxID,
-                                 ContentWidth: content.W, Used: readOnlyUsed,
-                                 Atomic: atomicSizer})
-    reject negative or non-finite extent dimensions
-    content.H = extent.H
-  else:
-    y = 0
-    for child in node.Children:
-      y += used[child].Margin.Top
-      layoutContainer(child, (used[child].Margin.Left, y))
-      y += geom[child].Frame.H + used[child].Margin.Bottom
-    content.H = y
-
-  frame.H = content.H + vertical padding and border
-  geom[node.BoxID] = {frame, content}
-```
-
-Child origins are relative to the parent's content box: do not add the parent's
-Content.X/Y to those origins. Each child's own Content origin includes that
-child's border/padding offset. Paragraph-local geometry remains in the adapter-owned typed result, placed at
-the owner's content origin; no line summaries return to block flow.
-
-Target fixed-width scheduling (not implemented): replace the Atomic callback
-in that sketch with core preparation before external delegation:
+Implemented fixed-width scheduling: block containers either stack block children
+recursively or prepare their inline group before external delegation:
 
 ```text
 prepareGroup(group):
@@ -172,7 +169,7 @@ before calling inline.LayoutInline for a group:
   content.H = result.Extent.H
 ```
 
-Atomics and RelativeTo are proposed fields, not implemented Go fields. Use zero
+Atomics and RelativeTo are implemented fields. Use zero
 RelativeTo for the root and the containing block for stacked children. Adapter
 lookup uses the atomic branch's BoxID; core validates placement IDs against the
 same group-local view. Coordinates are border origins after margin/alignment;
@@ -180,8 +177,8 @@ core adds no further margin and rejects the entire result before application if
 validation fails. Each atomic box is prepared
 once per invocation initially; external inner calls finish before the outer call
 starts. Adapters translate prepared leaves without initiating layout. No explicit
-TODO stack is required. Input trees/tables remain immutable. Auto/intrinsic sizing
-and speculative trials require a later dependency/acceptance design.
+TODO stack is required. Input trees/tables remain immutable. Auto sizing uses
+the measurement phase above; speculative trials remain deferred.
 
 Returned sizes and geometry must agree. The concrete prepared-item/placement
 proposal is in Pass-Signatures.md; P's whatsit representation remains adapter-owned.

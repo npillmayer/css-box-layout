@@ -155,38 +155,6 @@ func TestFlowLayout_ResizeAndFailedPublication(t *testing.T) {
 	}
 }
 
-func TestFlowLayout_AtomicCallbackDoesNotMutateInput(t *testing.T) {
-	root := &LayoutNode{BoxID: 1, Box: BoxBlock, Children: []*LayoutNode{{BoxID: 2, Box: BoxAnonymousInline, Children: []*LayoutNode{{BoxID: 3, Box: BoxInlineBlock, Children: []*LayoutNode{{BoxID: 4, Box: BoxAnonymousInline}}}}}}}
-	original := copyTestTree(root)
-	used := UsedValuesTable{1: {ContentWidth: 200}, 2: {}, 3: {ContentWidth: 80}, 4: {}}
-	failure := errors.New("failure after atomic sizing")
-	for _, fail := range []bool{false, true} {
-		result, err := FlowLayout(root, used, inlineFunc(func(req InlineRequest) (InlineExtent, error) {
-			if req.OwnerID == 3 {
-				return InlineExtent{W: 80, H: 10}, nil
-			}
-			w, h, err := req.Atomic.SizeInlineBlock(req.Group.Children[0], req.ContentWidth)
-			if err != nil {
-				return InlineExtent{}, err
-			}
-			if fail {
-				return InlineExtent{}, failure
-			}
-			return InlineExtent{W: w, H: h}, nil
-		}), nil, LayoutContext{}, LayoutOptions{})
-		if fail {
-			if !errors.Is(err, failure) || result != nil {
-				t.Fatal("atomic failure not propagated")
-			}
-		} else if err != nil || result.Geometry[3].Frame.H != 10 {
-			t.Fatalf("atomic layout failed: %v", err)
-		}
-		if !reflect.DeepEqual(root, original) {
-			t.Error("atomic callback mutated input")
-		}
-	}
-}
-
 func TestFlowLayout_ConcurrentReadOnlyInputs(t *testing.T) {
 	root := snapshotFixture(t)
 	original := copyTestTree(root)

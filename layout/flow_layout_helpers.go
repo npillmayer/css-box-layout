@@ -1,7 +1,7 @@
 package layout
 
 func isInlineOnlyBlockContainer(n *LayoutNode) bool {
-	if n == nil || !IsBlockLevel(n.Box) {
+	if n == nil || !IsBlockContainer(n.Box) {
 		return false
 	}
 	if len(n.Children) != 1 {

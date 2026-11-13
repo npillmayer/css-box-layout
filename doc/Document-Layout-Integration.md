@@ -1,5 +1,15 @@
 # Document Layout Integration
 
+Implementation update: tasks 2A/3A and bounded auto-width tasks 2B/3B are
+implemented. Core measures nested intrinsic bounds, selects auto content widths,
+resolves descendants privately, then performs final layout. Fixed pixel widths
+including zero remain supported; percent/em widths on atomic boxes remain rejected.
+Percentage dependencies on unknown auto widths fail explicitly; definite bases
+remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
+Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
+Real tytui/P integration, full baseline behavior and speculative trials remain open.
+
+
 Assessment and implementation plan, 2026-11-12. Extent-only boundary now implemented
 in the core; M3/M4 core verification updated 2026-11-13. Actual tytui integration
 remains outstanding.
@@ -8,8 +18,8 @@ This document evaluates the collaboration proposed in tytui's
 [three document-layout views](../../tytui/doc/DOCUMENT_LAYOUT_VIEWS.md), especially
 View 3, and its [exploration](../../tytui/doc/DOCUMENT_LAYOUT_EXPLORATION.md).
 It records integration-specific reasoning and acceptance targets, not a second
-general roadmap. The current extent-only API and typed retention are implemented;
-section 4.1 proposes the narrow addition of atomic placements. Remaining
+general roadmap. Typed retention and extent-based flow are implemented;
+section 4.1 describes the addition of atomic placements. Remaining
 implementation gaps and integration decisions are identified separately.
 
 The current authoritative contract remains
@@ -87,7 +97,7 @@ superseded. Block flow needs only the vlist's overall layout extent:
 ```go
 type InlineExtent struct { W, H float32 }
 // See Pass-Signatures.md for the complete request and interfaces.
-LayoutInline(InlineRequest) (InlineExtent, error)
+LayoutInline(InlineRequest) (InlineResult, error)
 ```
 
 H is consumed content height, including paragraph-owned trailing spacing, excluding
@@ -97,8 +107,8 @@ and nonnegative. Empty groups may reserve space without dummy lines. Ink bounds
 are a different quantity. Core no longer derives height from line rectangles.
 
 The implemented request carries Group (BoxAnonymousInline), OwnerID, definite
-ContentWidth in CSS pixels, a read-only UsedValuesView, and AtomicSizer. The planned
-fixed-width extension replaces AtomicSizer with prepared-item access (section 4.1). Group.BoxID identifies
+ContentWidth in CSS pixels, a read-only UsedValuesView, and prepared-item access
+through Atomics (section 4.1). Group.BoxID identifies
 an existing group B; OwnerID identifies its existing owner A. The returned extent
 sets A's content height. No new box or BoxID is created for the vlist.
 
@@ -156,8 +166,8 @@ side effects; the adapter must discard failed invocation state.
 
 Revised decision: core owns discovery, dependency scheduling, and sizing of nested
 inline-blocks. This supersedes the earlier adapter-driven AtomicSizer callback
-plan. The existing Go API still exposes that callback; this section is the target
-design, not implemented behavior.
+plan. The fixed-width implementation now follows this design; the callback API has
+been removed.
 
 InlineRequest carries a normalized group tree, not one source-text span. Core
 traverses ordinary inline descendants to find atomic boundaries. Each inline-block
@@ -176,7 +186,7 @@ adapter reentrancy. Invocation-local result retention is still required.
 
 #### Concrete prepared-item and BoxID association proposal
 
-The concrete Go proposal is in [Pass-Signatures.md](Pass-Signatures.md#concrete-task-2a-proposal-not-implemented).
+The current Go API is in [Pass-Signatures.md](Pass-Signatures.md#prepared-atomic-items-and-placement).
 It replaces request.Atomic with `Atomics PreparedAtomicsView`, whose
 `Lookup(BoxID) (PreparedAtomic, bool)` returns copied BoxID and border-box W/H.
 One view belongs to one group/request, not to each item. Core prepares the atomic
@@ -213,7 +223,7 @@ The concrete P input representation remains the adapter's choice: mixed typed
 items or rope placeholders with attachments. P must receive an indivisible item
 with identity, measurements and explicit alignment/margin/break behavior. P need
 not import core types. The adapter's internal position storage is also private.
-It translates the final accepted positions into the proposed core result:
+It translates the final accepted positions into the core result:
 `InlineResult{Extent, Atomics: []AtomicPlacement}`.
 
 This deliberately refines the earlier extent-only return: atomic-box placements
@@ -225,7 +235,7 @@ finite extent and coordinates, with exactly one placement per prepared item,
 including zero-sized items. Missing/duplicate/unknown/foreign-group IDs fail;
 negative coordinates are allowed. Validate all output before applying placements.
 
-Core owns the authoritative positioned boxes. The proposed LayoutGeometry.RelativeTo
+Core owns the authoritative positioned boxes. LayoutGeometry.RelativeTo
 field records the coordinate parent explicitly: requesting OwnerID for an atomic
 box, containing block for a stacked block, and zero for root. This need not be the
 immediate structural parent (an ordinary inline span may have no rectangle).
@@ -240,10 +250,10 @@ own group with owner 42 and placed at that content origin. BoxID alone is not a
 cross-invocation key: prepared views, handles and accepted output belong to one
 layout invocation. Failed output must not alter old snapshots.
 
-These are concrete interface proposals, not implemented APIs. Actual typography
+These interfaces are implemented for the bounded fixed-width core path. Actual typography
 item encoding, source/anchor mapping and conversion remain adapter work. Proposed
 first-slice alignment is the bottom margin edge at the line baseline without an
-inner paragraph baseline; confirm this bounded fixture policy before coding and
+inner paragraph baseline; the fake adapter uses this bounded policy;
 do not claim complete CSS baseline alignment.
 
 #### Fixed-width example and acceptance
@@ -253,8 +263,8 @@ For a 200px paragraph containing `Hello `, inline-block A (fixed 40px, inner tex
 
 ##### Single-inline-block call sequence
 
-This visual aid illustrates the proposed task-2A interfaces, not the current Go
-implementation. The written contract and signature proposal remain authoritative.
+This visual aid was drawn for task 2A, now implemented for fixed pixel widths.
+The written contract and current signatures remain authoritative.
 See the [layout process flowchart](Architecture-Interfaces.md#layout-process-flowchart)
 for the surrounding construction, resolution, block stacking, and recursion.
 A has BoxID 42; height 24 is illustrative test data, not a font measurement.
@@ -286,11 +296,36 @@ box once per invocation in the initial proof. Auto/intrinsic sizing and speculat
 trials require later measurement and nested-result acceptance/discard semantics;
 a different stack representation does not solve those dependencies.
 
-Current code still uses adapter-driven AtomicSizer callbacks. M4 tests their
-immutability, not core-owned preparation. Checklist 2A/3A covers API migration,
+Current code uses core-owned preparation. The old M4 atomic-callback test is
+superseded by multi-level preparation, placement and snapshot regressions. Checklist 2A/3A covers API migration,
 core scheduling, prepared-item input, final-placement output, and multi-level
 regressions; 2B/3B covers later auto sizing. This extension is not a prerequisite
 for the initial M1-M6 fixture and does not establish actual tytui integration.
+
+### 4.2. Intrinsic measurement before final layout (2B/3B implemented)
+
+The implemented boundary is [MeasureInline](Pass-Signatures.md#intrinsic-measurement),
+with core-owned scheduling. Core measures nested atomics first and passes their min/max
+border widths through a group-local IntrinsicAtomicsView keyed by branch BoxID.
+The adapter prepares intrinsic whatsits without flattening their text; P's
+measurement result is group min/max content width, not a paragraph layout.
+An edges-only view supplies independently resolved margins/padding/borders without
+pretending provisional content widths are final. Bounds and views are copied,
+read-only and invocation-scoped. Use the same text/style semantics as final P.
+
+For an auto atomic item with content bounds 30..90px and available content 60px,
+core chooses 60px, resolves its descendants, then invokes final layout. It adds
+own edges when making the item's border contribution; outer measurement adds
+only margins, not those edges again. Nested block containers combine their child
+horizontal contributions in core, rather than asking the adapter to traverse them.
+
+Measurement does not publish paragraph data, geometry or placements. One accepted
+final layout follows width selection, so no speculative-result acceptance protocol
+is needed now. Unknown-auto-width percentage dependencies fail explicitly; definite
+bases and post-selection descendant percentage resolution remain separate. Existing
+fixed-width diagrams illustrate final layout, not this additional measurement
+phase. Real typography measurement/source mapping remains integration work; full
+baseline behavior and speculative layout trials are later scope.
 
 ## 5. Milestones and acceptance tests
 
@@ -413,8 +448,8 @@ precision, actual document publication, concrete atomic-item input and
 final-placement output interfaces (including alignment and source mapping),
 and future speculative-call acceptance.
 Table-only geometry with shared immutable structural input and adapter-owned
-typed retention are settled. The task-2A proposal adds atomic placements to the
-current extent-only return, not paragraph line summaries; do not reopen
+typed retention are settled. Task 2A adds atomic placements to the
+former extent-only return, not paragraph line summaries; do not reopen
 them as competing core-payload proposals.
 
 When a proposal is accepted, update the core contract and pass signatures, record

@@ -6,16 +6,16 @@ type fakeInlineLayouter struct {
 	extent InlineExtent
 }
 
-func (f fakeInlineLayouter) LayoutInline(InlineRequest) (InlineExtent, error) {
-	return f.extent, nil
+func (f fakeInlineLayouter) LayoutInline(InlineRequest) (InlineResult, error) {
+	return InlineResult{Extent: f.extent}, nil
 }
 
 type fakeIntrinsic struct {
 	maxContent float32
 }
 
-func (f fakeIntrinsic) MaxContentWidth(node *LayoutNode) (float32, error) {
-	return f.maxContent, nil
+func (f fakeIntrinsic) MeasureInline(InlineMeasureRequest) (IntrinsicWidths, error) {
+	return IntrinsicWidths{MaxContent: f.maxContent}, nil
 }
 
 func TestFlowLayout_BlockStacking(t *testing.T) {
@@ -102,36 +102,6 @@ func TestFlowLayout_InlineOnlyDelegation(t *testing.T) {
 	}
 	if rootGeom.Frame.H != 28 {
 		t.Fatalf("frame height = %v, want 28", rootGeom.Frame.H)
-	}
-}
-
-func TestAtomicSizer_InlineBlockWidth(t *testing.T) {
-	inlineBlock := &LayoutNode{BoxID: 1, Box: BoxInlineBlock}
-
-	a := atomicSizer{
-		inline:    fakeInlineLayouter{},
-		intrinsic: fakeIntrinsic{maxContent: 200},
-		used: UsedValuesTable{
-			inlineBlock.BoxID: {ContentWidth: 120},
-		},
-		geom: make(LayoutGeometryTable),
-	}
-
-	w, _, err := a.SizeInlineBlock(inlineBlock, 150)
-	if err != nil {
-		t.Fatalf("SizeInlineBlock error: %v", err)
-	}
-	if w != 120 {
-		t.Fatalf("width = %v, want 120", w)
-	}
-
-	a.used[inlineBlock.BoxID] = UsedValues{ContentWidth: 0}
-	w, _, err = a.SizeInlineBlock(inlineBlock, 150)
-	if err != nil {
-		t.Fatalf("SizeInlineBlock error: %v", err)
-	}
-	if w != 150 {
-		t.Fatalf("width = %v, want 150", w)
 	}
 }
 

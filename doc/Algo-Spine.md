@@ -38,6 +38,7 @@ Later refinements (interface compatibility must be evaluated when designed):
 
 ## Non-goals for now
 
-- Exact CSS shrink-to-fit
+- Full CSS intrinsic-sizing semantics; bounded min/max shrink-to-fit is implemented
+  under tasks 2B/3B (see Pass-Signatures.md section 4.1)
 - Bidi/RTL and vertical writing modes
 - Span-level line-height and inline fragments

@@ -46,10 +46,12 @@ type UsedValues struct {
     Padding Edges
     Border Edges
     ContentWidth float32
+    WidthPending bool
+    EdgesPending bool
 }
 type UsedValuesTable map[BoxID]UsedValues
 
-type LayoutGeometry struct { Frame, Content Rect }
+type LayoutGeometry struct { RelativeTo BoxID; Frame, Content Rect }
 type LayoutGeometryTable map[BoxID]LayoutGeometry
 
 type LayoutResult struct {
@@ -63,9 +65,8 @@ Start and End are `uint64` byte offsets. It is a value field used for BoxText.
 Box kinds are BoxBlock, BoxInline, BoxText, BoxAnonymousBlock,
 BoxAnonymousInline, and BoxInlineBlock.
 
-Current `IsBlockLevel` includes BoxInlineBlock: it must not be used unchanged
-as an outer-flow classification predicate for B3 validation. Inline-blocks are
-atomic inline participants and internal block containers.
+IsBlockLevel classifies outer block flow and excludes inline-blocks.
+IsBlockContainer includes inline-blocks for internal layout and width resolution.
 
 ## 3) Current entry points
 
@@ -108,139 +109,159 @@ implementation. Their intended roles need review; do not infer supported
 behavior from their presence. Future features may require interface changes,
 not just policy fields.
 
-## 4) Inline integration
+## 4) Inline integration - task 2A implemented
+
+Fixed CSS-pixel atomic widths (including zero) and auto widths are supported.
+Percent/em widths on atomic boxes remain rejected; descendant percentages work
+with definite bases. Unknown-auto-width percentage dependencies fail explicitly.
+Core prepares atomic subtrees before outer delegation without sizing callbacks or
+external reentrancy. The intrinsic service is used for auto width only.
+
+### Prepared atomic items and placement
+
+The following interfaces are implemented. The older AtomicSizer and extent-only method signature are removed.
 
 ```go
 type InlineExtent struct { W, H float32 }
-type UsedValuesView interface {
-    Lookup(BoxID) (UsedValues, bool)
+type PreparedAtomic struct {
+    BoxID BoxID
+    BorderWidth, BorderHeight float32
+}
+type PreparedAtomicsView interface {
+    Lookup(BoxID) (PreparedAtomic, bool)
 }
 type InlineRequest struct {
     Group *LayoutNode
     OwnerID BoxID
     ContentWidth float32
     Used UsedValuesView
-    Atomic AtomicSizer
+    Atomics PreparedAtomicsView
 }
-type InlineLayouter interface {
-    LayoutInline(InlineRequest) (InlineExtent, error)
-}
-type AtomicSizer interface {
-    SizeInlineBlock(node *LayoutNode, maxWidth float32) (w, h float32, err error)
-}
-type IntrinsicMeasurer interface {
-    MaxContentWidth(node *LayoutNode) (float32, error)
-}
-```
-
-Group is BoxAnonymousInline; Group.BoxID and OwnerID identify existing boxes.
-ContentWidth is definite CSS-pixel width, including zero. Extent W/H are finite,
-nonnegative overall layout dimensions, not ink bounds. H sets owner content
-height, including paragraph trailing space; W does not change allocated width.
-Owner edges and margins are accounted for separately. Empty groups may reserve
-height. Used.Lookup returns copies; callbacks must not mutate Group or input data.
-
-This replaces the previous line-return API. LayoutResult.Lines, layout.LineBox,
-and LinesByBlock are removed. A concrete paragraph result stays in an adapter-owned
-typed table keyed by Group.BoxID with OwnerID. Publish that table with successful
-geometry as a document snapshot; core carries no opaque payload. Baselines and
-precise glyph positions are private to the retained paragraph result. The adapter
-owns conversion into CSS-pixel extents; its exact DU/point rounding policy is an
-integration task, not a new baseline convention in the core.
-
-Missing used values and invalid widths/edges fail before callbacks. Invalid extents
-fail, and callback errors are wrapped with group/owner identity. Flow returns nil
-on failure without mutating inputs or earlier results, provided callbacks honor
-the read-only contract. Atomic sizing is specified to return border-box dimensions
-and intrinsic measurement content width; the later inline-block fixes remain
-necessary. Glyph representations and line-breaking results belong to external
-typography services, not to a separate package in this module.
-
-### Concrete task-2A proposal (not implemented)
-
-The signatures above remain the current Go API. The following proposed replacement
-records the agreed scheduling and BoxID association; it is not implemented code.
-
-```go
-type PreparedAtomic struct {
-    BoxID        BoxID
-    BorderWidth  float32
-    BorderHeight float32
-}
-
-type PreparedAtomicsView interface {
-    Lookup(BoxID) (PreparedAtomic, bool)
-}
-
-type InlineRequest struct {
-    Group        *LayoutNode
-    OwnerID      BoxID
-    ContentWidth float32
-    Used         UsedValuesView
-    Atomics      PreparedAtomicsView // replaces AtomicSizer
-}
-
 type AtomicPlacement struct {
     BoxID BoxID
-    X, Y  float32
+    X, Y float32
 }
-
 type InlineResult struct {
-    Extent  InlineExtent
+    Extent InlineExtent
     Atomics []AtomicPlacement
 }
-
 type InlineLayouter interface {
     LayoutInline(InlineRequest) (InlineResult, error)
 }
+```
 
-// Proposed extension; the current geometry type has no RelativeTo field.
-type LayoutGeometry struct {
-    RelativeTo BoxID
-    Frame      Rect
-    Content    Rect
+One read-only view serves one group. Lookup uses the atomic branch's existing
+BoxID and returns a copy; items inside an atomic boundary belong to inner groups.
+The adapter extracts ordinary inline text but replaces atomic branches with ordered
+whatsits. Local handles map back to BoxID; source mapping, item encoding, retained
+paragraphs, and position storage remain adapter-owned. Missing preparation is an
+error, not an invitation to initiate layout.
+
+Extent is finite/nonnegative; H includes paragraph trailing space, W does not
+resize the owner. Every prepared item requires exactly one placement, including
+zero-sized items. Unknown, foreign, duplicate or missing IDs and non-finite
+coordinates fail with nil LayoutResult. Negative coordinates are valid. Core
+validates the entire placement answer before applying it and retains no slice
+alias. Paragraph errors remain wrapped with group/owner identity.
+
+Placement X/Y is the border-box origin relative to request.OwnerID content, after
+margin/alignment effects. Core adds no further margin, preserves dimensions, and
+sets Content origin by adding own border/padding. RelativeTo names the geometry
+coordinate parent: owner for atomics, containing block for stacked children, zero
+for root. Descendant-local geometry is not translated; compose each parent content
+origin once. No core paragraph lines, glyphs or opaque payloads are returned.
+
+Trees, styles, used tables and prior results remain unchanged. Publish geometry
+and invocation-local typed results together only after whole-document success.
+The fake adapter uses explicit inter-item breaks, indivisible whatsits, overflow
+on an empty line, and bottom-margin-edge baseline alignment. These are bounded
+test policies, not full CSS baseline support or real P integration.
+
+## Intrinsic measurement
+
+Implemented under tasks 2B/3B. MaxContentWidth and InlineIntrinsic are removed;
+external providers implement the measurement-only operation below. Fixed-width
+flow does not require a measurer.
+
+```go
+type IntrinsicWidths struct {
+    MinContent float32
+    MaxContent float32
+}
+type IntrinsicAtomic struct {
+    BoxID BoxID
+    BorderWidths IntrinsicWidths
+}
+type IntrinsicAtomicsView interface {
+    Lookup(BoxID) (IntrinsicAtomic, bool)
+}
+type BoxEdges struct {
+    Margin  Edges
+    Padding Edges
+    Border  Edges
+}
+type ResolvedEdgesView interface {
+    Lookup(BoxID) (BoxEdges, bool)
+}
+type InlineMeasureRequest struct {
+    Group   *LayoutNode
+    OwnerID BoxID
+    Edges   ResolvedEdgesView
+    Atomics IntrinsicAtomicsView
+}
+type IntrinsicMeasurer interface {
+    MeasureInline(InlineMeasureRequest) (IntrinsicWidths, error)
 }
 ```
 
-There is one prepared view per group/request, not per atomic node. Core finishes
-atomic subtrees before outer delegation and indexes each measured item by that
-node's existing BoxID. The adapter associates a branch using
-`req.Atomics.Lookup(node.BoxID)`, not a node pointer, NodeID, or rope offset.
-Lookup returns copies; returned BoxID matches the key. The view includes atomic
-boundaries reached through ordinary inline descendants, but not items inside
-those boundaries. Empty groups have an empty view. Data is invocation-scoped and
-read-only; missing entries are errors. Border dimensions are finite/nonnegative;
-margins are separate in Used.Lookup. Core does not expose retained paragraph data.
+Widths are CSS pixels, finite and nonnegative, with MinContent <= MaxContent.
+MeasureInline returns group content bounds, excluding the owner's edges/margins.
+Each IntrinsicAtomic carries border-box bounds including its own padding/borders
+but excluding margins. The measurer adds that atomic item's horizontal margins
+from Edges exactly once, not its padding/borders again. It handles ordinary inline
+span edges within the group. Core accounts for owner edges when constructing an
+atomic contribution and combines internal block contributions (maximum horizontal
+contribution in the supported normal-flow subset, not vertical-stack summation).
 
-The adapter skips atomic contents when extracting text, but inserts an ordered
-whatsit anchor. It may use BoxID directly or map a local handle back to BoxID.
-Rope placeholders, attachment tables, mixed-item representation, and internal
-position storage remain adapter choices; source mapping is explicit. Core never
-interprets those representations. P need not import core types.
+There is one read-only atomic view per group; node.BoxID is the lookup key and
+returned BoxID matches it. Core recursively measures atomic boundaries before
+outer measurement, without reentrant external calls. Fixed-width items have equal
+border bounds; auto items derive their bounds from recursively measured content.
+Nested interiors belong to separate requests, not the outer mixed input. Local
+whatsit handles may map to BoxID exactly as during final layout.
 
-The output deliberately refines the earlier extent-only contract: extent plus
-placements of core-owned atomic boxes, never paragraph lines/glyphs or opaque
-payloads. AtomicPlacement.X/Y is the border-box origin in CSS pixels relative to
-request.OwnerID's content origin, after margin/alignment effects. No second margin
-addition occurs in core. Dimensions cannot be changed by the adapter. Exactly one
-placement per prepared item (including zero-sized items) is required; reject
-missing, duplicate, foreign-group or unknown IDs and non-finite coordinates.
-Negative coordinates are permitted. Validate the full result before applying it.
+Min-content measurement uses the supported minimum-content breaking rules and
+atomic minimum contributions. Max-content suppresses optional wrapping, preserves
+mandatory breaks and uses atomic maximum contributions. At either bound an atomic
+item is indivisible to the outer paragraph. Text semantics and typography inputs
+must match final layout; source/style lookup is explicit adapter-owned state.
 
-RelativeTo names the geometry coordinate parent, not necessarily the structural
-parent: atomic entries use request.OwnerID, stacked blocks use their containing
-block, and the root uses zero. Core sets Frame.X/Y to the accepted placement and
-Content.X/Y to that origin plus own border/padding, preserving dimensions and all
-descendant-local rectangles. This makes placement part of authoritative geometry;
-retain no slice alias to adapter output and never reapply it during composition.
-Build final geometry privately and publish only after complete success.
+There is no available-width field and no fabricated infinite constraint. Edges
+exposes only independently resolved values, never a provisional ContentWidth.
+Lookup returns copies; views and measurements are invocation-scoped. Missing
+items/edges, invalid bounds and unsupported dependencies fail explicitly. No
+heights, baselines, geometry, placements or retained paragraph payloads are
+produced or published by measurement. Internal typography scratch work is allowed
+but cannot replace accepted layout results.
 
-Core recursion finishes inner external calls before outer delegation; adapter
-reentrancy is not required. Checklist 2A/3A tracks implementation. P's concrete
-whatsit API and conversion remain integration work. The proposed initial bounded
-alignment policy is bottom margin edge to the line baseline, without exporting
-an inner paragraph baseline; confirm that fixture policy before coding. Full CSS
-baseline alignment, auto sizing and speculative trials remain follow-up work.
+Core selects content width using min(max(minContent, availableContent), maxContent).
+Available content width is the containing block's content width minus the atomic
+box's horizontal margins, padding and borders, clamped to zero; it is not remaining
+line space. Then task 3B records the selected width in invocation-local used values,
+re-resolves descendants, and performs one accepted layout. Intrinsic min width may
+force overflow. Empty content may have zero bounds; zero is not unresolved state.
+
+This adopts bounded shrink-to-fit instead of the earlier max-content-only plan.
+Percentage dependencies needing an unknown auto width are rejected initially,
+not evaluated against zero. Percentages with a definite basis, including descendant
+resolution after width selection, remain a distinct supported operation. The
+UsedValues.WidthPending and EdgesPending flags distinguish provisional values
+from resolved zero. ResolveUsedValues preserves resolution context internally;
+FlowLayout copies the table, selects widths, re-resolves descendants, and finishes
+all late resolution before any LayoutInline call. Measurement receives only
+resolved edges, not pending content widths. Invocation-local content bounds are
+reused for nested auto items, but there is no cross-invocation cache. Full CSS intrinsic sizing, speculative layout
+trials/caching and full baseline behavior remain outside this slice.
 
 ## 5) Package organization and remaining decisions
 

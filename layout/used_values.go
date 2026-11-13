@@ -7,11 +7,17 @@ type UsedValues struct {
 	Padding      Edges
 	Border       Edges
 	ContentWidth float32
+	// Pending values must not be consumed as final layout constraints.
+	WidthPending    bool
+	EdgesPending    bool
+	containingWidth float32
+	fontSizePx      float32
 }
 
 type ResolvePolicy struct{}
 
 type ResolveContext struct {
+	widthUnresolved bool
 	ContainingBlock Rect
 	FontSizePx      float32
 	Policy          ResolvePolicy
@@ -108,7 +114,7 @@ func resolveEdges(style ComputedStyle, ctx ResolveContext) (margin, padding, bor
 }
 
 func resolveContentWidth(kind BoxKind, style ComputedStyle, ctx ResolveContext, margin, padding, border Edges) float32 {
-	if !IsBlockLevel(kind) {
+	if !IsBlockContainer(kind) {
 		return 0
 	}
 
@@ -139,11 +145,9 @@ func styleOrDefault(s *ComputedStyle) ComputedStyle {
 
 func childResolveContext(node *LayoutNode, parent ResolveContext, used UsedValues) ResolveContext {
 	ctx := parent
-	if node != nil && IsBlockLevel(node.Box) && node.Box != BoxInlineBlock {
+	if node != nil && IsBlockContainer(node.Box) {
 		ctx.ContainingBlock.W = used.ContentWidth
-	}
-	if node != nil && node.Box == BoxInlineBlock {
-		ctx.ContainingBlock.W = parent.ContainingBlock.W
+		ctx.widthUnresolved = used.WidthPending
 	}
 	if node != nil && node.Style != nil && node.Style.FontSizePx > 0 {
 		ctx.FontSizePx = node.Style.FontSizePx
@@ -169,6 +173,11 @@ func resolveUsedValues(node *LayoutNode, ctx ResolveContext, table UsedValuesTab
 		Padding:      padding,
 		Border:       border,
 		ContentWidth: contentW,
+		WidthPending: node.Box == BoxInlineBlock && style.Width.Kind == LenAuto ||
+			IsBlockContainer(node.Box) && ctx.widthUnresolved && (style.Width.Kind == LenAuto || style.Width.Kind == LenPercent),
+		EdgesPending:    ctx.widthUnresolved && percentEdges(style),
+		containingWidth: ctx.ContainingBlock.W,
+		fontSizePx:      ctx.FontSizePx,
 	}
 	table[node.BoxID] = used
 
