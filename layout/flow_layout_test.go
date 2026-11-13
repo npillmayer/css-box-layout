@@ -3,11 +3,11 @@ package layout
 import "testing"
 
 type fakeInlineLayouter struct {
-	lines []LineBox
+	extent InlineExtent
 }
 
-func (f fakeInlineLayouter) LayoutInline(inlineRoot *LayoutNode, maxWidth float32, atomic AtomicSizer) ([]LineBox, error) {
-	return append([]LineBox(nil), f.lines...), nil
+func (f fakeInlineLayouter) LayoutInline(InlineRequest) (InlineExtent, error) {
+	return f.extent, nil
 }
 
 type fakeIntrinsic struct {
@@ -83,15 +83,12 @@ func TestFlowLayout_InlineOnlyDelegation(t *testing.T) {
 		inlineRoot.BoxID: {},
 	}
 
-	lines := []LineBox{
-		{Frame: Rect{Y: 0, H: 10}},
-		{Frame: Rect{Y: 10, H: 12}},
-	}
+	extent := InlineExtent{W: 100, H: 22}
 
 	res, err := ComputeLayoutWithConstraints(
 		root,
 		used,
-		fakeInlineLayouter{lines: lines},
+		fakeInlineLayouter{extent: extent},
 		fakeIntrinsic{},
 		LayoutContext{ContainingBlock: Rect{W: 100}},
 		LayoutOptions{},
@@ -106,12 +103,6 @@ func TestFlowLayout_InlineOnlyDelegation(t *testing.T) {
 	if rootGeom.Frame.H != 28 {
 		t.Fatalf("frame height = %v, want 28", rootGeom.Frame.H)
 	}
-	if got := len(res.Lines[root.BoxID]); got != 2 {
-		t.Fatalf("stored lines = %d, want 2", got)
-	}
-	if _, ok := res.Lines[inlineRoot.BoxID]; ok {
-		t.Fatalf("did not expect lines stored for anonymous inline root")
-	}
 }
 
 func TestAtomicSizer_InlineBlockWidth(t *testing.T) {
@@ -123,8 +114,7 @@ func TestAtomicSizer_InlineBlockWidth(t *testing.T) {
 		used: UsedValuesTable{
 			inlineBlock.BoxID: {ContentWidth: 120},
 		},
-		geom:  make(LayoutGeometryTable),
-		lines: make(LinesByBlock),
+		geom: make(LayoutGeometryTable),
 	}
 
 	w, _, err := a.SizeInlineBlock(inlineBlock, 150)
@@ -145,21 +135,21 @@ func TestAtomicSizer_InlineBlockWidth(t *testing.T) {
 	}
 }
 
-func TestFlowLayout_LinesNotStoredForAnonymousBlock(t *testing.T) {
+func TestFlowLayout_AnonymousBlockExtent(t *testing.T) {
 	inlineRoot := &LayoutNode{BoxID: 2, Box: BoxAnonymousInline}
 	anonBlock := &LayoutNode{BoxID: 1, Box: BoxAnonymousBlock, Children: []*LayoutNode{inlineRoot}}
 
 	used := UsedValuesTable{
-		anonBlock.BoxID: {ContentWidth: 100},
+		anonBlock.BoxID:  {ContentWidth: 100},
 		inlineRoot.BoxID: {},
 	}
 
-	lines := []LineBox{{Frame: Rect{Y: 0, H: 10}}}
+	extent := InlineExtent{W: 100, H: 10}
 
 	res, err := ComputeLayoutWithConstraints(
 		anonBlock,
 		used,
-		fakeInlineLayouter{lines: lines},
+		fakeInlineLayouter{extent: extent},
 		fakeIntrinsic{},
 		LayoutContext{ContainingBlock: Rect{W: 100}},
 		LayoutOptions{},
@@ -167,7 +157,7 @@ func TestFlowLayout_LinesNotStoredForAnonymousBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ComputeLayoutWithConstraints error: %v", err)
 	}
-	if _, ok := res.Lines[anonBlock.BoxID]; ok {
-		t.Fatalf("did not expect lines stored for anonymous block owner")
+	if got := res.Geometry[anonBlock.BoxID].Content.H; got != 10 {
+		t.Fatalf("anonymous block height=%v, want 10", got)
 	}
 }

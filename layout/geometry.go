@@ -7,8 +7,6 @@ type LayoutGeometry struct {
 
 type LayoutGeometryTable map[BoxID]LayoutGeometry
 
-type LinesByBlock map[BoxID][]LineBox
-
 type LayoutPolicy struct{}
 
 type LayoutContext struct {

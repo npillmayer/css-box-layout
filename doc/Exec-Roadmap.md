@@ -37,8 +37,12 @@ Frozen decisions for the current phase:
 - Frame is the border box; Content excludes padding and borders. Margins remain
   separate. Coordinates are relative to parent content boxes; root origin is (0,0).
 - Empty block containers receive one empty `BoxAnonymousInline` child.
-- Line boxes are stored only for inline-only `BoxBlock` and `BoxInlineBlock`
-  owners, keyed by BoxID; anonymous block owners do not retain line entries.
+- Inline layout returns overall extent only; its H sets owner content height,
+  including paragraph trailing space. Core line storage and opaque payloads are
+  removed. This supersedes non-anonymous-only line retention.
+- Typed paragraph results belong to an invocation-local adapter table keyed by
+  group BoxID with owner BoxID, including anonymous groups. Publish with geometry
+  only on success. Group/owner identities already exist; no vlist BoxID is added.
 - Text references use a stable `TextSourceID` and non-empty `[Start,End)` byte
   ranges. Empty ranges are dropped without destabilizing other IDs.
 - Inline-blocks are atomic inline participants with an internal block container;
@@ -121,11 +125,14 @@ must preserve the agreed immutable-input contract.
 
 ## 7) Complete Pass 3: FlowLayout
 
-Status: block stacking, inline delegation, geometry tables, and non-anonymous
-line ownership are implemented with basic tests.
+Status: block stacking, extent-only inline delegation, and geometry tables are
+implemented. Typed fake adapters verify group/owner requests, full extents,
+trailing space, anonymous/empty groups, and input/output error handling.
 
-Remaining: repair atomic sizing and geometry consistency (task 2), verify nested
-parent-content coordinates, define geometry coverage, and reconcile node
+Nested parent-content-relative coordinates are fixed and regression-tested with
+three-level nesting and nonzero edges (task 10, 2026-11-13).
+Remaining: repair atomic sizing and geometry consistency (task 2), define geometry
+coverage, and reconcile node
 mutation with functional constraints (task 7 and the validation checklist).
 
 ## 8) Execution order and completion gate
@@ -137,8 +144,8 @@ for task ownership and acceptance targets:
 
 1. M1: preserve styles/source references and distinct runs, normalize empty
    containers, and enforce identity guarantees (tasks 1, 8, 4, 5).
-2. M2: decide height/retention/request semantics, units/baselines, and ownership
-   (task 9), then update contracts and implement the selected boundary.
+2. M2: extent-only boundary and typed retention contract implemented (task 9);
+   complete real adapter conversion/publication in tytui.
 3. M3-M4: prove fake-paragraph placement, nested coordinates, resize, immutable
    snapshots, and failure handling (tasks 10 and 11).
 4. M5-M6: connect synthetic typography and real-font proofs in tytui, with core
@@ -146,10 +153,9 @@ for task ownership and acceptance targets:
 5. Later: jointly address inline-block sizing and descendant resolution (tasks
    2 and 3), plus remaining abstraction and behavior cleanup (task 6).
 
-M1 and coordinate regressions can proceed while M2 proposals are discussed.
-Explicit group height and anonymous-group retention remain proposals, not frozen
-changes to the rules above. The decision gate must resolve these conflicts before
-dependent API changes. The experiment uses explicit non-auto margins; this does
+M2 extent-only return and adapter-owned typed retention are agreed and implemented
+in the core. Actual conversion/retention wiring in tytui remains open. Next core
+work is M4 snapshot purity; M3 nested-coordinate fixes are implemented and tested. The experiment uses explicit non-auto margins; this does
 not silently defer auto margins for the broader engine.
 
 Finishing the document experiment does not complete the broader core roadmap.

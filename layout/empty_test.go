@@ -59,10 +59,10 @@ type emptyInlineRecorder struct {
 	width float32
 }
 
-func (r *emptyInlineRecorder) LayoutInline(root *LayoutNode, width float32, _ AtomicSizer) ([]LineBox, error) {
+func (r *emptyInlineRecorder) LayoutInline(req InlineRequest) (InlineExtent, error) {
 	r.calls++
-	r.root, r.width = root, width
-	return nil, nil
+	r.root, r.width = req.Group, req.ContentWidth
+	return InlineExtent{}, nil
 }
 
 func TestFlowLayout_BuiltEmptyRoot(t *testing.T) {

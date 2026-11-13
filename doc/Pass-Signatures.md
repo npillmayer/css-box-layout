@@ -11,7 +11,7 @@ Open changes are tracked in `doc/Current-Checklist.md`.
   and B1-B4 normalization. It does not resolve used values or compute geometry.
 - ResolveUsedValues owns edges and known content widths in a BoxID-keyed table.
   It does not change structure or position boxes.
-- FlowLayout owns block stacking, inline delegation, and result geometry/lines.
+- FlowLayout owns block stacking, inline delegation, and result geometry.
   It does not change structure. Auto inline-block sizing requires a still-open
   design for descendant resolution; current boundaries do not solve this by
   themselves (checklist tasks 2 and 3).
@@ -52,12 +52,10 @@ type UsedValuesTable map[BoxID]UsedValues
 
 type LayoutGeometry struct { Frame, Content Rect }
 type LayoutGeometryTable map[BoxID]LayoutGeometry
-type LinesByBlock map[BoxID][]LineBox
 
 type LayoutResult struct {
     Root *LayoutNode
     Geometry LayoutGeometryTable
-    Lines LinesByBlock
 }
 ```
 
@@ -114,9 +112,19 @@ not just policy fields.
 ## 4) Inline integration
 
 ```go
+type InlineExtent struct { W, H float32 }
+type UsedValuesView interface {
+    Lookup(BoxID) (UsedValues, bool)
+}
+type InlineRequest struct {
+    Group *LayoutNode
+    OwnerID BoxID
+    ContentWidth float32
+    Used UsedValuesView
+    Atomic AtomicSizer
+}
 type InlineLayouter interface {
-    LayoutInline(inlineRoot *LayoutNode, maxWidth float32,
-        atomic AtomicSizer) ([]LineBox, error)
+    LayoutInline(InlineRequest) (InlineExtent, error)
 }
 type AtomicSizer interface {
     SizeInlineBlock(node *LayoutNode, maxWidth float32) (w, h float32, err error)
@@ -126,13 +134,27 @@ type IntrinsicMeasurer interface {
 }
 ```
 
-The inline root is BoxAnonymousInline. Line frames are relative to the owning
-block content box; the inline layouter supplies stacked Y coordinates. Atomic
-sizing returns border-box dimensions; intrinsic measurement returns content
-width. Resolved edges must be available before the corresponding line breaking.
-The inline interface currently receives no used-values table explicitly;
-defining how the adapter consumes resolved inline edges remains part of the
-integration design. Do not rely on hidden mutable global state.
+Group is BoxAnonymousInline; Group.BoxID and OwnerID identify existing boxes.
+ContentWidth is definite CSS-pixel width, including zero. Extent W/H are finite,
+nonnegative overall layout dimensions, not ink bounds. H sets owner content
+height, including paragraph trailing space; W does not change allocated width.
+Owner edges and margins are accounted for separately. Empty groups may reserve
+height. Used.Lookup returns copies; callbacks must not mutate Group or input data.
+
+This replaces the previous line-return API. LayoutResult.Lines, layout.LineBox,
+and LinesByBlock are removed. A concrete paragraph result stays in an adapter-owned
+typed table keyed by Group.BoxID with OwnerID. Publish that table with successful
+geometry as a document snapshot; core carries no opaque payload. Baselines and
+precise glyph positions are private to the retained paragraph result. The adapter
+owns conversion into CSS-pixel extents; its exact DU/point rounding policy is an
+integration task, not a new baseline convention in the core.
+
+Missing used values and invalid widths/edges fail before callbacks. Invalid extents
+fail, and callback errors are wrapped with group/owner identity. Flow returns nil
+on failure, but node mirror mutation remains a task-11 gap. Atomic sizing still
+returns border-box dimensions and intrinsic measurement content width; the later
+inline-block fixes remain necessary. The legacy glyphing sketches are not this
+public paragraph boundary.
 
 ## 5) Package organization and remaining decisions
 

@@ -24,7 +24,10 @@ design. Private construction of fresh output tables is compatible with purity.
 Prefer structural trees + side tables:
 - BoxTree / LayoutNode for structure
 - UsedValuesTable keyed by BoxID
-- Layout results (fragments, line boxes) keyed by BoxID
+- Core geometry keyed by BoxID
+- Typed paragraph results retained by the adapter per invocation, keyed by group
+  BoxID with owner BoxID. This explicit local bookkeeping is published with
+  successful document geometry; it is not a global cache or a core opaque payload.
 
 Avoid "fat mutable nodes" that mix structure with frequently changing derived data.
 

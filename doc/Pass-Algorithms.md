@@ -112,9 +112,8 @@ input nodes. Any optional geometry mirrors require an ownership/copying design.
 ```text
 FlowLayout(root, used, inline, intrinsic, ctx):
   geom = fresh geometry table
-  lines = fresh line table
   layoutContainer(root, frameOrigin=(0,0))
-  return {Root: root, Geometry: geom, Lines: lines}
+  return {Root: root, Geometry: geom}
 
 layoutContainer(node, frameOrigin):
   u = required used values for node
@@ -123,10 +122,11 @@ layoutContainer(node, frameOrigin):
   content.W = u.ContentWidth
 
   if node has one BoxAnonymousInline child:
-    lineBoxes = inline.LayoutInline(child, content.W, atomicSizer)
-    if node is BoxBlock or BoxInlineBlock:
-      lines[node.BoxID] = lineBoxes
-    content.H = max(0, all line.Y + line.H)
+    extent = inline.LayoutInline({Group: child, OwnerID: node.BoxID,
+                                 ContentWidth: content.W, Used: readOnlyUsed,
+                                 Atomic: atomicSizer})
+    reject negative or non-finite extent dimensions
+    content.H = extent.H
   else:
     y = 0
     for child in node.Children:
@@ -141,8 +141,8 @@ layoutContainer(node, frameOrigin):
 
 Child origins are relative to the parent's content box: do not add the parent's
 Content.X/Y to those origins. Each child's own Content origin includes that
-child's border/padding offset. Line frames likewise remain relative to their
-owner's content box.
+child's border/padding offset. Paragraph-local geometry remains in the adapter-owned typed result, placed at
+the owner's content origin; no line summaries return to block flow.
 
 Atomic sizing must choose content width (retaining the max-content approximation
 for auto), establish correct descendant resolution, and lay out internal content
@@ -154,8 +154,8 @@ nodes/text need an integration design; the block sketch does not supply them.
 |---|---|
 | Block stacking | Vertical margins retained without collapsing |
 | Nested padded/bordered blocks | Parent-content-relative coordinates |
-| Inline-only block | Content height equals line extent |
-| Anonymous block owner | No stored line entry, but correct content height |
+| Inline-only block | Content height equals returned overall extent, including trailing space |
+| Anonymous block owner | Extent applied; adapter retains typed result by group and owner IDs |
 | Atomic fixed / auto / zero width | Correct internal width, height, border-box return |
 | Geometry consistency | Frame equals Content plus edges; table agrees with sizing |
 | Repeated layout | Input immutability and stable identities |

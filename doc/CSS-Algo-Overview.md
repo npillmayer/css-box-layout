@@ -59,12 +59,13 @@ Inputs:
 - Layout box tree `E` + used values table + inline layouter + intrinsic measurer.
 
 Outputs:
-- Layout result `F` (geometry + line boxes).
+- Layout result `F` (structural root reference + authoritative box geometry).
 
 Responsibilities:
 - Block layout: vertical stacking, no margin collapsing yet.
 - Inline layout: delegate to inline layouter when inline-only.
-- Store line boxes for non-anonymous block owners.
+- Use the returned overall inline extent for content height. Line/glyph results
+  are retained by the integration adapter, including for anonymous owners.
 
 ---
 
@@ -95,7 +96,8 @@ TextRef:
 LayoutResult (F):
 - Root *LayoutNode (structural tree reference; geometry table is authoritative)
 - Geometry table `LayoutGeometryTable[BoxID]` (authoritative)
-- LinesByBlock map[BoxID][]LineBox (stored for BoxBlock and BoxInlineBlock owners only)
+- No core line table or opaque paragraph payload. The integration layer retains
+  a typed group-BoxID -> owner-BoxID + paragraph-result table per invocation.
 - Used values table is a separate pass output: `UsedValuesTable[BoxID]`.
 
 ---
@@ -132,9 +134,26 @@ B4. BoxText is leaf
 - FlowLayout(root, usedValues, inlineLayouter, intrinsicMeasurer, containingBlock) -> LayoutResult
 
 Inline layouter (black box):
-- LayoutInline(anonymousInlineRoot, maxWidth, atomicSizer) -> []LineBox
-  - LineBox.Frame is relative to owning block content box.
-  - LineBox.Frame.Y is already stacked by the inline layouter.
+- LayoutInline(InlineRequest) -> InlineExtent{W,H}, error
+  - Request: anonymous inline Group (Group.BoxID is the retention key), OwnerID,
+    definite ContentWidth in CSS pixels, a UsedValuesView, and AtomicSizer.
+  - Extent is finite and nonnegative, including at zero available width. H is
+    authoritative consumed height, including paragraph-owned trailing spacing;
+    W may exceed available width but does not resize the owner's content width.
+  - Extent excludes owner margins/padding/borders and is not glyph ink bounds.
+    Empty groups may return zero or reserved nonzero height; no dummy lines.
+  - Paragraph-local lines, baselines, glyphs, and precise geometry remain in the
+    adapter's concrete retained result, never in an opaque core payload.
+  - Adapter retention is invocation-local, with group -> owner association for
+    every group. Publish it with document geometry only on successful completion.
+    No new BoxID is allocated for the vlist. Repeated/speculative group calls
+    require an acceptance policy before they are supported.
+  - UsedValuesView returns value copies. Treat Group and input tables as read-only
+    during the call. Adapter-owned source/style lookup is explicit adapter state.
+  - Flow validates used-value presence and finite/nonnegative widths and box
+    edges (margins may be negative) before callbacks. Invalid extents and callback
+    failures return an error with no LayoutResult; adapter errors are wrapped.
+    This does not yet make input node geometry mutation transactional (task 11).
 
 Atomic sizer:
 - SizeInlineBlock(node, maxWidthRemaining) -> (borderBoxW, borderBoxH)

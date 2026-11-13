@@ -31,11 +31,10 @@ This is a planning artifact, not the algorithm contract.
   to the parent content box; root origin is (0,0). Margins are separate.
 - Empty block containers receive one empty `BoxAnonymousInline` child. This is
   implemented by normalization and covered by empty-container regressions.
-- Lines: store `LinesByBlock` entries only for inline-only `BoxBlock` and
-  `BoxInlineBlock` owners. Line frames are relative to the owner's content box,
-  with Y already stacked by the inline layouter; payload is opaque. This is the
-  current policy; task 9 proposes retention for every group and explicit height,
-  which require a decision before changing the contract.
+- Inline layout returns overall extent only. H sets consumed content height;
+  paragraph lines/baselines/glyphs stay in an invocation-local typed adapter table
+  keyed by group BoxID with owner BoxID, including anonymous owners. Core line
+  storage and opaque payloads are removed; see task 9.
 - Atomic sizing returns border-box dimensions. An inline-block participates as
   atomic inline content and establishes a block container internally.
 
@@ -43,21 +42,20 @@ This is a planning artifact, not the algorithm contract.
 
 Task numbers are stable references, not execution order. The recommended next
 track is the bounded document experiment in
-[Document-Layout-Integration.md](Document-Layout-Integration.md). This ordering
-does not approve its proposed API changes or declare the broader core complete.
+[Document-Layout-Integration.md](Document-Layout-Integration.md). The extent-only API and typed retention are agreed and core-tested; this ordering
+does not declare the external adapter or broader core complete.
 
 | Stage | Checklist tasks | Integration milestone | Gate / owner |
 |---|---|---|---|
 | Preserve document input and normalized groups | 1, 8, 4, 5 | M1 | Core fixes and tests; tytui supplies the adapter fixture |
-| Decide the paragraph boundary | 9 and relevant parts of 7 | M2 | Agree height, retention, request data, units/baselines, and ownership before API edits |
+| Implement paragraph boundary | 9 and relevant parts of 7 | M2 | Core complete; real conversion/publication remains adapter work |
 | Implement accepted boundary and prove placement | 9, 10 | M2-M3 | Core tests with fake paragraphs; explicit widths and full extents |
 | Prove resize and snapshots | 11 | M4 | Core immutability plus tytui publication/retention checks |
 | Connect paragraph implementations and proof | Accepted boundary, 7 follow-through | M5-M6 | tytui integration; core fixes remain upstream |
 | Extend beyond the bounded experiment | 2, 3; remaining 6 and 7 | Later track | Inline-blocks/intrinsics and broader cleanup are not first-experiment prerequisites |
 
-M1 fixes can proceed while task 9 decisions are discussed. Coordinate regressions
-can also proceed independently; complete M3-M4 evidence depends on the accepted
-result contract. Task 9 error/unsupported-input checks are needed for the boundary;
+Task 9 core changes and error checks are implemented; real adapter conversion
+and publication remain. M3-M4 now use the accepted extent-only contract;
 general dead-code cleanup and auto-margin implementation need not block a fixture
 using definite widths and explicit non-auto margins.
 
@@ -116,8 +114,7 @@ using definite widths and explicit non-auto margins.
   from an empty result. `go test ./...` passes.
 - Acceptance: empty elements, empty text, and children removed by `display:none`
   produce the required structure, including inside inline-blocks. Verify that
-  an empty fake result produces zero height under the current contract. Task 9
-  must separately decide whether an empty paragraph may reserve nonzero space.
+  an empty fake result produces zero height under the current contract. Task 9 now supports an explicit nonzero reserved extent for empty paragraphs.
 
 ### 5. Strengthen identity guarantees - immediate / M1
 
@@ -176,28 +173,34 @@ using definite widths and explicit non-auto margins.
 - Acceptance: all runs retain their own ordered children and source/style data;
   no later construction changes an earlier group.
 
-### 9. Decide and implement the paragraph collaboration boundary - gate / M2
+### 9. Paragraph collaboration boundary - core complete / M2
 
-- [ ] Decide explicit group height versus line extent, including trailing space,
-  empty results, and the distinction between ink overflow and layout height.
-- [ ] Choose core-owned group results or an invocation-scoped adapter table;
-  retain anonymous groups and associate group BoxID with owner BoxID.
-- [ ] Specify request access to resolved inline values and immutable source/style
-  data, baseline origin, unit conversion/rounding, and retained precision.
-- [ ] Agree result lifetime/ownership with task 11, and error behavior for missing
-  used values, unsupported input, invalid dimensions, and adapter failures.
-- [ ] After agreement, update the contract/signatures and implement the selected
-  design with fake-provider tests. Do not implement both retention alternatives.
-- Acceptance: full group extent and retained content survive without dummy lines
-  or hidden mutable globals. Decisions are recorded before dependent API changes.
+- [x] Return only finite nonnegative overall extent, including trailing space
+  and optional empty-group height; distinguish layout height from ink bounds.
+- [x] Select typed invocation-local adapter retention by Group.BoxID with OwnerID,
+  including anonymous groups. Remove core line tables and opaque payloads.
+- [x] Provide definite CSS-pixel ContentWidth and read-only used-values access;
+  source/style lookup remains explicit adapter state; baselines stay in P.
+- [x] Validate missing/invalid used values before callbacks, invalid extents,
+  and wrapped adapter failures. Return nil LayoutResult on failure.
+- [x] Update core contracts/signatures and prove behavior with typed fake adapters.
+- [ ] Implement real unit conversion/rounding and snapshot publication in tytui;
+  full node-geometry immutability still belongs to task 11.
+- Acceptance: full extent flows without line summaries; typed results stay outside
+  core. Fake tests pass for all three groups, trailing space, zero-width empty
+  groups, and errors. The actual paragraph engine is not wired yet.
 
 ### 10. Correct outer coordinates and prove fake-paragraph placement - M3
 
-- [ ] Fix child positions to be relative to parent content, without adding the
+- [x] Fix child positions to be relative to parent content, without adding the
   parent's own Content offset again.
-- [ ] Test widths 240/120/240px and supplied heights 24/36/12px: origins
+- [x] Test widths 240/120/240px and supplied heights 24/36/12px: origins
   (0,0), (0,24), (0,60), root content height 72px.
-- [ ] Add three-level nesting with padding, borders, and additive margins.
+- [x] Add three-level nesting with padding, borders, and additive margins.
+- Verified 2026-11-13: exact local Frame/Content rectangles, signed horizontal
+  margins, sibling order, available widths, and once-only document transforms.
+  Changing root edges leaves descendant local geometry unchanged. Regression
+  failed before the fix; full tests and vet pass.
 - Acceptance: independently specified positions match; paragraph-local lines
   are not restacked and parent transforms are applied exactly once.
 
@@ -227,12 +230,11 @@ These are acceptance targets, not claims that existing tests prove them.
 - [ ] Used-values entries exist for every BoxID; geometry covers the agreed scope.
 - [ ] Frame dimensions equal Content dimensions plus padding and border within
   epsilon; margins are excluded from Frame.
-- [ ] Nested coordinates are relative to parent content boxes, tested with
-  nonzero padding, borders, and margins. Check `layoutBlockChildrenVertical`,
-  which currently adds the parent's Content offset to child positions.
-- [ ] Until task 9 is agreed, validate the current line-extent/non-anonymous-owner
-  contract. After agreement, replace those assertions with explicit group-height
-  and chosen retention semantics, including trailing space and empty results.
+- [x] Nested coordinates are relative to parent content boxes, tested with
+  nonzero padding, borders, and margins. The stacking helper no longer adds
+  parent Content offsets to child positions.
+- [x] Validate explicit extent and adapter-owned typed associations, including
+  anonymous groups, trailing space, and empty results (core fake-adapter tests).
 - [ ] Atomic sizes match stored geometry when the later atomic-inline track runs.
 - [ ] Repeated layout preserves the agreed input-immutability and identity rules.
 

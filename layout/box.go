@@ -57,21 +57,11 @@ type BoxMetrics struct {
 	// later: left/right, padding, border
 }
 
-type LineBox struct {
-	Frame    Rect
-	Baseline float32
-	// Optional:
-	Ascent  float32
-	Descent float32
-	Payload any
-}
-
 type atomicSizer struct {
 	inline    InlineLayouter
 	intrinsic IntrinsicMeasurer
 	used      UsedValuesTable
 	geom      LayoutGeometryTable
-	lines     LinesByBlock
 }
 
 func (a atomicSizer) SizeInlineBlock(n *LayoutNode, maxWidth float32) (float32, float32, error) {
@@ -96,7 +86,7 @@ func (a atomicSizer) SizeInlineBlock(n *LayoutNode, maxWidth float32) (float32, 
 	}
 
 	// Layout internal contents as a block container with usedW.
-	err := layoutBlockContainer(n, a.used, a.geom, a.lines, a.inline, a.intrinsic)
+	err := layoutBlockContainer(n, a.used, a.geom, a.inline, a.intrinsic)
 	if err != nil {
 		return 0, 0, err
 	}

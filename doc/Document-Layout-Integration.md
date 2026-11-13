@@ -1,12 +1,14 @@
 # Document Layout Integration
 
-Assessment and proposed implementation plan, 2026-11-12.
+Assessment and implementation plan, 2026-11-12. Extent-only boundary now implemented
+in the core; actual tytui integration remains outstanding.
 
 This document evaluates the collaboration proposed in tytui's
 [three document-layout views](../../tytui/doc/DOCUMENT_LAYOUT_VIEWS.md), especially
 View 3, and its [exploration](../../tytui/doc/DOCUMENT_LAYOUT_EXPLORATION.md).
 It records integration-specific reasoning and acceptance targets, not a second
-general roadmap. Contract changes below are proposals until explicitly agreed.
+general roadmap. The extent-only return and adapter-owned typed retention are agreed. Remaining
+implementation gaps and integration decisions are identified separately.
 
 The current authoritative contract remains
 [CSS-Algo-Overview.md](CSS-Algo-Overview.md). General priorities and implementation
@@ -40,7 +42,8 @@ experiment. Paragraph bidi capability does not imply outer RTL layout support.
 ## 2. Readiness assessment
 
 The existing callback direction is suitable, but the complete document path is
-not ready. The following observations concern the code inspected on 2026-11-12.
+not ready. The following table preserves the original pre-fix assessment from 2026-11-12;
+it is not current implementation status. See milestones and section 3 for progress.
 
 | Area | Current behavior | Integration consequence |
 |---|---|---|
@@ -69,78 +72,64 @@ Verification during the assessment:
   shared Root geometry reported width 200.
 
 These probes established implementation gaps. Mixed-run corruption now has a
-fix and regression tests (M1); the coordinate and snapshot probes still need
-owning regression tests. Empty-container normalization and build-local identity guarantees are also
+fix and regression tests (M1). The coordinate probe now has a three-level
+regression and fix (M3, 2026-11-13); snapshot purity remains open (M4). Empty-container normalization and build-local identity guarantees are also
 implemented and regression-tested; see M1 and the current checklist.
 
-## 3. Proposed contract changes
+## 3. Agreed paragraph boundary (core implemented)
 
-### Explicit group height
-
-Replace the line-only return with a group-level result. Conceptual shape:
+The earlier proposal to return line summaries and an opaque retained payload is
+superseded. Block flow needs only the vlist's overall layout extent:
 
 ```go
-// Proposal, not a finalized API.
-type InlineLayoutResult struct {
-    Lines         []LineBox
-    ContentHeight float32
-    Retained      any // immutable opaque result or handle
-}
+type InlineExtent struct { W, H float32 }
+// See Pass-Signatures.md for the complete request and interfaces.
+LayoutInline(InlineRequest) (InlineExtent, error)
 ```
 
-ContentHeight is the authoritative vertical space consumed by the group. Lines
-remain paragraph-local summaries; their extent need not include trailing spacing
-or other reserved space. Ink overflow is distinct from consumed layout height.
-The core must not inspect typography's vlist or glyph representation.
+H is consumed content height, including paragraph-owned trailing spacing, excluding
+owner margins/padding/borders. W is reported overall width and may exceed available
+width, but does not resize the containing block. Both dimensions must be finite
+and nonnegative. Empty groups may reserve space without dummy lines. Ink bounds
+are a different quantity. Core no longer derives height from line rectangles.
 
-This would change the current requirement that inline-only content height always
-equals line extent. Do not encode full paragraph height using an extra visible
-line or an artificially enlarged last line. Empty results must be representable.
-The exact payload type and numeric precision remain open.
+The request carries Group (BoxAnonymousInline), OwnerID, definite ContentWidth in
+CSS pixels, a read-only UsedValuesView, and AtomicSizer. Group.BoxID identifies
+an existing group B; OwnerID identifies its existing owner A. The returned extent
+sets A's content height. No new box or BoxID is created for the vlist.
 
-### Retention for every inline group
-
-Preferred proposal: retain each successful group's result, keyed by its anonymous
-inline root BoxID, together with its owning block BoxID. This treats named and
-anonymous owners equally:
+The selected retention contract is a typed, invocation-local adapter table:
 
 ```text
-Group BoxID -> owner BoxID + inline layout result
+Group BoxID -> Owner BoxID + concrete paragraph result
 ```
 
-The group's origin is derived from its owner's content geometry. Avoid a second
-independent position that could disagree with box layout. Per-line Payload may
-still carry line-specific data, but cannot be the only owner of a paragraph:
-there may be no lines on which to attach it.
+P's concrete result or typed reference stays in the integration layer. No `any`,
+type assertion, core line table, or core dependency on P is needed. All groups,
+including those with anonymous owners, participate. Rendering uses owner content
+geometry to place precise paragraph-local lines, glyphs and baselines.
 
-Alternative for the first experiment: an adapter-owned association table scoped
-to one layout invocation and published with the complete document result. This
-avoids an immediate core retention API change, but requires explicit lifecycle,
-error handling, and group-to-owner mapping. It does not solve explicit height.
-A long-lived mutable registry is not recommended.
+The adapter explicitly records successful paragraph calls in local state and
+publishes that table with geometry, source correspondence, and separate paint only
+after the whole layout succeeds. Failure discards partial adapter state. The first
+experiment assumes one accepted result per group per invocation; speculative or
+repeated requests need an acceptance policy before being supported. Full snapshot
+purity of shared node geometry is still task 11, not solved by this table alone.
 
-This proposal revisits the current non-anonymous-only line-retention policy;
-accepting it requires corresponding contract, result type, and test updates.
+Used.Lookup returns value copies; callers must not mutate the group or input maps
+while layout runs. Source/style lookup is explicit immutable adapter state keyed
+by source identities. Flow validates used-value presence, finite/nonnegative
+widths and box edges (signed margins allowed) before invoking callbacks. Invalid
+extents and wrapped adapter errors return nil LayoutResult. Tests demonstrate
+three typed retained results, zero-width empty groups, trailing space, and errors.
 
-### Explicit request dependencies
+## 4. Boundary rules and remaining integration work
 
-A future request should identify both group and owner, carry a definite available
-content width, and provide read-only access to the relevant used values. Exact
-Go types are not frozen. Source and typography styles can be resolved through an
-explicit immutable adapter input; ComputedStyle need not absorb all font and
-paint properties.
-
-The adapter must consume the normalized group in order, preserving source/style
-boundaries without turning each inline span into a separate paragraph. Stable
-source references must survive split/hoist and anonymous wrapping.
-
-## 4. Boundary details to settle
-
-| Topic | Proposed agreement / remaining decision |
+| Topic | Agreed rule / remaining implementation |
 |---|---|
 | Width | Definite available content width in CSS pixels for the experiment; specify zero width and reject unsupported unresolved constraints |
 | Local coordinates | Paragraph coordinates are relative to the owner's content origin; compose parent transforms exactly once |
-| Baselines | Choose and document line-top-relative or paragraph-origin-relative baseline values; current field has no explicit convention |
+| Baselines | Stay in the retained P result; no core baseline field or baseline translation is needed |
 | Units | Adapter owns pixel, DU, and fractional-big-point conversion with explicit scale and checked rounding |
 | Precision | Preserve precise retained glyph geometry; do not narrow all glyph positions into float32 summaries; final core precision remains open |
 | Height | Preserve full layout extent including named compatibility-policy trailing spacing, without double-counting outer margins |
@@ -166,10 +155,9 @@ M3 to task 10; M4 to task 11. M5-M6 are primarily tytui integration work.
 Inline-block tasks 2/3 remain a later track, not prerequisites for this fixture.
 Task numbers are stable identifiers rather than scheduling order.
 
-M2 starts with a decision gate. M1 and existing-contract coordinate fixes may
-proceed while proposals are discussed; API changes and full integration acceptance
-depend on the agreed boundary. The ownership design must be settled at M2 even
-though resize/snapshot behavior is exercised comprehensively at M4.
+The M2 core API and fake-adapter tests are implemented under the agreed boundary.
+Actual unit conversion and typed publication in tytui remain integration work.
+M3 nested-coordinate fixes are core-tested; M4 snapshot purity remains open.
 
 ### M1. Preserve the document through box construction
 
@@ -195,28 +183,35 @@ The workbench does not repair or rebuild the normalized tree.
 
 ### M2. Agree and implement the paragraph boundary
 
-- [ ] Decide explicit height, retained-result ownership, group/owner identity,
-  baseline convention, and unit conversion.
-- [ ] Update the authoritative contract and pass signatures when accepted.
-- [ ] Test trailing extent independently of the last line, empty results,
-  anonymous-group retention, invalid returns, and adapter errors.
+- [x] Adopt extent-only return, typed adapter-owned retention, group/owner
+  identity, and a read-only used-values request. Baselines stay inside P.
+- [x] Update the authoritative contract and pass signatures; remove core line
+  tables and opaque payloads.
+- [x] Test trailing extent, empty/zero-width results, typed anonymous-group
+  associations, invalid input/returns, and wrapped adapter errors.
+- [ ] Implement actual DU/point conversion, rounding checks, and typed document
+  snapshot publication in tytui; no real paragraph engine is connected yet.
 
-Acceptance: a fake provider can return complete group extent and retained content
-without dummy lines, hidden global state, or dependence on a named block owner.
-The selected retention design preserves associations; implementing both
-alternatives is not required.
+Acceptance: a fake provider returns complete group extent and retains concrete
+paragraph content in its own table without dummy lines or dependence on a named
+owner. These core tests pass; real adapter conversion/publication remain open.
 
 ### M3. Prove outer positioning with fake paragraphs
 
-- [ ] Repair parent-content-relative coordinate handling.
-- [ ] Record requests by group identity and verify widths and order.
-- [ ] Return heights H1=24px, H2=36px, H3=12px for the zero-edge sample.
-- [ ] Add independently specified expectations for three-level nesting with
+- [x] Repair parent-content-relative coordinate handling.
+- [x] Record requests by group identity and verify widths and order.
+- [x] Return heights H1=24px, H2=36px, H3=12px for the zero-edge sample.
+- [x] Add independently specified expectations for three-level nesting with
   padding, borders, and additive margins.
 
 Acceptance: group origins are (0,0), (0,24), and (0,60), with root content height
 72px. Parent offsets are applied once, and outer flow never restacks local lines.
 These heights are supplied test data, not font measurements.
+
+M3 core verification completed 2026-11-13: nested-coordinate tests specify exact
+Frame/Content rectangles and paragraph document origins, including nonzero edges,
+signed horizontal margins, sibling stacking, and invariance of descendant local
+geometry under root-edge changes. `go test ./...` and `go vet ./...` pass.
 
 ### M4. Verify resize and snapshot ownership
 
@@ -233,7 +228,7 @@ the fake intentionally does so to test propagation.
 
 - [ ] Extract complete normalized groups and prepare text through the typography
   services, preserving semantic styles, bidi input, and source correspondence.
-- [ ] Convert widths and summaries at the adapter boundary; retain precise local
+- [ ] Convert widths and overall extents at the adapter boundary; retain precise local
   paragraph content and full extent.
 
 Acceptance: synthetic paragraph output agrees with existing paragraph controls;
@@ -252,8 +247,10 @@ The supported subset and remaining exclusions are recorded with the fixture.
 
 ## 6. Decision and tracking discipline
 
-Open decisions: explicit-height semantics/API, core versus adapter-owned retention,
-baseline convention, conversion/precision, and geometry mirror ownership.
+Remaining decisions/work: concrete adapter conversion/rounding and retained
+precision, geometry mirror ownership, and future speculative-call acceptance.
+Extent-only return and adapter-owned typed retention are settled; do not reopen
+them as competing core-payload proposals.
 
 When a proposal is accepted, update the core contract and pass signatures, record
 frozen decisions in the execution roadmap, and link actionable checks to the

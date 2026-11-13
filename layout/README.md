@@ -6,7 +6,7 @@ This package implements the core CSS box layout pipeline. It defines the layout 
 - BuildLayoutTree: structural box tree construction (anonymous boxes, split+hoist).
 - Used-values resolution (lengths, padding/border/margins).
 - Flow layout entry points (block stacking + inline delegation).
-- Shared types for layout nodes, geometry, and line boxes.
+- Shared types for layout nodes, geometry, and inline extent requests/results.
 
 ## Files (overview)
 - `box.go`: core layout types (LayoutNode, BoxKind, geometry, edges).
@@ -102,3 +102,24 @@ zero means inherit/fallback, not explicit CSS zero. Anonymous wrappers inherit
 font size but not box edges. See [Tree-Type.md](../doc/Tree-Type.md) for the supported
 subset and adapter responsibilities. Run `go test ./...` and `go vet ./...` for
 validation.
+
+## Inline adapter migration
+
+Implement `LayoutInline(req layout.InlineRequest) (layout.InlineExtent, error)`.
+Use `req.Group.BoxID` as the typed paragraph retention key and `req.OwnerID` for
+placement through the owning block's content geometry. `req.ContentWidth` is
+CSS-pixel content width; `req.Used.Lookup(id)` exposes resolved value copies.
+Treat the group and caller inputs as read-only.
+
+Return the full finite, nonnegative layout extent, including paragraph-owned
+trailing space. H determines flow height; W does not resize the containing block.
+Zero width and empty results are valid; empty groups may reserve nonzero height.
+Do not return lines or a payload. `layout.LineBox`, `LinesByBlock`, and
+`LayoutResult.Lines` are removed. Paragraph lines/baselines/glyphs belong in the
+adapter's concrete result table, which must include anonymous groups too.
+
+Create that table per invocation and publish it with successful document geometry
+only. Discard partial adapter state after errors. Nested coordinates now use parent-content-relative placement. Core snapshot
+purity remains separately tracked; nil LayoutResult on error does
+not yet guarantee unchanged input-node mirrors. Atomic inline sizing remains
+unfinished. The extent-only tests use normal block flow and fake typed paragraphs.

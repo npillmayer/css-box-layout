@@ -13,7 +13,9 @@ We will focus on clarity and understandability of the information. Performance, 
 ## Original End-to-End Vision
 We are done when from a textual input of HTML and CSS respectively a layout-tree has been constructed. This layout-tree has to contain all the necessary positioning information to layout the CSS boxes on a canvas. This tree is in memory.
 The current core starts from an already styled CSSDOM and produces geometry
-and line boxes; HTML/CSS parsing and styling are external responsibilities.
+with paragraph extents supplied by an external engine; HTML/CSS parsing and
+styling are external responsibilities. Typed paragraph results stay in the
+integration layer.
 The CSS2 box/flow subset and its deferrals are defined in the core contract.
 Flexbox is a possible future direction, not a milestone in the current roadmap.
 

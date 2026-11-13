@@ -1,5 +1,7 @@
 package layout
 
+import "fmt"
+
 // D -> E: create a correct CSS2 box tree with anonymous boxes and FC boundaries.
 func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, error) {
 	if renderRoot == nil {
@@ -31,7 +33,7 @@ func ResolveUsedValues(root *LayoutNode, ctx ResolveContext) (UsedValuesTable, e
 func FlowLayout(
 	root *LayoutNode,
 	used UsedValuesTable,
-	inline InlineLayouter, // black box, produces line boxes for BoxAnonymousInline
+	inline InlineLayouter, // black box, produces overall group extent
 	intrinsic IntrinsicMeasurer, // provides initial max-content approximations
 	ctx LayoutContext,
 	opts LayoutOptions,
@@ -40,19 +42,19 @@ func FlowLayout(
 		return &LayoutResult{
 			Root:     nil,
 			Geometry: make(LayoutGeometryTable),
-			Lines:    make(LinesByBlock),
 		}, nil
 	}
+	if err := validateUsedValues(root, used); err != nil {
+		return nil, err
+	}
 	geom := make(LayoutGeometryTable)
-	lines := make(LinesByBlock)
-	err := layoutBlockContainer(root, used, geom, lines, inline, intrinsic)
+	err := layoutBlockContainer(root, used, geom, inline, intrinsic)
 	if err != nil {
 		return nil, err
 	}
 	return &LayoutResult{
 		Root:     root,
 		Geometry: geom,
-		Lines:    lines,
 	}, nil
 }
 
@@ -71,14 +73,12 @@ func ComputeLayoutWithConstraints(
 type LayoutResult struct {
 	Root     *LayoutNode
 	Geometry LayoutGeometryTable
-	Lines    LinesByBlock // line boxes produced for each block container
 }
 
 func layoutBlockContainer(
 	node *LayoutNode,
 	used UsedValuesTable,
 	geom LayoutGeometryTable,
-	lines LinesByBlock,
 	inline InlineLayouter,
 	intrinsic IntrinsicMeasurer,
 ) error {
@@ -99,23 +99,23 @@ func layoutBlockContainer(
 
 	if isInlineOnlyBlockContainer(node) {
 		if inline == nil {
-			return errNotImplemented
+			return fmt.Errorf("box %d: inline layouter required", node.BoxID)
 		}
 		inlineRoot := node.Children[0]
-		lineBoxes, err := inline.LayoutInline(
-			inlineRoot,
-			content.W,
-			atomicSizer{inline: inline, intrinsic: intrinsic, used: used, geom: geom, lines: lines},
-		)
+		extent, err := inline.LayoutInline(InlineRequest{
+			Group: inlineRoot, OwnerID: node.BoxID, ContentWidth: content.W,
+			Used:   usedValuesView{table: used},
+			Atomic: atomicSizer{inline: inline, intrinsic: intrinsic, used: used, geom: geom},
+		})
 		if err != nil {
-			return err
+			return fmt.Errorf("inline group %d (owner %d): %w", inlineRoot.BoxID, node.BoxID, err)
 		}
-		if shouldStoreLines(node) {
-			lines[node.BoxID] = lineBoxes
+		if !finite(extent.W) || !finite(extent.H) || extent.W < 0 || extent.H < 0 {
+			return fmt.Errorf("inline group %d: invalid layout extent %+v", inlineRoot.BoxID, extent)
 		}
-		content.H = lineExtent(lineBoxes)
+		content.H = extent.H
 	} else {
-		h, err := layoutBlockChildrenVertical(node, node.Children, content, used, geom, lines, inline, intrinsic)
+		h, err := layoutBlockChildrenVertical(node.Children, used, geom, inline, intrinsic)
 		if err != nil {
 			return err
 		}
@@ -124,6 +124,9 @@ func layoutBlockContainer(
 
 	frame.H = content.H + u.Padding.Top + u.Padding.Bottom + u.Border.Top + u.Border.Bottom
 
+	if !finite(frame.W) || !finite(frame.H) {
+		return fmt.Errorf("box %d: non-finite layout dimensions", node.BoxID)
+	}
 	geom[node.BoxID] = LayoutGeometry{Frame: frame, Content: content}
 	node.Frame = frame
 	node.Content = content
@@ -131,12 +134,9 @@ func layoutBlockContainer(
 }
 
 func layoutBlockChildrenVertical(
-	parent *LayoutNode,
 	children []*LayoutNode,
-	content Rect,
 	used UsedValuesTable,
 	geom LayoutGeometryTable,
-	lines LinesByBlock,
 	inline InlineLayouter,
 	intrinsic IntrinsicMeasurer,
 ) (contentHeight float32, err error) {
@@ -147,13 +147,14 @@ func layoutBlockChildrenVertical(
 		}
 		cu := used[child.BoxID]
 		y += cu.Margin.Top
-		err := layoutBlockContainer(child, used, geom, lines, inline, intrinsic)
+		err := layoutBlockContainer(child, used, geom, inline, intrinsic)
 		if err != nil {
 			return 0, err
 		}
 		childGeom := geom[child.BoxID]
-		childGeom.Frame.X = content.X + cu.Margin.Left
-		childGeom.Frame.Y = content.Y + y
+		// Child geometry is relative to the parent content origin, not its border box.
+		childGeom.Frame.X = cu.Margin.Left
+		childGeom.Frame.Y = y
 		childGeom.Content.X += childGeom.Frame.X
 		childGeom.Content.Y += childGeom.Frame.Y
 		geom[child.BoxID] = childGeom

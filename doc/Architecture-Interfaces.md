@@ -31,7 +31,7 @@ flowchart TB
         TREE["Layout box tree"]
         USED["2. ResolveUsedValues"]
         FLOW["3. FlowLayout"]
-        RESULT["Geometry and line boxes"]
+        RESULT["Box geometry"]
 
         BUILD --> TREE
         TREE --> USED
@@ -43,6 +43,7 @@ flowchart TB
     CSS --> BUILD
     TS -.->|"text access through references"| IL
     FLOW -->|"delegate inline layout / request intrinsic widths"| IL
+    IL -->|"overall extent only"| FLOW
     IL -->|"AtomicSizer callback:<br/>size inline-block contents"| FLOW
 ```
 
@@ -57,10 +58,11 @@ flowchart TB
   `TextSource` interface exposes identity and byte length; source lookup and
   actual text access for external layout/shaping still need adapter design.
   The dashed edge represents that intended connection, not completed wiring.
-- **Inline layout:** `InlineLayouter` produces line boxes and
-  `IntrinsicMeasurer` supplies max-content widths. These are separate contracts;
-  they need not share an implementation. How the inline adapter receives
-  resolved inline edges also remains to be specified.
+- **Inline layout:** `InlineLayouter` returns overall extent only. Its request
+  includes group/owner identities and a read-only used-values view. Typed paragraph
+  results stay in an invocation-local adapter table; the integration layer joins
+  them with geometry after success. `IntrinsicMeasurer` supplies max-content
+  widths independently; it need not share an implementation.
 - **Atomic sizing:** the inline layouter calls the core's `AtomicSizer` to size
   an inline-block's internal contents. This is a callback relationship, not a
   package-import cycle. It returns border-box dimensions.
@@ -68,8 +70,8 @@ flowchart TB
 ## Reading the pipeline
 
 BuildLayoutTree normalizes structure. ResolveUsedValues resolves edges and known
-widths. FlowLayout stacks blocks and delegates inline layout, producing geometry
-and line boxes. CSSDOM creation, text storage, line breaking, and shaping remain
+widths. FlowLayout stacks blocks and delegates inline layout, producing box geometry. Lines and glyphs remain in the
+adapter-owned paragraph result. CSSDOM creation, text storage, line breaking, and shaping remain
 external responsibilities; shaping is outside this diagram's detail level.
 
 The three passes express conceptual ownership. Auto-width inline-blocks still
