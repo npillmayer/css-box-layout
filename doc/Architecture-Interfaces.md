@@ -7,7 +7,11 @@ including zero remain supported; percent/em widths on atomic boxes remain reject
 Percentage dependencies on unknown auto widths fail explicitly; definite bases
 remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
 Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
-Real tytui/P integration, full baseline behavior and speculative trials remain open.
+Bounded tytui/typography integration is verified through pipeline stage 5
+(2026-11-15): normalized input, intrinsic/final callbacks, nested geometry,
+transactional result lifetime and retained real-font proofs. See
+[the integration evidence](Document-Layout-Integration.md#7-bounded-integration-evidence).
+Full CSS baseline behavior, speculative trials and broader core work remain open.
 
 
 The core layout algorithm consumes a styled DOM, text references, and external

@@ -7,11 +7,15 @@ including zero remain supported; percent/em widths on atomic boxes remain reject
 Percentage dependencies on unknown auto widths fail explicitly; definite bases
 remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
 Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
-Real tytui/P integration, full baseline behavior and speculative trials remain open.
+Bounded tytui/typography integration is verified through pipeline stage 5
+(2026-11-15): normalized input, intrinsic/final callbacks, nested geometry,
+transactional result lifetime and retained real-font proofs. See
+[the integration evidence](Document-Layout-Integration.md#7-bounded-integration-evidence).
+Full CSS baseline behavior, speculative trials and broader core work remain open.
 
 
 High-level milestones for the core layout pipeline, reviewed on 2026-11-02;
-integration sequencing aligned through core M4 on 2026-11-13.
+integration sequencing aligned through bounded pipeline stage 5 on 2026-11-15.
 `doc/CSS-Algo-Overview.md` is the authoritative algorithm contract.
 `doc/Current-Checklist.md` holds prioritized tasks and detailed acceptance criteria.
 Implementation status below does not imply that all invariants are validated.
@@ -63,27 +67,30 @@ Frozen decisions for the current phase:
   groups and atomic block stacks before delegating an outer group. Prefer recursive
   core helpers; an explicit work stack is optional. This supersedes adapter-driven
   AtomicSizer callbacks and removes that reason for adapter reentrancy.
-- Replace the request's external sizing callback with read-only group-local
-  prepared items keyed by existing atomic BoxID. Concrete proposal:
+- The request's external sizing callback is replaced by read-only group-local
+  prepared items keyed by existing atomic BoxID. Implemented contract:
   request.Atomics PreparedAtomicsView with Lookup(BoxID) -> PreparedAtomic, copied
   border dimensions, one view per group, branch lookup by node.BoxID. Local whatsit
   IDs map back to BoxID; encoding/position storage stays private. Current code
   uses Atomics lookup; core prepares sizes, P determines line placements.
-- Concrete output proposal: InlineResult{Extent, Atomics}, with each
+- Implemented output: InlineResult{Extent, Atomics}, with each
   AtomicPlacement carrying BoxID and border-origin X/Y relative to request.OwnerID
   content. This narrowly extends extent-only returns, without paragraph summaries.
-  Proposed LayoutGeometry.RelativeTo makes coordinate parents explicit: atomic
+  LayoutGeometry.RelativeTo makes coordinate parents explicit: atomic
   owner, stacked-block container, or zero at root. Core validates then applies
   placements once, without moving local descendants or adding margins again.
-  These types are implemented; P input encoding and bounded alignment/break
-  policy still need integration decisions. See the task-2A signature proposal.
+  These types are implemented and integrated. Tytui emits ordered U+FFFC anchors
+  and retains occurrence-to-BoxID/source associations. The bounded profile uses
+  normal CSSLineHeight, AlignBottomMarginEdge, zero side skips and NoHyphenation.
+  General CSS baseline and per-span hyphenation policies remain deferred.
 - Fixed CSS-pixel recursive support comes before auto sizing. Checklist 2A/3A
   specifies prepared access and both adapter/P contracts, then dependency-order
   fixtures, core scheduling/sizing/resolution, API migration, and fake-adapter
   proof. Prepare each atomic once per invocation initially. Auto sizing follows measurement-first 2B/3B; speculative trials and their
   acceptance/discard protocol remain outside that slice.
 
-Anonymous style rules are implemented. Remaining: explicit auto-width state, geometry scope,
+Anonymous style rules and explicit pending auto-width/edge state are implemented.
+Remaining: broader geometry scope,
 and validation predicates that distinguish block containers from block-level
 flow participants. The detailed validation checklist lives in
 `doc/Current-Checklist.md`; these are requirements, not completed checks.
@@ -109,9 +116,22 @@ Keep frozen decisions here; no separate decision log is needed.
 - Floats, positioning, z-index, and stacking contexts are deferred.
 - Fine inline metrics, span-level line-height, and inline background/border
   fragments are deferred.
-- LTR only; bidi/RTL and vertical writing modes are deferred.
+- Outer flow is LTR only; outer RTL and vertical writing modes are deferred.
+  Delegated paragraphs already support bidi; real-font proofs verify that path.
 - Adjacent text merging and selection/caret mapping to DOM/text are deferred.
-- Caching/memoization is deferred; design for pure, explicit inputs now.
+- Core/global and cross-invocation caching remain deferred. Tytui preparation
+  reuse is invocation-local, separate from final attempts and accepted results.
+- Convert each CSS primitive with round(px * 49152), then check signed sums.
+  Keep CSS border dimensions unquantized and paragraph positions float64 big
+  points. Budget half a DU per primitive plus each float32 CSS narrowing.
+  Positive overflow remains valid; negative completed line widths are unsupported.
+- Tytui publishes geometry and all accepted paragraphs together after success.
+  Failed final callbacks remain attempted; no same-invocation retry is allowed.
+  Results retain immutable normalized input and stable font/scale services.
+- Glyph coverage is caller-owned; no new validation is introduced. Relocation of
+  existing itemizer checks is separate future work. Bounded explicit discretionary
+  measurement/reuse exists below CSS; automatic intrinsic hyphenation and
+  successive splits remain deferred.
 
 Auto-margin distribution has incomplete implementation and needs a decision;
 this roadmap does not silently add it to the frozen deferrals.
@@ -125,10 +145,10 @@ with the code and `doc/Tree-Type.md`.
 Remaining:
 
 - Resolve concrete `RenderNode` versus read-only adapter interfaces.
-- Align options, contexts, numeric precision, and result representation.
-- Define how auto inline-block sizing supplies descendant containing widths
-  while retaining explicit resolution dependencies and resolved edges before
-  internal line breaking (checklist tasks 2 and 3).
+- Align broader options/context roles and geometry coverage. Current numeric
+  boundaries and typed result ownership are settled above.
+- Preserve implemented 2B/3B dependency resolution: select auto widths, privately
+  re-resolve descendants, then expose only definite used values to final layout.
 
 Success: explicit inputs/outputs, no hidden dependencies, and documented pass
 ownership. The proposed package split is provisional; a package reorganization
@@ -152,17 +172,19 @@ have collision protection and regression coverage for uniqueness and stability.
 Typed style/source transport (task 1), empty normalization (task 4), identity
 protection (task 5), and distinct mixed runs (task 8) have regression coverage.
 Anonymous wrappers use auto width, zero edges, and inherited font size.
-Remaining: external adapter fixture/source lookup and broader supported behavior.
+The external tytui adapter/source lookup is integrated and tested. Broader
+supported behavior remains open.
 
 Minimal source-reference plumbing and supported typed style transport are
 implemented for task 1 / M1; `doc/Tree-Type.md` documents their input rules.
 General CSSDOM adapter integration remains separate; selection/caret mapping is
-still deferred. Core tests do not establish working tytui wiring.
+still deferred. Separate tytui tests now establish the bounded actual wiring.
 
 ## 6) Complete Pass 2: ResolveUsedValues
 
 Status: edge and width resolution, side-table output, and basic context tests
-exist. Auto inline-block width is currently represented as zero.
+exist. Auto inline-block widths/edges use explicit pending flags until intrinsic
+selection and private re-resolution; unresolved width is not a resolved zero.
 
 Fixed-width descendant contexts and explicit zero behavior are tested (3A).
 Late auto-width resolution (3B) is implemented; auto-margin behavior remains task 6. Resolution
@@ -184,31 +206,32 @@ coverage remains task 7.
 
 ## 8) Execution order and completion gate
 
-The recommended next track is the bounded document experiment described in
-[Document-Layout-Integration.md](Document-Layout-Integration.md). Use the
-[checklist crosswalk](Current-Checklist.md#execution-order-and-integration-crosswalk)
-for task ownership and acceptance targets:
+The bounded document experiment is complete; see
+[Document-Layout-Integration.md](Document-Layout-Integration.md#7-bounded-integration-evidence)
+and the [checklist crosswalk](Current-Checklist.md#execution-order-and-integration-crosswalk).
+The completed sequence is:
 
 1. M1: preserve styles/source references and distinct runs, normalize empty
-   containers, and enforce identity guarantees (tasks 1, 8, 4, 5).
-2. M2: extent-only boundary and typed retention contract implemented (task 9);
-   complete real adapter conversion/publication in tytui.
-3. M3-M4: prove fake-paragraph placement, nested coordinates, resize, immutable
-   snapshots, and failure handling (tasks 10 and 11).
-4. M5-M6: connect synthetic typography and real-font proofs in tytui, with core
-   fixes upstream. Update affected documentation alongside each decision (task 7).
-5. Separate extension: fixed-width recursive inline-blocks (tasks 2A/3A), starting
-   with prepared-item access and both adapter/P contracts, then dependency-order
-   fixtures, core scheduling, and migration away from external sizing callbacks.
-   Auto sizing/speculation follow under 2B/3B; broader cleanup remains task 6.
-   This extension is not a prerequisite for the bounded M5-M6 document proof.
+   containers and enforce identity; tytui extracts actual normalized groups.
+2. M2: implement extent/placement callbacks, explicit unit conversion and typed
+   invocation-local retention with transactional document publication.
+3. M3-M4: verify fake-paragraph coordinates/snapshots, then actual nested geometry,
+   resize, failure recovery, accessor detachment and retained-result lifetime.
+4. M5-M6: exercise synthetic typography and real-font proofs without remeasurement,
+   including independent glyph controls and unchanged paragraph replay evidence.
+5. 2A/3A and 2B/3B: integrate fixed and bounded auto recursive atomics through
+   actual measurement -> width selection -> resolution -> final layout. Verify
+   preparation reuse, signed rounding and retained proofs under both breakers.
 
-M2 extent-only return and adapter-owned typed retention are agreed and implemented
-in the core. M3 coordinates and M4 snapshot purity are implemented and tested.
-Next is tytui integration toward M5: complete the actual source adapter, unit
-conversion, typed retention, and publication checks left open in M1/M2/M4.
-The experiment uses explicit non-auto margins; this does not silently defer
-auto margins for the broader engine.
+Validation on 2026-11-15: ordinary/race suites, build and vet passed in khipu,
+typography, tytui and css-box-layout, including dependency audits and adapter/
+proof/replay controls. No production changes were required for stage 5 verification.
+The experiment uses explicit non-auto margins and normal line-height. Remaining
+core geometry/validation/cleanup tasks stay unchecked; automatic intrinsic
+hyphenation, speculative trials, cross-invocation caches, expanded percentage or
+baseline policies, full painting, pagination, TUI wiring and document replay are
+not part of completion. Horizontal auto-margin distribution remains a broader
+engine decision, not an implemented capability.
 
 Finishing the document experiment does not complete the broader core roadmap.
 

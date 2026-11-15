@@ -7,20 +7,24 @@ including zero remain supported; percent/em widths on atomic boxes remain reject
 Percentage dependencies on unknown auto widths fail explicitly; definite bases
 remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
 Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
-Real tytui/P integration, full baseline behavior and speculative trials remain open.
+Bounded tytui/typography integration is verified through pipeline stage 5
+(2026-11-15): normalized input, intrinsic/final callbacks, nested geometry,
+transactional result lifetime and retained real-font proofs. See
+[the integration evidence](Document-Layout-Integration.md#7-bounded-integration-evidence).
+Full CSS baseline behavior, speculative trials and broader core work remain open.
 
 
-Assessment and implementation plan, 2026-11-12. Extent-only boundary now implemented
-in the core; M3/M4 core verification updated 2026-11-13. Actual tytui integration
-remains outstanding.
+Assessment begun 2026-11-12; core M3/M4 verified 2026-11-13; bounded real
+integration verified 2026-11-15. Historical probes below explain the core fixes;
+section 7 records the separate tytui/typography/khipu evidence.
 
 This document evaluates the collaboration proposed in tytui's
 [three document-layout views](../../tytui/doc/DOCUMENT_LAYOUT_VIEWS.md), especially
 View 3, and its [exploration](../../tytui/doc/DOCUMENT_LAYOUT_EXPLORATION.md).
 It records integration-specific reasoning and acceptance targets, not a second
 general roadmap. Typed retention and extent-based flow are implemented;
-section 4.1 describes the addition of atomic placements. Remaining
-implementation gaps and integration decisions are identified separately.
+section 4.1 describes the addition of atomic placements. Broader
+implementation gaps and deferred policies are identified separately.
 
 The current authoritative contract remains
 [CSS-Algo-Overview.md](CSS-Algo-Overview.md). General priorities and implementation
@@ -45,16 +49,18 @@ A paragraph is a leaf of the outer positioning problem. Its lines must not be
 stacked again by block flow. Group boundaries come from normalized boxes, not
 HTML paragraph tags or a second traversal that reselects DOM subtrees.
 
-The first experiment is continuous normal-flow LTR layout with definite widths
-and natural height. Begin with zero edges, then add padding, borders, and additive
-margins. Pagination, floats, positioning, flex/grid, atomic inline items, intrinsic
-sizing, margin collapse, and DOM line-height extraction remain outside this
-experiment. Paragraph bidi capability does not imply outer RTL layout support.
+The completed experiment is continuous normal-flow LTR outer layout with natural
+height, fixed/auto inline-block widths, padding/borders and signed additive margins.
+Paragraph bidi is supported; it does not imply outer RTL flow. Tytui uses normal
+CSSLineHeight, bottom-margin-edge atomic alignment, zero side skips and no
+hyphenation. Pagination, floats, positioning, flex/grid, margin collapse, general
+line-height extraction and full CSS intrinsic/baseline semantics remain outside
+this bounded experiment.
 
 ## 2. Readiness assessment
 
-The complete document path is not ready. The callback scheduling design has been
-superseded by section 4.1. The following table preserves the original pre-fix assessment from 2026-11-12;
+The bounded document path is now implemented and verified. The callback scheduling
+design was superseded by section 4.1. This table preserves the pre-fix assessment from 2026-11-12;
 it is not current implementation status. See milestones and section 3 for progress.
 
 | Area | Current behavior | Integration consequence |
@@ -139,21 +145,21 @@ widths and box edges (signed margins allowed) before invoking callbacks. Invalid
 extents and wrapped adapter errors return nil LayoutResult. Tests demonstrate
 three typed retained results, zero-width empty groups, trailing space, and errors.
 
-## 4. Boundary rules and remaining integration work
+## 4. Implemented boundary rules and bounded extensions
 
-| Topic | Agreed rule / remaining implementation |
+| Topic | Agreed implemented rule |
 |---|---|
 | Width | Definite available content width in CSS pixels for the experiment; specify zero width and reject unsupported unresolved constraints |
 | Local coordinates | Paragraph coordinates are relative to the owner's content origin; compose parent transforms exactly once |
 | Baselines | Stay in the retained P result; no core baseline field or baseline translation is needed |
 | Units | Adapter owns pixel, DU, and fractional-big-point conversion with explicit scale and checked rounding |
-| Precision | Preserve precise retained glyph geometry; do not narrow all glyph positions into float32 summaries; final core precision remains open |
+| Precision | CSS geometry remains float32 px; paragraphs/proofs retain float64 big points. Convert each CSS primitive with round(px * 49152), ties away from zero, before checked signed sums; budget half a DU per primitive plus each float32 narrowing |
 | Height | Preserve full layout extent including named compatibility-policy trailing spacing, without double-counting outer margins |
 | Paint | Retain separately from geometric summaries and preserve source correspondence through text preparation |
 | Errors | Missing used values, unsupported material, and invalid dimensions must fail explicitly rather than silently produce zero geometry |
 | Result lifetime | Publish complete immutable snapshots; failed layout must not replace the previous successful document result |
 | Resize | Recompute relevant used values and rerun paragraph layout at new widths; caching and incremental invalidation are deferred |
-| Atomic items | Excluded from M1-M6 initially; fixed-width recursive extension is planned in section 4.1 and checklist 2A/3A |
+| Atomic items | Fixed and bounded auto recursion, measurement and placement are integrated; see sections 4.1/4.2 and checklist 2A/3A/2B/3B |
 
 Geometry tables survive later runs independently; LayoutNode has no geometry
 mirrors. Results share a structural tree that callers/adapters must keep immutable,
@@ -184,7 +190,7 @@ flow downward; completed dimensions flow upward. No outer adapter call is active
 while an inner group is being laid out, so atomic scheduling no longer requires
 adapter reentrancy. Invocation-local result retention is still required.
 
-#### Concrete prepared-item and BoxID association proposal
+#### Implemented prepared-item and BoxID association
 
 The current Go API is in [Pass-Signatures.md](Pass-Signatures.md#prepared-atomic-items-and-placement).
 It replaces request.Atomic with `Atomics PreparedAtomicsView`, whose
@@ -250,11 +256,10 @@ own group with owner 42 and placed at that content origin. BoxID alone is not a
 cross-invocation key: prepared views, handles and accepted output belong to one
 layout invocation. Failed output must not alter old snapshots.
 
-These interfaces are implemented for the bounded fixed-width core path. Actual typography
-item encoding, source/anchor mapping and conversion remain adapter work. Proposed
-first-slice alignment is the bottom margin edge at the line baseline without an
-inner paragraph baseline; the fake adapter uses this bounded policy;
-do not claim complete CSS baseline alignment.
+These interfaces are integrated with actual typography. Tytui emits U+FFFC anchors
+and separate source associations; khipu binds horizontal advances; typography
+assembles border geometry with the bottom margin edge at the line baseline. This
+bounded policy does not implement full CSS inline-block baseline alignment.
 
 #### Fixed-width example and acceptance
 
@@ -292,15 +297,14 @@ Start with fixed CSS-pixel widths including zero, correct descendant resolution,
 and border/padding accounting. Fixed widths are not clamped to remaining line
 width; outer P handles fitting/overflow. Define a bounded alignment/margin policy
 rather than claiming full baseline-correct CSS from W/H alone. Prepare each atomic
-box once per invocation in the initial proof. Auto/intrinsic sizing and speculative
-trials require later measurement and nested-result acceptance/discard semantics;
-a different stack representation does not solve those dependencies.
+box once per invocation in the initial proof. Bounded auto sizing now uses the separate measurement phase below; speculative
+trials and their acceptance/discard semantics remain deferred.
 
 Current code uses core-owned preparation. The old M4 atomic-callback test is
 superseded by multi-level preparation, placement and snapshot regressions. Checklist 2A/3A covers API migration,
 core scheduling, prepared-item input, final-placement output, and multi-level
-regressions; 2B/3B covers later auto sizing. This extension is not a prerequisite
-for the initial M1-M6 fixture and does not establish actual tytui integration.
+regressions; 2B/3B covers implemented bounded auto sizing. Those core tests alone
+do not establish tytui integration; the separate evidence is recorded in section 7.
 
 ### 4.2. Intrinsic measurement before final layout (2B/3B implemented)
 
@@ -324,12 +328,14 @@ final layout follows width selection, so no speculative-result acceptance protoc
 is needed now. Unknown-auto-width percentage dependencies fail explicitly; definite
 bases and post-selection descendant percentage resolution remain separate. Existing
 fixed-width diagrams illustrate final layout, not this additional measurement
-phase. Real typography measurement/source mapping remains integration work; full
-baseline behavior and speculative layout trials are later scope.
+phase. Real typography measurement/source mapping and invocation-local preparation
+reuse are integrated in tytui. Full baseline behavior and speculative layout trials
+remain deferred.
 
 ## 5. Milestones and acceptance tests
 
-Milestones are proposed work packages, not completion claims. General fixes belong
+The bounded M1–M6 integration is complete, with core and application evidence
+kept distinct below and in section 7. General fixes belong
 in css-box-layout; experimental adapter and document proof wiring belong in tytui.
 Keep typography's existing single-paragraph results as controls.
 
@@ -341,9 +347,9 @@ prerequisites for this fixture; auto sizing follows under 2B/3B.
 Task numbers are stable identifiers rather than scheduling order.
 
 The M2 core API and fake-adapter tests are implemented under the agreed boundary.
-Actual unit conversion and typed publication in tytui remain integration work.
-M3 nested coordinates and M4 snapshot purity are core-tested. Actual document
-publication in tytui still needs integration verification.
+Unit conversion and typed publication are also verified through tytui. M3 nested
+coordinates and M4 snapshot purity have both core controls and separate actual
+paragraph-engine integration tests; neither replaces the other.
 
 ### M1. Preserve the document through box construction
 
@@ -351,8 +357,8 @@ publication in tytui still needs integration verification.
   through real boxes and split fragments; specify anonymous styles.
   Build -> resolve regressions verify 240/120/240px widths and preserved ranges;
   `doc/Tree-Type.md` describes the input contract.
-- [ ] Exercise the actual external document/source adapter fixture in tytui;
-  passing core projection tests does not mark that connection implemented.
+- [x] Exercise the external document/source adapter in tytui
+  (`extract_test.go`, `paragraph_test.go`, `typed_integration_test.go`).
 - [x] Fix mixed-run slice aliasing and test distinct retained runs.
   Each run now owns a copied child slice; four BuildLayoutTree regression cases
   reproduce the old failure and pass with the fix. `go test ./...` passes.
@@ -375,12 +381,13 @@ The workbench does not repair or rebuild the normalized tree.
   tables and opaque payloads.
 - [x] Test trailing extent, empty/zero-width results, typed anonymous-group
   associations, invalid input/returns, and wrapped adapter errors.
-- [ ] Implement actual DU/point conversion, rounding checks, and typed document
-  snapshot publication in tytui; no real paragraph engine is connected yet.
+- [x] Implement DU/point conversion, rounding checks and typed document
+  publication in tytui (`geometry_test.go`, `nested_geometry_test.go`,
+  `layout_test.go`, `lifetime_test.go`).
 
 Acceptance: a fake provider returns complete group extent and retains concrete
 paragraph content in its own table without dummy lines or dependence on a named
-owner. These core tests pass; real adapter conversion/publication remain open.
+owner. These core tests pass; real adapter conversion/publication have separate tytui tests.
 
 ### M3. Prove outer positioning with fake paragraphs
 
@@ -406,15 +413,17 @@ geometry under root-edge changes. `go test ./...` and `go vet ./...` pass.
 - [x] Preserve previous geometry, typed paragraph results, and paint associations
   in a fake document adapter with invocation-local state.
 - [x] Inject a failed run and verify the prior successful snapshot stays usable.
-- [ ] Verify complete snapshot publication through the real tytui adapter.
+- [x] Verify complete snapshot publication through the real tytui adapter,
+  including failures during measurement, assembly and publication (stage 5C).
 
 Core verification completed 2026-11-13: root constraints 240px -> 180px give
 G2 widths 120px -> 90px, H2 36px -> 48px, G3 Y 60px -> 72px, and root height
 72px -> 84px. Failure after one successful group leaves both old layouts and
 publication untouched; a subsequent successful run remains deterministic.
 Additional tests cover atomic-callback input immutability and concurrent flows
-sharing read-only inputs. Full tests, vet, and race checks pass. This does not
-establish actual typography/paint integration.
+sharing read-only inputs. These core checks do not establish typography/paint
+integration; that separate evidence is now recorded in section 7. Tytui operations
+sharing a resolver/prepared owner remain serialized.
 
 Acceptance: G3 moves from H1+H2 to H1+H2', and root height follows. The old result
 remains internally consistent. A real narrower paragraph need not change height;
@@ -422,9 +431,9 @@ the fake intentionally does so to test propagation.
 
 ### M5. Connect synthetic typography
 
-- [ ] Extract complete normalized groups and prepare text through the typography
+- [x] Extract complete normalized groups and prepare text through the typography
   services, preserving semantic styles, bidi input, and source correspondence.
-- [ ] Convert widths and overall extents at the adapter boundary; retain precise local
+- [x] Convert widths and overall extents at the adapter boundary; retain precise local
   paragraph content and full extent.
 
 Acceptance: synthetic paragraph output agrees with existing paragraph controls;
@@ -433,9 +442,9 @@ shaping boundaries. No new outer RTL support is implied.
 
 ### M6. Render a real-font document proof
 
-- [ ] Compose retained paragraph content and separate paint using box transforms.
-- [ ] Display block frames and paragraph bounds as diagnostics before glyph proofs.
-- [ ] Use retained font/glyph services without reopening fonts or reshaping text.
+- [x] Compose retained paragraph content and separate paint using box transforms.
+- [x] Display block frames and paragraph bounds as diagnostics before glyph proofs.
+- [x] Use retained font/glyph services without reopening fonts or reshaping text.
 
 Acceptance: the shared sample can be traced from source through boxes, requests,
 paragraph results, and final placement. Resize produces a new inspectable result.
@@ -443,10 +452,10 @@ The supported subset and remaining exclusions are recorded with the fixture.
 
 ## 6. Decision and tracking discipline
 
-Remaining decisions/work: concrete adapter conversion/rounding and retained
-precision, actual document publication, concrete atomic-item input and
-final-placement output interfaces (including alignment and source mapping),
-and future speculative-call acceptance.
+Settled and implemented: adapter conversion/rounding and retained precision,
+transactional document publication, anchored atomic input/source mapping and
+identity-preserving final placements with bounded alignment. Remaining work is
+full CSS baseline behavior, broader policies and speculative-call acceptance.
 Table-only geometry with shared immutable structural input and adapter-owned
 typed retention are settled. Task 2A adds atomic placements to the
 former extent-only return, not paragraph line summaries; do not reopen
@@ -461,3 +470,55 @@ For implementation work, add owning-package regressions and affected integration
 tests. Run `go test ./...`; use build/vet/race checks where changes to integration
 or shared result ownership justify them. Mark milestones complete only when their
 boundary is exercised, not merely because an isolated package works.
+
+
+## 7. Bounded integration evidence
+
+Verified 2026-11-15 against the four sibling working trees. The implemented
+contract and staged record are in
+[khipu's pipeline plan](../../khipu/doc/PIPELINE_INTEGRATION.md);
+[tytui's document API](../../tytui/documentlayout/README.md) and
+[fixed/auto proof fixtures](../../tytui/documentlayout/testdata/README.md)
+provide usage, policies and reproduction commands.
+
+| Evidence | Owning tests / artifacts |
+| --- | --- |
+| Normalized text, atomic markers and decoded DOM provenance | tytui `extract_test.go`, `paragraph_test.go`, `typed_integration_test.go` |
+| Actual measurement-before-layout scheduling and preparation reuse | tytui `scheduling_test.go`, `auto_test.go`, `preparation_test.go` |
+| Independent signed geometry, nested shrink-to-fit and rounding budgets | tytui `nested_geometry_test.go`, plus core `intrinsic_test.go` / `coordinates_test.go` |
+| Resize, deterministic failure/recovery, detached accessors and old-result lifetime | tytui `lifetime_test.go`, khipu freeze/binding and typography prepared-result controls |
+| Retained real-font proofs at 420/100 CSS px, both breakers | tytui `auto_proof_test.go`, `testdata/nested-auto.html` and four SVG diagnostics; fixed proof and replay fixtures unchanged |
+
+CSS core owns recursion, intrinsic aggregation, width selection and private
+resolution before final callbacks. Tytui translates one requested group and
+publishes geometry plus all accepted paragraphs together. Typography owns
+itemization/prepared orchestration and vertical assembly; khipu owns horizontal
+measurement/binding/breaking/frozen ownership. No CSS types or document scheduling
+were introduced into the paragraph engine.
+
+Completed preparations, final attempts and accepted paragraphs remain separate
+invocation-local tables. Measurement accepts no output; each final group gets one
+attempt, including failures. New Document.Layout calls prepare afresh. Results
+retain the immutable normalized document and stable font/scale services; public
+mutable envelopes are detached. Failed runs return no public result and cannot
+replace an older success. Input DOM storage may be released after Build.
+
+The bounded profile uses normal CSSLineHeight, AlignBottomMarginEdge, zero side
+skips and NoHyphenation. Margins affect signed advances and placement, not border
+dimensions. Primitive conversion is round(px * 49152), with checked completed sums;
+CSS border dimensions are not quantized back from DU. Positive overflow is valid;
+negative completed line widths remain unsupported. Empty interiors keep their
+normal strut. Paragraph/proof positions stay float64 big points.
+
+Glyph coverage remains caller-owned; existing itemizer-check relocation is future
+work. Explicit discretionary measurement/reuse exists in khipu/typography but is
+not enabled in the CSS adapter. Automatic intrinsic hyphenation and successive
+splits remain unsupported. Cross-invocation caches, speculative callbacks, broader
+percent/relative-length policies, auto-margin distribution, full baseline/inline
+fragmentation, outer RTL/vertical writing, painting, pagination, TUI integration
+and document replay are not completion claims of this experiment.
+
+Validation: ordinary and race suites, build and vet across khipu, typography,
+tytui and css-box-layout, including dependency audits, adapter regressions and
+retained proof/replay controls. No new production algorithm or interface was
+needed for stage 5. Broader unchecked core tasks remain open.

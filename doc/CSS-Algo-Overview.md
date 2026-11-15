@@ -7,7 +7,11 @@ including zero remain supported; percent/em widths on atomic boxes remain reject
 Percentage dependencies on unknown auto widths fail explicitly; definite bases
 remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
 Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
-Real tytui/P integration, full baseline behavior and speculative trials remain open.
+Bounded tytui/typography integration is verified through pipeline stage 5
+(2026-11-15): normalized input, intrinsic/final callbacks, nested geometry,
+transactional result lifetime and retained real-font proofs. See
+[the integration evidence](Document-Layout-Integration.md#7-bounded-integration-evidence).
+Full CSS baseline behavior, speculative trials and broader core work remain open.
 
 
 This document is the single, authoritative contract for the core CSS layout pipeline in this repo. It consolidates the spec surface previously spread across `doc/Algo-Spine.md` and `doc/Functional.md`.
@@ -22,10 +26,12 @@ Implementation status and open work: `doc/Exec-Roadmap.md` and
 Inputs and environment:
 - A DOM annotated with computed styles (CSSDOM) already exists.
 - A line-breaking module exists but is treated as a black box.
-- LTR only; bidi/RTL and vertical writing modes are deferred.
+- Outer flow is LTR only; outer RTL and vertical writing modes are deferred.
+  Delegated paragraphs may contain bidi text, as verified by tytui proofs.
 - Text positions are `uint64` byte offsets; empty ranges are dropped.
 - Coordinates are relative to the parent content box; root origin is (0,0).
-- Adjacent text-node merging and DOM-to-text mapping are deferred.
+- Adjacent text-node merging and core selection/caret mapping are deferred.
+  Tytui retains decoded DOM byte provenance outside the core.
 
 ---
 
@@ -149,8 +155,8 @@ Inline layouter (black box):
 - Implemented task-2A boundary: LayoutInline(InlineRequest) -> InlineResult{Extent, Atomics}, error
   - Request: anonymous inline Group (Group.BoxID is the retention key), OwnerID,
     definite ContentWidth in CSS pixels, a UsedValuesView, and read-only prepared
-    atomic items (target). The implemented API uses Atomics; see the
-    migration description below and current signatures in Pass-Signatures.md.
+    atomic items through Atomics; see the implemented preparation boundary below
+    and current signatures in Pass-Signatures.md.
   - Extent is finite and nonnegative, including at zero available width. H is
     authoritative consumed height, including paragraph-owned trailing spacing;
     W may exceed available width but does not resize the owner's content width.
@@ -171,13 +177,13 @@ Inline layouter (black box):
     The core never mutates the input tree or used values, on success or failure.
     Callbacks must honor the read-only contract; discard partial retained state.
 
-Atomic preparation (agreed target; API migration pending):
+Atomic preparation (implemented 2A/3A boundary):
 - Core discovers atomic boundaries through ordinary inline descendants and lays
   out each internal block container recursively before delegating its outer group.
   Ordinary inline spans stay within the current group; nested block children are
   stacked inside their atomic owner. Prefer recursive core helpers; an explicit
   work stack is an equivalent implementation choice, not required machinery.
-- Replace external AtomicSizer callbacks with read-only prepared-item lookup by
+- External AtomicSizer callbacks are replaced by read-only prepared-item lookup by
   existing atomic BoxID. Group-local items have complete finite border-box sizes
   before LayoutInline starts. Missing preparation is an error. Current Go code
   uses request.Atomics with
@@ -188,13 +194,13 @@ Atomic preparation (agreed target; API migration pending):
   scheduling. It must not flatten inner text into outer input. Inner paragraph
   calls finish before the outer call starts; this no longer requires reentrancy
   of the adapter. Input trees/tables stay immutable; prepared data is per invocation.
-- Two adapter/P contracts remain required: anchored atomic-item input with identity,
+- Two adapter/P contracts are implemented in tytui/typography: anchored input with identity,
   dimensions, source mapping, alignment/margin/break policy; and identity-preserving
   final-placement output. Core owns internal geometry; P chooses line placement,
-  retained by the adapter and reported as AtomicPlacement{BoxID, X, Y}. Proposed
+  retained by the adapter and reported as AtomicPlacement{BoxID, X, Y}.
   X/Y is the border-box origin relative to request.OwnerID's content origin,
   including alignment/margin effects. Core applies it without adding margins or
-  changing dimensions/descendant-local coordinates. Proposed geometry.RelativeTo
+  changing dimensions/descendant-local coordinates. Geometry.RelativeTo
   identifies that coordinate parent explicitly (root=0, stacked block=container,
   atomic=request.OwnerID), not necessarily the structural parent. Validate exactly
   one placement per prepared item, identity membership and finite coordinates
@@ -208,7 +214,8 @@ Atomic preparation (agreed target; API migration pending):
   prevents dependent outer delegation and aborts publication of pending results.
 - InlineResult deliberately adds atomic placements to extent-only
   returns, not line summaries or opaque paragraph payloads. The types and RelativeTo are implemented. Checklist 2A/3A covers migration, prepared
-  access and bounded alignment policy; 2B/3B covers later sizing/full alignment.
+  access and bounded alignment policy; 2B/3B covers bounded auto sizing. Full
+  baseline alignment remains deferred.
 
 Intrinsic measurement (implemented bounded 2B/3B design):
 - MaxContentWidth and InlineIntrinsic are removed. Auto sizing uses
@@ -241,10 +248,11 @@ Intrinsic measurement (implemented bounded 2B/3B design):
   is implemented under 2B/3B; this supersedes the max-content-only deferral)
 - Span-level line-height / fine inline metrics
 - Inline fragments for span backgrounds/borders
-- Bidi/RTL, vertical writing modes
+- Outer bidi/RTL flow and vertical writing modes (paragraph bidi stays external)
 - Selection/caret mapping back to DOM/text
 - Adjacent text-node merging
-- Caching/memoization (design for it, do not implement yet)
+- Core/global or cross-invocation caching/memoization. Tytui already reuses
+  paragraph preparation within one invocation; it never caches on Document.
 
 ---
 

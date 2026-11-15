@@ -1,7 +1,9 @@
 # Current Checklist
 
 Working implementation and validation checklist, reviewed against `layout/` on
-2026-11-02; integration milestones updated through core M4 on 2026-11-13.
+2026-11-02; core M4 verified 2026-11-13; bounded cross-module integration
+verified through stage 5 on 2026-11-15. See
+[the evidence crosswalk](Document-Layout-Integration.md#7-bounded-integration-evidence).
 This is a planning artifact, not the algorithm contract.
 `doc/CSS-Algo-Overview.md` is authoritative; frozen decisions are recorded in
 `doc/Exec-Roadmap.md`. Unchecked tasks below remain open.
@@ -22,7 +24,9 @@ This is a planning artifact, not the algorithm contract.
 - Used values: margins, padding, borders, and content widths live in
   `UsedValuesTable[BoxID]`, with resolved lengths in pixels. Percent values use
   0..1. Code and the refreshed signature documentation use `float32`; the integration
-  conversion/precision policy remains to be decided in task 9.
+  conversion policy is settled: independently round CSS primitives to DU using
+  round(px * 49152), check signed sums, retain paragraph float64 big points and
+  preserve CSS-owned border dimensions. Task 9 has integration rounding tests.
 - Results: `LayoutResult.Root` shares the immutable structural tree;
   `LayoutGeometryTable[BoxID]` is fresh per invocation and exclusively owns
   derived geometry. No node mirrors remain. Published trees, styles, and result
@@ -41,23 +45,24 @@ This is a planning artifact, not the algorithm contract.
 
 ## Execution order and integration crosswalk
 
-Task numbers are stable references, not execution order. The recommended next
-track is the bounded document experiment in
-[Document-Layout-Integration.md](Document-Layout-Integration.md). The extent/placement API and typed retention are core-tested; this ordering
-does not declare the external adapter or broader core complete.
+Task numbers are stable references, not execution order. The bounded document
+experiment in [Document-Layout-Integration.md](Document-Layout-Integration.md) is
+complete, including the real adapter. The crosswalk distinguishes that evidence
+from broader unchecked core tasks; it does not declare the entire core complete.
 
 | Stage | Checklist tasks | Integration milestone | Gate / owner |
 |---|---|---|---|
 | Preserve document input and normalized groups | 1, 8, 4, 5 | M1 | Core fixes and tests; tytui supplies the adapter fixture |
-| Implement paragraph boundary | 9 and relevant parts of 7 | M2 | Core complete; real conversion/publication remains adapter work |
-| Implement accepted boundary and prove placement | 9, 10 | M2-M3 | Core tests with fake paragraphs; explicit widths and full extents |
+| Implement paragraph boundary | 9 and relevant parts of 7 | M2 | Core and actual tytui conversion/publication verified |
+| Implement accepted boundary and prove placement | 9, 10 | M2-M3 | Core fake controls plus independent tytui geometry oracles |
 | Prove resize and snapshots | 11 | M4 | Core immutability plus tytui publication/retention checks |
-| Connect paragraph implementations and proof | Accepted boundary, 7 follow-through | M5-M6 | tytui integration; core fixes remain upstream |
-| Fixed-width recursive inline-block extension | 2A, 3A, relevant 7 | Separate core/adapter track | Contract and fake-adapter proof first; not a prerequisite for M5-M6 |
-| Auto sizing and broader cleanup | 2B, 3B; remaining 6 and 7 | Follow-up | Intrinsics/speculation follow fixed-width acceptance |
+| Connect paragraph implementations and proof | Accepted boundary, 7 follow-through | M5-M6 | Synthetic and real-font tytui integration verified; fixes stay upstream |
+| Fixed-width recursive inline-block extension | 2A, 3A, relevant 7 | Separate core/adapter track | Core controls plus real fixed-width document proof verified |
+| Bounded auto sizing | 2B, 3B | Implemented and integrated | Actual nested measurement, geometry, lifetime and retained proofs verified |
+| Broader cleanup/policies | Remaining 6 and 7 | Deferred/open | No speculative-call, auto-margin or general CSS completion claim |
 
-Task 9 core changes and error checks are implemented; real adapter conversion
-and publication remain. M3-M4 establish extent-based flow; task 2A adds atomic placements;
+Task 9 core changes, real adapter conversion and publication are verified.
+M3-M4 establish extent-based flow; task 2A adds atomic placements;
 general dead-code cleanup and auto-margin implementation need not block a fixture
 using definite widths and explicit non-auto margins.
 
@@ -70,7 +75,7 @@ using definite widths and explicit non-auto margins.
 - [x] Accept and preserve adapter-supplied text-source IDs/ranges; define the
   supported typed-value subset and block-root input convention. NodeID and TextRef
   provide explicit keys into adapter-owned source/style storage.
-- [ ] Wire external source/style lookup in tytui; this integration work is not
+- [x] Wire external source/style lookup in tytui; this integration work is not
   a new CSS parsing or text-storage subsystem in the core.
 - Implemented: RenderNode.Style/Text are copied; source font-size inheritance
   survives hoisting; anonymous wrappers inherit font size but not edges/width.
@@ -87,8 +92,8 @@ using definite widths and explicit non-auto margins.
 
 ### 2. Recursive inline-block sizing and placement - fixed-width first
 
-Core-owned preparation and the task-2A API are implemented. External tytui/P
-integration remains separate; auto/intrinsic sizing remains task 2B.
+Core-owned preparation and the task-2A API are implemented and integrated with
+tytui/typography. Bounded auto/intrinsic sizing is implemented under task 2B.
 
 #### 2A. Fixed-width implementation sequence (with 3A) - core complete
 
@@ -113,7 +118,8 @@ integration remains separate; auto/intrinsic sizing remains task 2B.
 
 The fake P breaks between input items, never within whatsits; an oversized item
 on an empty line overflows. Bottom margin edges align to the line baseline. Real
-P encoding, source mapping, font layout and publication still need integration.
+P encoding, source mapping, font layout and publication have separate tytui tests
+and fixed/auto real-font proofs; the fake tests alone do not establish those facts.
 
 #### 2B. Auto width through intrinsic bounds - core implemented
 
@@ -132,8 +138,9 @@ P encoding, source mapping, font layout and publication still need integration.
   snapshot preservation, resize, deterministic recovery, and concurrent read-only
   inputs. Full tests, vet and race checks pass.
 
-Real typography measurement remains external. The fake measurers define explicit
-metrics; their successful tests do not prove real-font shaping integration.
+Real typography measurement stays external to CSS core and is now connected in
+tytui. Fake measurers define explicit metrics; separate scheduling/geometry and
+real-font tests establish integration (pipeline stages 5A–5D).
 No speculative layouts or cross-invocation cache is introduced. Keep the existing
 bounded alignment policy; full baseline behavior remains separate work.
 
@@ -244,11 +251,12 @@ bounded alignment policy; full baseline behavior remains separate work.
 - [x] Validate missing/invalid used values before callbacks, invalid extents,
   and wrapped adapter failures. Return nil LayoutResult on failure.
 - [x] Update core contracts/signatures and prove behavior with typed fake adapters.
-- [ ] Implement real unit conversion/rounding and snapshot publication in tytui;
+- [x] Implement real unit conversion/rounding and snapshot publication in tytui;
   core input immutability is implemented and tested under task 11.
 - Acceptance: full extent flows without line summaries; typed results stay outside
   core. Fake tests pass for all three groups, trailing space, zero-width empty
-  groups, and errors. The actual paragraph engine is not wired yet.
+  groups, and errors. The actual paragraph engine is wired and verified by
+`geometry_test.go`, `nested_geometry_test.go` and `lifetime_test.go` in tytui.
 
 ### 10. Correct outer coordinates and prove fake-paragraph placement - M3
 
@@ -272,7 +280,8 @@ bounded alignment policy; full baseline behavior remains separate work.
   height changes, and verify following siblings move by that height difference.
 - [x] Verify a failed run leaves the previous successful result usable, including
   invocation-local typed paragraph retention and paint in a fake document adapter.
-- [ ] Exercise complete document publication with the actual tytui adapter.
+- [x] Exercise complete document publication with the actual tytui adapter
+  through both breakers, nested resize/failure recovery and retained proofs.
 - Verified 2026-11-13: root constraints 240px -> 180px change G2 width 120px ->
   90px, H2 36px -> 48px, G3 Y 60px -> 72px, and root height 72px -> 84px.
   Failure after an earlier successful callback preserves old results; a later
@@ -283,11 +292,13 @@ bounded alignment policy; full baseline behavior remains separate work.
   fresh used values, not a new tree. No caching or defensive deep copy is added.
 - Acceptance: old geometry and Root remain consistent; retained paragraph data
   stays valid. Core owns layout purity; tytui owns atomic publication of its
-  complete document result. The fake fixture does not prove real tytui wiring.
+  complete document result. Separate tytui stage 5C/5D tests prove real wiring;
+  shared resolvers/prepared owners still require serialized operations.
 
 ## Validation checklist
 
-These are acceptance targets, not claims that existing tests prove them.
+Checked entries have owning/integration evidence; unchecked broad invariant
+targets remain open. Bounded pipeline completion does not check them implicitly.
 
 - [ ] B1: block containers have block-only children or one anonymous inline root;
   empty containers follow the wrapper rule.
@@ -305,10 +316,19 @@ These are acceptance targets, not claims that existing tests prove them.
   parent Content offsets to child positions.
 - [x] Validate explicit extent and adapter-owned typed associations, including
   anonymous groups, trailing space, and empty results (core fake-adapter tests).
-- [ ] Atomic sizes match stored geometry when the later atomic-inline track runs.
+- [x] Atomic sizes match stored geometry in core recursive tests and actual
+  tytui geometry tests, preserving CSS dimensions and precise paragraph origins.
 - [x] Repeated layout preserves input immutability and identity, including
   resize, failure, atomic callbacks, and concurrent read-only runs (core tests).
 
-Margin collapsing, floats/positioning, fine inline metrics/fragments, bidi,
-vertical writing modes, selection/caret DOM mapping, adjacent text merging, and caching
+Margin collapsing, floats/positioning, fine inline metrics/fragments, outer RTL,
+vertical writing modes, selection/caret DOM mapping, adjacent text merging, and global caching
 remain deferred as described in the core contract.
+
+
+Stage 5E validation (2026-11-15): ordinary/race suites, build and vet passed across
+khipu, typography, tytui and css-box-layout. Dependency-boundary audits, backend
+service regressions and fixed/auto proof plus replay controls passed unchanged.
+Invocation-local paragraph preparation reuse is implemented; cross-invocation
+caches, speculative callbacks and broader CSS policies remain deferred. Glyph
+coverage is caller-owned; existing itemizer-check relocation remains future work.
