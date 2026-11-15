@@ -7,6 +7,9 @@ func validateAtomicWidths(n *LayoutNode) error {
 	if n == nil {
 		return nil
 	}
+	if n.Replaced != nil && (n.Box != BoxInlineBlock || len(n.Children) != 0 || !finite(n.Replaced.Height) || n.Replaced.Height < 0 || styleOrDefault(n.Style).Width.Kind != LenPx) {
+		return fmt.Errorf("box %d: invalid replaced leaf", n.BoxID)
+	}
 	if n.Box == BoxInlineBlock {
 		s := styleOrDefault(n.Style)
 		if s.Width.Kind != LenAuto && (s.Width.Kind != LenPx || !finite(s.Width.Value) || s.Width.Value < 0) {

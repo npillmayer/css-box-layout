@@ -165,7 +165,7 @@ func resolveUsedValues(node *LayoutNode, ctx ResolveContext, table UsedValuesTab
 		ctx.FontSizePx = style.FontSizePx
 	}
 
-	margin, padding, border, _ := resolveEdges(style, ctx)
+	margin, padding, border, auto := resolveEdges(style, ctx)
 	contentW := resolveContentWidth(node.Box, style, ctx, margin, padding, border)
 
 	used := UsedValues{
@@ -175,9 +175,15 @@ func resolveUsedValues(node *LayoutNode, ctx ResolveContext, table UsedValuesTab
 		ContentWidth: contentW,
 		WidthPending: node.Box == BoxInlineBlock && style.Width.Kind == LenAuto ||
 			IsBlockContainer(node.Box) && ctx.widthUnresolved && (style.Width.Kind == LenAuto || style.Width.Kind == LenPercent),
-		EdgesPending:    ctx.widthUnresolved && percentEdges(style),
+		EdgesPending:    ctx.widthUnresolved && (percentEdges(style) || IsBlockLevel(node.Box)),
 		containingWidth: ctx.ContainingBlock.W,
 		fontSizePx:      ctx.FontSizePx,
+	}
+	// Block margins depend on the containing width even when this box has a
+	// definite width. Keep them pending below an auto inline-block until its
+	// final width triggers private descendant re-resolution.
+	if IsBlockLevel(node.Box) && !ctx.widthUnresolved {
+		used.Margin = resolveBlockMargins(style.Width.Kind == LenAuto, auto, ctx.ContainingBlock.W, used)
 	}
 	table[node.BoxID] = used
 
@@ -185,4 +191,41 @@ func resolveUsedValues(node *LayoutNode, ctx ResolveContext, table UsedValuesTab
 	for _, child := range node.Children {
 		resolveUsedValues(child, childCtx, table)
 	}
+}
+
+// resolveBlockMargins applies the CSS normal-flow width equation for the current
+// LTR outer-flow contract. Inline-blocks are intentionally excluded: their auto
+// margins resolve to zero, independently of their shrink-to-fit width.
+func resolveBlockMargins(widthAuto bool, auto marginAutoFlags, containing float32, u UsedValues) Edges {
+	m := u.Margin // auto margins already have zero provisional values
+	// Accumulate in float64 so finite signed edges do not overflow intermediate
+	// float32 sums. The final used values remain subject to flow validation.
+	available := float64(containing) - float64(u.ContentWidth) -
+		float64(u.Padding.Left) - float64(u.Padding.Right) -
+		float64(u.Border.Left) - float64(u.Border.Right)
+	remaining := available - float64(m.Left) - float64(m.Right)
+	// A positive auto width has already absorbed the available space. Do not
+	// turn float32 rounding residue into a nonzero auto margin.
+	if widthAuto && (u.ContentWidth > 0 || remaining >= 0) {
+		return m
+	}
+	if !widthAuto && remaining >= 0 {
+		switch {
+		case auto.Left && auto.Right:
+			m.Left, m.Right = float32(remaining/2), float32(remaining/2)
+			return m
+		case auto.Left:
+			m.Left = float32(remaining)
+			return m
+		case auto.Right:
+			m.Right = float32(remaining)
+			return m
+		}
+	}
+	// Auto width fills the available space with auto margins at zero. If that
+	// width was clamped to zero, or a definite box overflows, preserve the left
+	// edge and solve the right margin. The same LTR rule resolves fixed margins
+	// when no value is auto, even when the residual is positive.
+	m.Right = float32(available - float64(m.Left))
+	return m
 }

@@ -152,3 +152,12 @@ them with geometry only after complete success. Core tests exercise this ownersh
 pattern with a fake document adapter; real tytui publication remains integration
 work. Resize, failed callbacks, atomic-callback immutability, and concurrent
 read-only layouts have regression coverage. No caching is introduced.
+
+
+Explicit replaced leaves: RenderNode.Replaced supplies ReplacedContent with a
+finite nonnegative content Height in px; Style.Width must be fixed nonnegative
+px. Only inline/inline-block display and no children are accepted. Build snapshots
+this value into a childless BoxInlineBlock. Intrinsic width includes normal box
+edges; final layout uses the explicit height without a paragraph callback/strut.
+Payloads remain adapter/renderer-owned. No intrinsic image or ratio sizing is
+implied. See replaced_test.go; ordinary empty containers retain their old behavior.

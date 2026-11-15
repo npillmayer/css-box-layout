@@ -14,8 +14,9 @@
 - Glyph representations and line breaking belong to external typography services.
 
 ## Build, Test, and Development Commands
-- No build, run, or test commands are defined yet.
-- When adding code, document new commands here (e.g., `go test ./...`, `go test -run TestName`, `go vet ./...`).
+- Run `go test ./... -count=1`, `go test -race ./... -count=1`, `go build ./...`
+  and `go vet ./...` with the local dependency wiring.
+- Focused margin regressions: `go test ./layout -run 'TestBlockHorizontalMargins|TestAutoMarginsAfterIntrinsicWidthSelection' -count=1`.
 
 ## Coding Style & Naming Conventions
 - No repository-specific style guide yet.

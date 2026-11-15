@@ -30,6 +30,9 @@ func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxI
 	if r == nil {
 		return nil, nil
 	}
+	if r.Replaced != nil {
+		return nil, fmt.Errorf("replaced leaf cannot be a block container")
+	}
 	style, err := buildStyle(r, inheritedFont)
 	if err != nil {
 		return nil, err
@@ -94,6 +97,13 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 		display = "inline"
 	}
 
+	if r.Replaced != nil {
+		if (display != "inline" && display != "inline-block") || len(r.Children()) != 0 || style.Width.Kind != LenPx || !finite(style.Width.Value) || style.Width.Value < 0 || !finite(r.Replaced.Height) || r.Replaced.Height < 0 {
+			return nil, fmt.Errorf("node %d: replaced leaf requires inline display, no children and finite nonnegative fixed dimensions", r.ID)
+		}
+		size := *r.Replaced
+		return []FlowItem{InlineItem(&LayoutNode{BoxID: gen.newChild(parentBoxID), NodeID: r.ID, Box: BoxInlineBlock, Style: style, Replaced: &size})}, nil
+	}
 	switch display {
 	case "inline":
 		flow := make([]FlowItem, 0, len(r.Children()))

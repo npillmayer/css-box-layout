@@ -7,10 +7,16 @@ import (
 
 // RenderNode is a minimal render tree node for BuildLayoutTree.
 // This is a stub for now and will be replaced by the real CSSDOM adapter.
+// ReplacedContent is an explicitly sized, non-text inline leaf. Width comes
+// from Style.Width (fixed px); Height is content height in CSS pixels.
+// Payload ownership stays with the adapter/renderer. Zero dimensions are valid.
+type ReplacedContent struct{ Height float32 }
+
 type RenderNode struct {
-	ID     NodeID
-	HTML   *html.Node
-	Styles map[string]string // display and adapter metadata; not parsed as lengths
+	Replaced *ReplacedContent
+	ID       NodeID
+	HTML     *html.Node
+	Styles   map[string]string // display and adapter metadata; not parsed as lengths
 	// Style is a complete typed box style. Nil selects defaults.
 	// FontSizePx == 0 inherits the source parent's size or ResolveContext fallback.
 	Style *ComputedStyle

@@ -110,7 +110,9 @@ func layoutBlockContainer(
 		W: u.ContentWidth + u.Padding.Left + u.Padding.Right + u.Border.Left + u.Border.Right,
 	}
 
-	if isInlineOnlyBlockContainer(node) {
+	if node.Replaced != nil {
+		content.H = node.Replaced.Height
+	} else if isInlineOnlyBlockContainer(node) {
 		if inline == nil {
 			return fmt.Errorf("box %d: inline layouter required", node.BoxID)
 		}

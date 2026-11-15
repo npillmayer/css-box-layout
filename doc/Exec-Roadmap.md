@@ -187,8 +187,12 @@ exist. Auto inline-block widths/edges use explicit pending flags until intrinsic
 selection and private re-resolution; unresolved width is not a resolved zero.
 
 Fixed-width descendant contexts and explicit zero behavior are tested (3A).
-Late auto-width resolution (3B) is implemented; auto-margin behavior remains task 6. Resolution
-must preserve the agreed immutable-input contract.
+Late auto-width resolution (3B) and LTR horizontal block margin distribution
+(task 6, 2026-11-15) are implemented. Block margins below pending auto widths are
+also pending until private descendant re-resolution. Computed styles remain
+unchanged; used right margins account for the LTR width constraint. Inline-block
+and vertical auto margins remain zero. See the core contract and
+`layout/auto_margins_test.go`; root origin and immutable-input contracts remain.
 
 ## 7) Complete Pass 3: FlowLayout
 
@@ -230,8 +234,9 @@ The experiment uses explicit non-auto margins and normal line-height. Remaining
 core geometry/validation/cleanup tasks stay unchecked; automatic intrinsic
 hyphenation, speculative trials, cross-invocation caches, expanded percentage or
 baseline policies, full painting, pagination, TUI wiring and document replay are
-not part of completion. Horizontal auto-margin distribution remains a broader
-engine decision, not an implemented capability.
+not part of that stage's completion. Subsequent horizontal auto-margin work is
+implemented for LTR normal-flow blocks, with upstream and tytui regressions;
+it does not broaden outer-direction or fragmentation policies.
 
 Finishing the document experiment does not complete the broader core roadmap.
 

@@ -5,7 +5,8 @@ implemented. Core measures nested intrinsic bounds, selects auto content widths,
 resolves descendants privately, then performs final layout. Fixed pixel widths
 including zero remain supported; percent/em widths on atomic boxes remain rejected.
 Percentage dependencies on unknown auto widths fail explicitly; definite bases
-remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
+remain supported. Horizontal block auto margins are now resolved in the core
+(2026-11-15), including after late containing-width selection. See [current API](Pass-Signatures.md#intrinsic-measurement).
 Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
 Bounded tytui/typography integration is verified through pipeline stage 5
 (2026-11-15): normalized input, intrinsic/final callbacks, nested geometry,
@@ -64,9 +65,19 @@ Outputs:
 Responsibilities:
 - Resolve lengths (px/%/em/auto) into used values.
 - Make padding/border/margins available before the line-breaking decisions that use them.
-- Auto inline-block width is deferred to intrinsic sizing. How descendant used
-  values are resolved against that final width remains an open pass-boundary
-  design question (checklist tasks 2 and 3); do not treat provisional widths as final.
+- Normal and anonymous blocks solve the horizontal width constraint under the
+  LTR policy: positive free space goes to one auto margin or equally to two;
+  auto width keeps auto margins zero. Overflow and all-fixed constraints solve
+  the right margin, which may differ from its computed value and may be negative.
+  Padding and borders count before distributing space. See
+  [CSS 2.2 section 10.3.3](https://www.w3.org/TR/CSS22/visudet.html#blockwidth).
+- Inline-block/ordinary-inline auto margins and vertical auto margins remain zero.
+  The root remains anchored at (0,0); block children use their resolved left margin.
+- Auto inline-block widths are selected by intrinsic sizing. Descendant block
+  margins depend on that width even if their own width is definite: mark them
+  EdgesPending and recompute on the private final used-values table before any
+  layout callback. Intrinsic contributions use undistributed computed edges;
+  centering space must not inflate min/max-content widths.
 Notes:
 - Percent lengths are represented as 0..1 in `Length.Value` (e.g., 0.10 = 10%).
 
@@ -266,8 +277,23 @@ Intrinsic measurement (implemented bounded 2B/3B design):
 
 - Define geometry coverage for structural inline nodes, text, and anonymous
   inline roots; a single rectangle may not represent fragmented inline content.
-- Auto-width state and horizontal auto-margin distribution need explicit
-  semantics. These are tracked work, not newly frozen deferrals.
+- Auto-width state and LTR horizontal block margins are implemented as described
+  above. Outer RTL, min/max constraints and other excluded sizing policies remain
+  separate work.
 - The current typed adapter subset and anonymous styles are specified in
   `doc/Tree-Type.md`: anonymous wrappers inherit font size, have auto width and
   zero edges; real boxes preserve copied styles and supplied text references.
+
+
+### Explicit replaced-leaf boundary (2026-11-15)
+
+RenderNode.Replaced opts into a childless atomic inline leaf, with fixed px width
+from Style and finite nonnegative px content height from ReplacedContent. Build
+copies the supplied size. No anonymous inline group is created inside it, and no
+paragraph callback or strut supplies its height. The ordinary box-edge rules and
+prepared-atomic placement contract apply unchanged; fixed intrinsic width includes
+padding/borders. Payloads remain outside CSS core. Auto/ratio image sizing and
+block-level replaced items are not part of this bounded contract.
+
+Verification: full ordinary/race suites, build and vet pass in css-box-layout and
+tytui. The integration includes mixed direction, zero size and retained proofs.

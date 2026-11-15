@@ -100,20 +100,22 @@ walk(node, ctx, table):
 Lengths use px, fractional percentages (0..1), em, or auto. A fixed-width
 inline-block establishes its own content width for descendants. Auto-width
 inline-blocks need a final width from intrinsic sizing before descendant
-percentages and auto widths can be finalized. The scheduling/representation
-for this dependency is still open; this sketch does not prescribe a premature
-walk using the outer width as the final descendant context.
+percentages, auto widths and horizontal block margins can be finalized. Pending
+flags distinguish provisional values. Flow privately re-resolves descendants
+against the selected containing width before final callbacks.
 
-Horizontal auto-margin distribution also needs explicit semantics. The current
-implementation discards its auto flags; zero is not a statement of the intended
-final rule.
+Horizontal auto margins distribute positive remaining width on normal/anonymous
+blocks after padding and borders. Auto width keeps auto margins zero; overflow
+and all-fixed constraints solve the right margin for the LTR contract. Inline-block
+and vertical auto margins stay zero. Intrinsic measurement uses undistributed
+edges, so centering space does not enter intrinsic widths. See the core contract.
 
 | Test | Expected result |
 |---|---|
 | Px / percentage / em edges | Values use the documented width/font context |
 | Auto block width | Available content width after edges |
 | Fixed and percentage widths | Correct containing block basis |
-| Auto margins | Agreed distribution or explicit documented deferral |
+| Auto margins | One/two-sided distribution, LTR overflow, zero inline-block margins, late resolution |
 | Fixed-width inline-block descendants | Use inline-block content width |
 | Auto versus zero inline-block width | Distinct states; correct later sizing |
 | Build -> resolve | Render styles reach used values |

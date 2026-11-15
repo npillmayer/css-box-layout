@@ -95,7 +95,7 @@ func TestResolveUsedValues_BasicEdgesAndWidth(t *testing.T) {
 			},
 			ctx: ResolveContext{ContainingBlock: Rect{W: 200}, FontSizePx: 16},
 			expected: UsedValues{
-				Margin:       Edges{Left: 0, Right: 0},
+				Margin:       Edges{Left: 40, Right: 40},
 				ContentWidth: 120,
 			},
 		},
@@ -110,6 +110,7 @@ func TestResolveUsedValues_BasicEdgesAndWidth(t *testing.T) {
 			},
 			ctx: ResolveContext{ContainingBlock: Rect{W: 300}, FontSizePx: 16},
 			expected: UsedValues{
+				Margin:       Edges{Right: 150},
 				ContentWidth: 150,
 			},
 		},
@@ -124,6 +125,7 @@ func TestResolveUsedValues_BasicEdgesAndWidth(t *testing.T) {
 			},
 			ctx: ResolveContext{ContainingBlock: Rect{W: 300}, FontSizePx: 16},
 			expected: UsedValues{
+				Margin:       Edges{Right: 268},
 				ContentWidth: 32,
 			},
 		},
@@ -139,6 +141,7 @@ func TestResolveUsedValues_BasicEdgesAndWidth(t *testing.T) {
 			},
 			ctx: ResolveContext{ContainingBlock: Rect{W: 300}, FontSizePx: 16},
 			expected: UsedValues{
+				Margin:       Edges{Right: -100},
 				Padding:      Edges{Left: 200, Right: 200},
 				ContentWidth: 0,
 			},

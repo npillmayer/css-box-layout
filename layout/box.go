@@ -9,6 +9,7 @@ type Edges struct{ Top, Right, Bottom, Left float32 }
 // LayoutNode is structural input. Geometry belongs only to LayoutResult.Geometry;
 // callers and adapters must treat a published tree and its styles as immutable.
 type LayoutNode struct {
+	Replaced *ReplacedContent // copied during build; no children or paragraph strut
 	BoxID    BoxID
 	NodeID   NodeID
 	Box      BoxKind

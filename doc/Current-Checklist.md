@@ -59,12 +59,13 @@ from broader unchecked core tasks; it does not declare the entire core complete.
 | Connect paragraph implementations and proof | Accepted boundary, 7 follow-through | M5-M6 | Synthetic and real-font tytui integration verified; fixes stay upstream |
 | Fixed-width recursive inline-block extension | 2A, 3A, relevant 7 | Separate core/adapter track | Core controls plus real fixed-width document proof verified |
 | Bounded auto sizing | 2B, 3B | Implemented and integrated | Actual nested measurement, geometry, lifetime and retained proofs verified |
-| Broader cleanup/policies | Remaining 6 and 7 | Deferred/open | No speculative-call, auto-margin or general CSS completion claim |
+| Broader cleanup/policies | Remaining 6 and 7 | Deferred/open | No speculative-call or general CSS completion claim |
 
 Task 9 core changes, real adapter conversion and publication are verified.
 M3-M4 establish extent-based flow; task 2A adds atomic placements;
-general dead-code cleanup and auto-margin implementation need not block a fixture
-using definite widths and explicit non-auto margins.
+general dead-code cleanup did not block the original fixture with explicit
+non-auto margins. LTR horizontal block margin distribution is now implemented
+and covered by separate core and tytui regressions.
 
 ## Implementation tasks
 
@@ -208,8 +209,16 @@ bounded alignment policy; full baseline behavior remains separate work.
   does not establish that an exported API can be removed safely.
 - [ ] Define the role of unused `BuildOptions`, `LayoutOptions`, and
   `LayoutContext`; remove unnecessary internal parameters where appropriate.
-- [ ] Implement or explicitly defer horizontal auto-margin distribution;
-  `resolveUsedValues` currently discards the auto flags returned by `resolveEdges`.
+- [x] Implement horizontal auto-margin distribution for LTR normal-flow blocks.
+  One/two auto margins absorb positive free space after widths and edges;
+  auto-width margins stay zero, and overflow/all-fixed constraints resolve the
+  right margin. Inline-block auto margins remain zero. Descendant block margins
+  stay pending until the containing auto width is chosen, then resolve privately.
+  `layout/auto_margins_test.go` covers units, signed margins, zero/overflow,
+  fractional rounding, intrinsic sizing, callback values and snapshot lifetime.
+  `tytui/documentlayout/auto_margin_test.go` exercises the same boundary through
+  real paragraph layout under both breakers. Existing used-value tests now assert
+  distributed margins and LTR right-margin correction rather than the old zeros.
 - Acceptance: retained abstractions have documented purposes, removals account
   for callers, and focused tests specify auto-margin behavior. Record any new
   semantic deferral in the contract and roadmap.
