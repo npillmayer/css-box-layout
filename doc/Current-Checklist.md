@@ -357,7 +357,7 @@ pipeline tasks above; checked scope does not imply implemented behavior.
   changes were needed for this audit. Ordinary/race suites, build, and vet pass.
 - [x] Step 6: consuming adapter migrated and cross-module checks verified
   (2026-11-16). Tytui grants permission only for line-free, zero-height, atom-free
-  results. Its existing empty-paragraph strut remains a separator. Both breakers,
+  results. Empty CSS-processed paragraphs now produce no separating line. Both breakers,
   synthetic/real fonts, auto atomic interiors, resize/replay and retained SVG
   proofs are covered. See [integration evidence](Document-Layout-Integration.md#7-bounded-integration-evidence)
   and the [three review groups](Exec-Roadmap.md#margin-collapse-review-groups).
@@ -390,8 +390,8 @@ targets remain open. Bounded pipeline completion does not check them implicitly.
 
 Margin-collapse core placement is implemented under the accepted scope above;
 the bounded core regression audit and consuming-adapter integration are complete.
-The adapter retains its empty-paragraph strut policy; CSS empty-line suppression
-is outside this integration slice.
+Empty CSS-processed paragraphs have no line strut. Core derives anonymous
+whitespace suppression from computed CSS values, text access and inline edges.
 Floats/positioning, fine inline metrics/fragments, outer RTL,
 vertical writing modes, selection/caret DOM mapping, adjacent text merging, and global caching
 remain deferred as described in the core contract.

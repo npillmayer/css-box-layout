@@ -13,13 +13,13 @@ func TestCollapsedAnonymousBlockSeparators(t *testing.T) {
 		allow                                           bool
 		height, parentY, blockY, tailY, contentH, rootH float32
 	}{
-		{"ignorable empty runs", true, 0, 20, 0, 17, 10, 37},
+		{"callback reports no surviving line", true, 0, 20, 0, 17, 10, 37},
 		{"zero-height separating runs", false, 0, 13, 20, 37, 37, 55},
 		{"reserved paragraph space", false, 4, 13, 24, 41, 45, 63},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := marginTestBlock(2, 13, 5, false, newRenderElement(3, inlineDisplay),
-				marginTestBlock(4, 20, 7, true), newRenderElement(5, inlineDisplay))
+			p := marginTestBlock(2, 13, 5, false, newRenderElement(3, inlineDisplay, newRenderText(6, "x")),
+				marginTestBlock(4, 20, 7, true), newRenderElement(5, inlineDisplay, newRenderText(7, "y")))
 			root, err := BuildLayoutTree(marginTestBlock(1, 0, 0, false, p), BuildOptions{})
 			if err != nil {
 				t.Fatal(err)

@@ -28,6 +28,7 @@ type EdgeLengths struct {
 }
 
 type ComputedStyle struct {
+	WhiteSpace WhiteSpace // computed inherited value; zero is normal
 	Width      Length
 	Margin     EdgeLengths
 	Padding    EdgeLengths

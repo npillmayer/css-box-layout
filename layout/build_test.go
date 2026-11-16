@@ -183,7 +183,7 @@ func TestBuildBlockContainer_InlineOnly(t *testing.T) {
 }
 
 func TestBuildBlockContainer_InlineOnlySingleChild(t *testing.T) {
-	childInline := newRenderElement(2, inlineDisplay)
+	childInline := newRenderElement(2, inlineDisplay, newRenderText(4, "x"))
 	parent := newRenderElement(1, blockDisplay, childInline)
 
 	gen, rootBoxID := newBoxGenWithRoot(parent.ID)
@@ -206,7 +206,7 @@ func TestBuildBlockContainer_InlineOnlySingleChild(t *testing.T) {
 }
 
 func TestBuildBlockContainer_MixedInlineBlock(t *testing.T) {
-	childInline := newRenderElement(2, inlineDisplay)
+	childInline := newRenderElement(2, inlineDisplay, newRenderText(4, "x"))
 	childBlock := newRenderElement(3, blockDisplay)
 	parent := newRenderElement(1, blockDisplay, childInline, childBlock)
 

@@ -6,16 +6,22 @@ import (
 )
 
 // buildStyle snapshots the adapter's typed values before structural normalization.
-func buildStyle(r *RenderNode, inheritedFont float32) (*ComputedStyle, error) {
+func buildStyle(r *RenderNode, inheritedFont float32, inheritedWhitespace WhiteSpace) (*ComputedStyle, error) {
 	for prop := range r.Styles {
 		switch prop {
 		case "width", "margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
 			"padding", "padding-top", "padding-right", "padding-bottom", "padding-left",
-			"border", "border-width", "border-top-width", "border-right-width", "border-bottom-width", "border-left-width", "font-size":
+			"border", "border-width", "border-top-width", "border-right-width", "border-bottom-width", "border-left-width", "font-size", "white-space":
 			return nil, fmt.Errorf("node %d: provide %s through typed RenderNode.Style", r.ID, prop)
 		}
 	}
 	style := styleOrDefault(r.Style)
+	if r.Style == nil {
+		style.WhiteSpace = inheritedWhitespace
+	}
+	if style.WhiteSpace > WhiteSpaceBreakSpaces {
+		return nil, fmt.Errorf("node %d: invalid computed white-space", r.ID)
+	}
 	if !finite(style.FontSizePx) || style.FontSizePx < 0 {
 		return nil, fmt.Errorf("node %d: invalid computed font size", r.ID)
 	}
@@ -54,15 +60,16 @@ func buildStyle(r *RenderNode, inheritedFont float32) (*ComputedStyle, error) {
 
 func finite(v float32) bool { return !math.IsNaN(float64(v)) && !math.IsInf(float64(v), 0) }
 
-// Anonymous wrappers inherit font size, but not source box widths or edges.
-func setAnonymousStyles(children []*LayoutNode, fontSize float32) {
+// Anonymous wrappers inherit font size and white-space, not box widths or edges.
+func setAnonymousStyles(children []*LayoutNode, fontSize float32, whitespace WhiteSpace) {
 	for _, child := range children {
 		if child.Box != BoxAnonymousBlock && child.Box != BoxAnonymousInline {
 			continue
 		}
 		style := defaultComputedStyle()
 		style.FontSizePx = fontSize
+		style.WhiteSpace = whitespace
 		child.Style = &style
-		setAnonymousStyles(child.Children, fontSize)
+		setAnonymousStyles(child.Children, fontSize, whitespace)
 	}
 }

@@ -106,9 +106,8 @@ Keep frozen decisions here; no separate decision log is needed.
   normal-flow block profile, including nested and empty blocks. Steps 1 (scope),
   2 (eligibility and inline permission), 3 (immutable summaries), 4 (collapsed
   placement/height accounting), 5 (bounded core regression audit), and 6 (adapter
-  integration) are complete. The adapter retains its reserved empty-paragraph
-  strut; general CSS empty-line suppression, height constraints and additional
-  formatting modes remain deferred.
+  integration) are complete. Empty CSS-processed paragraphs now have no line strut; height constraints and
+  additional formatting modes remain deferred.
 - Bounded shrink-to-fit is accepted for 2B/3B, superseding the max-content-only
   approximation plan. Full CSS intrinsic/cyclic-percentage semantics remain deferred.
 - IntrinsicMeasurer measures normalized groups, not whole atomic subtrees:

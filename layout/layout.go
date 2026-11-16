@@ -28,6 +28,7 @@ func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, er
 		return nil, fmt.Errorf("node %d: %w: expected a non-replaced block flow or block flow-root element, got %s", renderRoot.ID, ErrInvalidRoot, renderRoot.Display)
 	}
 	gen := newBoxIDGen()
+	gen.options = opts
 	rootID := gen.newRoot(renderRoot.ID)
 	root, err := buildBlockContainer(gen, renderRoot, BoxBlock, rootID)
 	if err != nil {

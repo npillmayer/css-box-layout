@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"unicode/utf8"
 
 	"golang.org/x/net/html"
 )
@@ -23,23 +24,23 @@ func BlockItem(n *LayoutNode) FlowItem  { return FlowItem{Kind: FlowBlock, Node:
 
 // Entry point for a block container (BoxBlock / BoxAnonymousBlock / BoxInlineBlock):
 func buildBlockContainer(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID) (*LayoutNode, error) {
-	return buildBlockContainerWithFont(gen, r, box, boxID, 0)
+	return buildBlockContainerWithFont(gen, r, box, boxID, 0, WhiteSpaceNormal)
 }
 
-func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID, inheritedFont float32) (*LayoutNode, error) {
+func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID, inheritedFont float32, inheritedWhitespace WhiteSpace) (*LayoutNode, error) {
 	if r == nil {
 		return nil, nil
 	}
 	if r.Replaced != nil {
 		return nil, fmt.Errorf("replaced leaf cannot be a block container")
 	}
-	style, err := buildStyle(r, inheritedFont)
+	style, err := buildStyle(r, inheritedFont, inheritedWhitespace)
 	if err != nil {
 		return nil, err
 	}
 	flow := make([]FlowItem, 0, len(r.Children()))
 	for _, child := range r.Children() {
-		items, err := buildInlineFlowWithFont(gen, child, boxID, style.FontSizePx)
+		items, err := buildInlineFlowWithFont(gen, child, boxID, style.FontSizePx, style.WhiteSpace)
 		if err != nil {
 			return nil, err
 		}
@@ -49,7 +50,7 @@ func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxI
 	if err != nil {
 		return nil, err
 	}
-	setAnonymousStyles(children, style.FontSizePx)
+	setAnonymousStyles(children, style.FontSizePx, style.WhiteSpace)
 	return &LayoutNode{
 		Style:          style,
 		BoxID:          boxID,
@@ -63,10 +64,10 @@ func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxI
 
 // Builds an inline-level subtree, but may return hoisted blocks as FlowBlock items:
 func buildInlineFlow(gen *boxIDGen, r *RenderNode, parentBoxID BoxID) ([]FlowItem, error) {
-	return buildInlineFlowWithFont(gen, r, parentBoxID, 0)
+	return buildInlineFlowWithFont(gen, r, parentBoxID, 0, WhiteSpaceNormal)
 }
 
-func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, inheritedFont float32) ([]FlowItem, error) {
+func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, inheritedFont float32, inheritedWhitespace WhiteSpace) ([]FlowItem, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -79,12 +80,12 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 		return nil, nil
 	}
 
-	style, err := buildStyle(r, inheritedFont)
+	style, err := buildStyle(r, inheritedFont, inheritedWhitespace)
 	if err != nil {
 		return nil, err
 	}
 	if isTextNode(r.HTMLNode()) {
-		text, err := buildText(r)
+		text, err := buildText(r, gen.options, style.WhiteSpace)
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +109,7 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 	case Display{Kind: DisplayBox, Outer: OuterInline, Inner: InnerFlow}:
 		flow := make([]FlowItem, 0, len(r.Children()))
 		for _, child := range r.Children() {
-			items, err := buildInlineFlowWithFont(gen, child, parentBoxID, style.FontSizePx)
+			items, err := buildInlineFlowWithFont(gen, child, parentBoxID, style.FontSizePx, style.WhiteSpace)
 			if err != nil {
 				return nil, err
 			}
@@ -129,7 +130,7 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 		})}, nil
 	case Display{Kind: DisplayBox, Outer: OuterInline, Inner: InnerFlowRoot}:
 		boxID := gen.newChild(parentBoxID)
-		node, err := buildBlockContainerWithFont(gen, r, BoxInlineBlock, boxID, inheritedFont)
+		node, err := buildBlockContainerWithFont(gen, r, BoxInlineBlock, boxID, inheritedFont, inheritedWhitespace)
 		if err != nil {
 			return nil, err
 		}
@@ -137,7 +138,7 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 	case Display{Kind: DisplayBox, Outer: OuterBlock, Inner: InnerFlow},
 		Display{Kind: DisplayBox, Outer: OuterBlock, Inner: InnerFlowRoot}:
 		boxID := gen.newChild(parentBoxID)
-		node, err := buildBlockContainerWithFont(gen, r, BoxBlock, boxID, inheritedFont)
+		node, err := buildBlockContainerWithFont(gen, r, BoxBlock, boxID, inheritedFont, inheritedWhitespace)
 		if err != nil {
 			return nil, err
 		}
@@ -147,7 +148,7 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 	}
 }
 
-func buildText(r *RenderNode) (*LayoutNode, error) {
+func buildText(r *RenderNode, opts BuildOptions, whitespace WhiteSpace) (*LayoutNode, error) {
 	if r == nil || r.HTMLNode() == nil {
 		return nil, nil
 	}
@@ -164,7 +165,18 @@ func buildText(r *RenderNode) (*LayoutNode, error) {
 	if ref.Range.End == ref.Range.Start {
 		return nil, nil
 	}
-	return &LayoutNode{Box: BoxText, Text: ref}, nil
+	content := r.HTMLNode().Data
+	if opts.ReadText != nil {
+		var err error
+		content, err = opts.ReadText(ref)
+		if err != nil {
+			return nil, fmt.Errorf("node %d: read text: %w", r.ID, err)
+		}
+	}
+	if uint64(len(content)) != ref.Range.End-ref.Range.Start || !utf8.ValidString(content) {
+		return nil, fmt.Errorf("node %d: text reader must supply the referenced UTF-8 range", r.ID)
+	}
+	return &LayoutNode{Box: BoxText, Text: ref, collapsibleText: whitespace.collapsesEntirely(content)}, nil
 }
 
 /*
@@ -223,6 +235,10 @@ func normalizeBlockChildren(gen *boxIDGen, flow []FlowItem, parentBoxID BoxID) (
 	inlineRun := make([]*LayoutNode, 0, len(flow))
 	flushInlineRun := func() {
 		if len(inlineRun) == 0 {
+			return
+		}
+		if onlyCollapsibleInlineRun(inlineRun) {
+			inlineRun = inlineRun[:0]
 			return
 		}
 		// Retained runs must not share the buffer reused for subsequent children.
@@ -325,4 +341,24 @@ func inlineChildren(flow []FlowItem) []*LayoutNode {
 		}
 	}
 	return children
+}
+
+// Suppress only complete inline runs in mixed block/inline flow. Inline-only
+// containers (including explicitly empty paragraphs) keep their normal group.
+func onlyCollapsibleInlineRun(nodes []*LayoutNode) bool {
+	for _, n := range nodes {
+		switch n.Box {
+		case BoxText:
+			if !n.collapsibleText {
+				return false
+			}
+		case BoxInline:
+			if hasInlineEdges(n.Style) || !onlyCollapsibleInlineRun(n.Children) {
+				return false
+			}
+		default:
+			return false // Atomics remain significant even at zero size.
+		}
+	}
+	return true
 }

@@ -3,6 +3,7 @@ package layout
 import (
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/npillmayer/css-box-layout/text"
@@ -128,7 +129,13 @@ func TestBuildLayoutTree_TextReferenceContract(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			n := newRenderText(2, tc.data)
 			n.Text = tc.ref
-			root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, n), BuildOptions{})
+			opts := BuildOptions{}
+			if tc.name == "source_backed" {
+				opts.ReadText = func(ref text.TextRef) (string, error) {
+					return strings.Repeat("x", int(ref.Range.End-ref.Range.Start)), nil
+				}
+			}
+			root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, n), opts)
 			if tc.bad {
 				if err == nil || root != nil {
 					t.Fatal("expected error without partial tree")

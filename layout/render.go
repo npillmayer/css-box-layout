@@ -19,11 +19,12 @@ type RenderNode struct {
 	HTML     *html.Node
 	Display  Display
 	Styles   map[string]string // adapter metadata; display and box-value strings are rejected
-	// Style is a complete typed box style. Nil selects defaults.
+	// Style is a complete typed box style. Nil selects defaults and inherits
+	// the source parent's white-space and font size.
 	// FontSizePx == 0 inherits the source parent's size or ResolveContext fallback.
 	Style *ComputedStyle
 	// Text identifies source bytes for a text node. The adapter owns source lookup.
-	// A supplied range is authoritative, even when HTML.Data is empty.
+	// ReadText in BuildOptions supplies that range when HTML.Data does not.
 	Text          *text.TextRef
 	ChildrenNodes []*RenderNode
 }

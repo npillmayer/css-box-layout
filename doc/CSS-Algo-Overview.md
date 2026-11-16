@@ -59,7 +59,12 @@ Responsibilities:
   inline-block). Suppress display:none subtrees. Non-replaced flow-root containers
   set `LayoutNode.EstablishesBFC`; block flow-root retains `BoxBlock` outer
   participation and normal block widths, independent of this containment flag.
-- Insert anonymous boxes for mixed inline/block children.
+- Insert anonymous boxes for mixed inline/block children, except runs made
+  entirely of text that collapses away under computed `Style.WhiteSpace` and
+  inline wrappers with zero edges. `BuildOptions.ReadText` supplies source ranges;
+  core derives suppression without adapter permissions. Atomic boxes remain
+  significant. Explicit empty blocks retain their boxes; empty processed CSS
+  paragraphs produce no line height in the inline service.
 - Split + hoist when inline elements contain blocks.
 - Represent inline-block as atomic inline with internal block container.
 - Enforce structural invariants B1-B4 (see below).
@@ -340,10 +345,9 @@ Intrinsic measurement (implemented bounded 2B/3B design):
 
 ## 6) Explicit deferrals (not yet)
 
-- General CSS empty-line suppression in the consuming paragraph profile. The
-  adapter deliberately retains a line-height strut for empty paragraphs, which
-  prevents collapse-through. Core collapsing and bounded adapter integration
-  are complete under the [contract](#margin-collapse-contract).
+- Preserved-whitespace text layout and decorated inline metrics beyond the current
+  normal-whitespace document profile. Empty CSS-processed paragraphs now have no
+  line height and can collapse through under the [contract](#margin-collapse-contract).
 - Floats, positioning, z-index, stacking contexts
 - Full CSS intrinsic-sizing and cyclic-percentage semantics (bounded shrink-to-fit
   is implemented under 2B/3B; this supersedes the max-content-only deferral)

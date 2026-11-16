@@ -18,12 +18,18 @@ BuildLayoutTree still accepts the local RenderNode projection. It now carries:
 - `Text *text.TextRef`: a text node's authoritative source ID and byte range,
   copied by value into its box. Nonempty HTML text without a reference is an
   error. Supplied empty ranges are dropped; reversed ranges are rejected.
-  Source-backed text may have empty HTML.Data, and explicit source ID 0 is valid.
+  Source-backed text may have empty HTML.Data when a reader is provided; source ID 0 is valid.
 - `Display Display`: explicit `DisplayBox` with `OuterBlock`/`OuterInline` and
   `InnerFlow`/`InnerFlowRoot`, or `DisplayNone` with neither axis. Elements have
   no implicit default; text leaves this field zero. Inline flow-root maps to
   atomic inline-block. Block flow-root maps to `BoxBlock` with
   `LayoutNode.EstablishesBFC` set; it keeps normal block widths and outer margins.
+- `Style.WhiteSpace`: computed CSS whitespace mode (zero is normal). Nil styles
+  inherit their parent's mode. Core derives suppression from source bytes and
+  inline edges, with no adapter permission flags.
+- `BuildOptions.ReadText`: exact referenced UTF-8 bytes; read errors, incorrect
+  lengths and invalid UTF-8 fail the build. Without a reader, HTML.Data must hold
+  exactly the referenced range. The callback is used only during construction.
 - `Styles`: adapter metadata. `Styles["display"]` is rejected even alongside
   typed display; known length/font-size strings also fail, requesting typed
   input. Metadata is not copied into layout styles; use NodeID to join immutable

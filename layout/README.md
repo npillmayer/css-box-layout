@@ -225,3 +225,22 @@ this value into a childless BoxInlineBlock. Intrinsic width includes normal box
 edges; final layout uses the explicit height without a paragraph callback/strut.
 Payloads remain adapter/renderer-owned. No intrinsic image or ratio sizing is
 implied. See replaced_test.go; ordinary empty containers retain their old behavior.
+
+### CSS whitespace and empty lines
+
+`ComputedStyle.WhiteSpace` carries normal, nowrap, pre, pre-wrap, pre-line or
+break-spaces. Zero is normal; nil styles inherit the parent's computed mode.
+`BuildOptions.ReadText` provides the exact UTF-8 range identified by a TextRef.
+Without a reader, HTML.Data must contain that exact range. Incorrect lengths,
+invalid UTF-8 and read errors fail construction. Input is never mutated.
+
+Core derives anonymous-block suppression from text, whitespace mode and inline
+edges. Collapsed-only runs vanish from mixed flow; preserved spaces/newlines,
+NBSP, decorated inlines and atomics remain. Font size alone is not a barrier.
+Explicit empty blocks keep their principal boxes and paragraph groups; the inline
+service must return no line/height for empty CSS content, allowing margin collapse.
+
+`text.NormalizeNormal` implements the supported normal-whitespace transformation
+with byte source maps. Other modes require corresponding inline services; accepting
+a typed mode for box generation does not implement preserved-text line layout.
+The former WhitespaceParticipation/transparent-wrapper permission API is removed.

@@ -473,20 +473,19 @@ do not reproduce the tested state. The historical experiment above describes
 its original gates, not the current completion status.
 
 Tytui `documentlayout.inlineSummary` now supplies `AllowsMarginCollapse` from
-retained line/extent/atomic evidence. The paragraph engine intentionally reserves
-a normal line-height strut for empty input; the adapter does not erase that
-space or mislabel those results as collapsible. Line-free, zero-height, atom-free
-results can grant permission. Typography/khipu APIs and behavior are unchanged.
+retained line/extent/atomic evidence. Typography CSSLineHeight produces no line or strut for empty processed text.
+Principal blocks retain edges and margins; line-free, zero-height, atom-free
+results grant permission. Standalone ProofCompatibility behavior is unchanged.
 
 Integration evidence in tytui:
 
 - `margin_collapse_test.go`: both FirstFit and Knuth–Plass; signed sibling gaps,
-  reserved empty-line chains, parent/child collapse, auto inline-block containment,
+  collapse through empty-block chains, parent/child collapse, auto inline-block containment,
   resize/replay, real OpenType glyph proofs and frozen SVG snapshot stability.
 - `margin_permission_test.go`: explicit permission for genuinely line-free
   output and rejection of missing atomic placement coverage.
-- Existing document/paragraph, empty-strut, font lifetime, TUI and replay controls
-  pass unchanged. The migration preserves unrelated adapter tracing edits.
+- Document empty-line and TUI proof expectations now follow zero-height empty
+  CSS content. Standalone paragraph, font lifetime and replay controls still pass. The migration preserves unrelated adapter tracing edits.
 
 Validation: full ordinary and race suites, build and vet in css-box-layout and
 tytui. Tytui was first verified with a Go overlay, then the tested files were

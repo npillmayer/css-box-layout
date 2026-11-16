@@ -9,11 +9,12 @@ type Edges struct{ Top, Right, Bottom, Left float32 }
 // LayoutNode is structural input. Geometry belongs only to LayoutResult.Geometry;
 // callers and adapters must treat a published tree and its styles as immutable.
 type LayoutNode struct {
-	Replaced *ReplacedContent // copied during build; no children or paragraph strut
-	BoxID    BoxID
-	NodeID   NodeID
-	Box      BoxKind
-	FC       FormattingContextKind
+	collapsibleText bool             // derived from source text and computed white-space during build
+	Replaced        *ReplacedContent // copied during build; no children or paragraph strut
+	BoxID           BoxID
+	NodeID          NodeID
+	Box             BoxKind
+	FC              FormattingContextKind
 	// EstablishesBFC separates a flow-root container's contents from the outer
 	// block formatting context. Its own block-level margins still participate
 	// in that outer context. The supplied layout root is separately contained.

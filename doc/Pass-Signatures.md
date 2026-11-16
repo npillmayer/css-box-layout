@@ -181,8 +181,8 @@ under CSS empty-line rules and requires zero H and no atomic items. The core
 rejects contradictory declarations, then combines permission with owner edges
 and supplied-root/flow-root/inline-block containment. This eligibility contract is
 implemented and used by collapsed placement. The tytui adapter grants permission
-only for line-free zero-height output without atomics; its existing reserved
-empty-paragraph strut remains a separator.
+only for line-free zero-height output without atomics. Empty CSS-processed
+paragraphs now produce exactly that output; principal block boxes remain.
 
 Placement X/Y is the border-box origin relative to request.OwnerID content, after
 margin/alignment effects. Core adds no further margin, preserves dimensions, and
