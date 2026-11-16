@@ -21,9 +21,9 @@ type testRetainedParagraph struct {
 }
 
 func TestInlineBoundary_TypedRetentionAndFullExtent(t *testing.T) {
-	note := newRenderElement(3, "block", newRenderText(4, "inside"))
+	note := newRenderElement(3, blockDisplay, newRenderText(4, "inside"))
 	note.Style = &ComputedStyle{Width: lenPx(120)}
-	input := newRenderElement(1, "block", newRenderText(2, "before"), note, newRenderText(5, "after"))
+	input := newRenderElement(1, blockDisplay, newRenderText(2, "before"), note, newRenderText(5, "after"))
 	input.Style = &ComputedStyle{Width: lenPx(240)}
 	root, err := BuildLayoutTree(input, BuildOptions{})
 	if err != nil {
@@ -94,7 +94,7 @@ func TestInlineBoundary_TypedRetentionAndFullExtent(t *testing.T) {
 
 func TestInlineBoundary_EmptyGroupCanReserveSpace(t *testing.T) {
 	for _, height := range []float32{0, 8} {
-		root, err := BuildLayoutTree(newRenderElement(1, "block"), BuildOptions{})
+		root, err := BuildLayoutTree(newRenderElement(1, blockDisplay), BuildOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +121,7 @@ func TestInlineBoundary_EmptyGroupCanReserveSpace(t *testing.T) {
 
 func TestInlineBoundary_InvalidExtents(t *testing.T) {
 	for _, extent := range []InlineExtent{{W: -1}, {H: -1}, {W: float32(math.NaN())}, {H: float32(math.NaN())}, {W: float32(math.Inf(1))}, {H: float32(math.Inf(1))}} {
-		root, _ := BuildLayoutTree(newRenderElement(1, "block"), BuildOptions{})
+		root, _ := BuildLayoutTree(newRenderElement(1, blockDisplay), BuildOptions{})
 		used, _ := ResolveUsedValues(root, ResolveContext{ContainingBlock: Rect{W: 100}})
 		result, err := FlowLayout(root, used, inlineFunc(func(InlineRequest) (InlineExtent, error) { return extent, nil }), nil, LayoutContext{}, LayoutOptions{})
 		if err == nil || result != nil {
@@ -150,7 +150,7 @@ func TestInlineBoundary_RejectsBadInputBeforeCallbacks(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			root, _ := BuildLayoutTree(newRenderElement(1, "block"), BuildOptions{})
+			root, _ := BuildLayoutTree(newRenderElement(1, blockDisplay), BuildOptions{})
 			used, _ := ResolveUsedValues(root, ResolveContext{ContainingBlock: Rect{W: 100}})
 			tc.corrupt(root, used)
 			calls := 0
@@ -163,7 +163,7 @@ func TestInlineBoundary_RejectsBadInputBeforeCallbacks(t *testing.T) {
 }
 
 func TestInlineBoundary_PropagatesAdapterError(t *testing.T) {
-	root, _ := BuildLayoutTree(newRenderElement(1, "block"), BuildOptions{})
+	root, _ := BuildLayoutTree(newRenderElement(1, blockDisplay), BuildOptions{})
 	used, _ := ResolveUsedValues(root, ResolveContext{ContainingBlock: Rect{W: 100}})
 	failure := errors.New("paragraph failed")
 	result, err := FlowLayout(root, used, inlineFunc(func(InlineRequest) (InlineExtent, error) { return InlineExtent{}, failure }), nil, LayoutContext{}, LayoutOptions{})

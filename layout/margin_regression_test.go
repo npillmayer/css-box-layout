@@ -18,8 +18,8 @@ func TestCollapsedAnonymousBlockSeparators(t *testing.T) {
 		{"reserved paragraph space", false, 4, 13, 24, 41, 45, 63},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := marginTestBlock(2, 13, 5, false, newRenderElement(3, "inline"),
-				marginTestBlock(4, 20, 7, true), newRenderElement(5, "inline"))
+			p := marginTestBlock(2, 13, 5, false, newRenderElement(3, inlineDisplay),
+				marginTestBlock(4, 20, 7, true), newRenderElement(5, inlineDisplay))
 			root, err := BuildLayoutTree(marginTestBlock(1, 0, 0, false, p), BuildOptions{})
 			if err != nil {
 				t.Fatal(err)
@@ -125,7 +125,7 @@ func TestCollapsedMarginsAfterAutoAtomicWidth(t *testing.T) {
 	b.Style.Width = lenAuto()
 	b.Style.Margin.Bottom = lenAuto()
 	atomic := marginTestBlock(2, 0, 0, false, a, b)
-	atomic.Styles["display"] = "inline-block"
+	atomic.Display = inlineBlockDisplay
 	atomic.Style.Width = lenAuto()
 	input := marginTestBlock(1, 0, 0, false, atomic)
 	input.Style.Width = lenAuto()

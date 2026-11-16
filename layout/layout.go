@@ -1,11 +1,31 @@
 package layout
 
-import "fmt"
+import (
+	"fmt"
 
-// D -> E: create a correct CSS2 box tree with anonymous boxes and FC boundaries.
+	"golang.org/x/net/html"
+)
+
+// BuildLayoutTree normalizes a render subtree into boxes without mutating input.
+// The root must be a non-replaced element with block flow or block flow-root display.
+// Nil input or an element with DisplayNone returns (nil, nil). Other root kinds
+// are rejected, never blockified. The supplied root is a containment boundary,
+// not an implicit document/viewport wrapper.
 func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, error) {
 	if renderRoot == nil {
 		return nil, nil
+	}
+	if renderRoot.HTMLNode() == nil || renderRoot.HTMLNode().Type != html.ElementNode {
+		return nil, fmt.Errorf("node %d: %w: expected an HTML element", renderRoot.ID, ErrInvalidRoot)
+	}
+	if err := validateRenderDisplay(renderRoot); err != nil {
+		return nil, err
+	}
+	if renderRoot.Display.Kind == DisplayNone {
+		return nil, nil
+	}
+	if renderRoot.Replaced != nil || renderRoot.Display.Outer != OuterBlock {
+		return nil, fmt.Errorf("node %d: %w: expected a non-replaced block flow or block flow-root element, got %s", renderRoot.ID, ErrInvalidRoot, renderRoot.Display)
 	}
 	gen := newBoxIDGen()
 	rootID := gen.newRoot(renderRoot.ID)

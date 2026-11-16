@@ -6,15 +6,15 @@ import (
 )
 
 func TestFlowLayout_NestedContentRelativeCoordinates(t *testing.T) {
-	leafA := newRenderElement(3, "block", newRenderText(30, "A"))
+	leafA := newRenderElement(3, blockDisplay, newRenderText(30, "A"))
 	leafA.Style = &ComputedStyle{Width: lenPx(80), Margin: EdgeLengths{Left: lenPx(2), Top: lenPx(6), Bottom: lenPx(4)}, Padding: EdgeLengths{Left: lenPx(3), Right: lenPx(1), Top: lenPx(2), Bottom: lenPx(3)}, Border: edges(lenPx(1))}
-	leafB := newRenderElement(4, "block", newRenderText(40, "B"))
+	leafB := newRenderElement(4, blockDisplay, newRenderText(40, "B"))
 	leafB.Style = &ComputedStyle{Width: lenPx(90), Margin: EdgeLengths{Left: lenPx(-3), Top: lenPx(5), Bottom: lenPx(2)}}
-	middle := newRenderElement(2, "block", leafA, leafB)
+	middle := newRenderElement(2, blockDisplay, leafA, leafB)
 	middle.Style = &ComputedStyle{Width: lenPx(180), Margin: EdgeLengths{Left: lenPx(7), Top: lenPx(11), Bottom: lenPx(13)}, Padding: EdgeLengths{Left: lenPx(4), Right: lenPx(6), Top: lenPx(3), Bottom: lenPx(5)}, Border: EdgeLengths{Left: lenPx(1), Right: lenPx(2), Top: lenPx(2), Bottom: lenPx(1)}}
-	tail := newRenderElement(5, "block", newRenderText(50, "tail"))
+	tail := newRenderElement(5, blockDisplay, newRenderText(50, "tail"))
 	tail.Style = &ComputedStyle{Width: lenPx(100), Margin: EdgeLengths{Left: lenPx(9), Top: lenPx(8), Bottom: lenPx(10)}, Padding: EdgeLengths{Left: lenPx(2), Top: lenPx(1), Bottom: lenPx(2)}}
-	input := newRenderElement(1, "block", middle, tail)
+	input := newRenderElement(1, blockDisplay, middle, tail)
 	input.Style = &ComputedStyle{Width: lenPx(300), Padding: EdgeLengths{Left: lenPx(10), Right: lenPx(12), Top: lenPx(20), Bottom: lenPx(7)}, Border: EdgeLengths{Left: lenPx(5), Right: lenPx(3), Top: lenPx(2), Bottom: lenPx(4)}}
 	root, err := BuildLayoutTree(input, BuildOptions{})
 	if err != nil {

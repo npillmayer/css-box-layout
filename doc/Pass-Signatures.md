@@ -87,9 +87,20 @@ func FlowLayout(
 
 `ComputeLayoutWithConstraints` has the same signature as FlowLayout and forwards
 to it as a compatibility wrapper. BuildLayoutTree uses the RenderNode stub;
-`doc/Tree-Type.md` describes the current typed Style/Text projection contract
-and the unfinished read-only adapter proposal. RenderNode.Style and Text are
+`doc/Tree-Type.md` describes the current typed Display/Style/Text projection contract
+without a string-style adapter interface. RenderNode.Style and Text are
 snapshotted during construction; external source/paint lookup remains adapter-owned.
+
+`RenderNode.Display` is a `Display{Kind, Outer, Inner}` value. Elements require
+an explicit pair or subtree suppression; text leaves it zero. Legacy display
+strings are rejected. The root must be a non-replaced block flow or block
+flow-root element; nil and display:none yield no tree. `Display.Validate() error`
+validates structure. Non-replaced block/inline flow-root containers carry
+`LayoutNode.EstablishesBFC bool`; this contains descendant margins without
+changing the box's outer participation or width rules. The flag is separate
+from `FCBlock` and supplied-root containment, and is not inherited by wrappers.
+Errors wrap `ErrInvalidDisplay`, `ErrUnsupportedDisplay` or `ErrInvalidRoot` and
+identify the source NodeID. The tytui adapter uses this typed contract.
 
 ```go
 type ResolveContext struct {
@@ -168,7 +179,7 @@ alias. Paragraph errors remain wrapped with group/owner identity.
 AllowsMarginCollapse defaults to false. True certifies no separating line boxes
 under CSS empty-line rules and requires zero H and no atomic items. The core
 rejects contradictory declarations, then combines permission with owner edges
-and explicit root/inline-block containment. This eligibility contract is
+and supplied-root/flow-root/inline-block containment. This eligibility contract is
 implemented and used by collapsed placement. The tytui adapter grants permission
 only for line-free zero-height output without atomics; its existing reserved
 empty-paragraph strut remains a separator.

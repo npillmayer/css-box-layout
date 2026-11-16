@@ -90,9 +90,12 @@ type collapseEligibility struct {
 
 // FCBlock describes internal layout, not whether a box establishes a new BFC.
 // The supplied layout root is an explicit containment boundary even when a
-// caller lays out a subtree. Inline-block interiors are independent BFCs.
+// caller lays out a subtree. Flow-root and inline-block interiors are independent
+// BFCs. This boundary contains descendant margins and prevents self-collapse;
+// it does not prevent a block flow-root's own margins from adjoining its siblings
+// or parent. BoxInlineBlock remains a boundary for directly constructed trees.
 func isMarginCollapseBoundary(node *LayoutNode, isRoot bool) bool {
-	return isRoot || node == nil || !IsBlockLevel(node.Box) || node.Replaced != nil
+	return isRoot || node == nil || node.EstablishesBFC || !IsBlockLevel(node.Box) || node.Replaced != nil
 }
 
 func blockCollapseEligibility(node *LayoutNode, u UsedValues, isRoot, contentThrough bool) collapseEligibility {

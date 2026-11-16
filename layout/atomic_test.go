@@ -108,13 +108,13 @@ func (f *atomicFake) LayoutInline(r InlineRequest) (InlineResult, error) {
 }
 
 func recursiveFixture(t *testing.T) (*LayoutNode, map[NodeID]*LayoutNode) {
-	b := newRenderElement(5, "inline-block", newRenderText(6, "z"))
+	b := newRenderElement(5, inlineBlockDisplay, newRenderText(6, "z"))
 	b.Style = &ComputedStyle{Width: lenPx(10), Padding: edges(lenPx(1))}
-	c := newRenderElement(4, "block", newRenderElement(7, "inline", b))
+	c := newRenderElement(4, blockDisplay, newRenderElement(7, inlineDisplay, b))
 	c.Style = &ComputedStyle{Width: lenPct(.5), Padding: EdgeLengths{Left: lenPct(.1)}}
-	a := newRenderElement(3, "inline-block", newRenderText(8, "a"), c, newRenderText(9, "b"))
+	a := newRenderElement(3, inlineBlockDisplay, newRenderText(8, "a"), c, newRenderText(9, "b"))
 	a.Style = &ComputedStyle{Width: lenPx(40), Padding: edges(lenPx(2)), Border: edges(lenPx(1))}
-	input := newRenderElement(1, "block", newRenderText(2, "Hello "), newRenderElement(10, "inline", a), newRenderText(11, " world."), newRenderElement(12, "block", newRenderText(13, "tail")))
+	input := newRenderElement(1, blockDisplay, newRenderText(2, "Hello "), newRenderElement(10, inlineDisplay, a), newRenderText(11, " world."), newRenderElement(12, blockDisplay, newRenderText(13, "tail")))
 	root, err := BuildLayoutTree(input, BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -277,9 +277,9 @@ func TestAtomicPlacementValidation(t *testing.T) {
 
 func TestAtomicUnsupportedWidthFailsBeforeDelegation(t *testing.T) {
 	for _, w := range []Length{lenPct(.5), {Kind: LenEm, Value: 2}} {
-		a := newRenderElement(2, "inline-block")
+		a := newRenderElement(2, inlineBlockDisplay)
 		a.Style = &ComputedStyle{Width: w}
-		root, _ := BuildLayoutTree(newRenderElement(1, "block", a), BuildOptions{})
+		root, _ := BuildLayoutTree(newRenderElement(1, blockDisplay, a), BuildOptions{})
 		used, _ := ResolveUsedValues(root, ResolveContext{})
 		calls := 0
 		r, err := FlowLayout(root, used, resultFunc(func(InlineRequest) (InlineResult, error) { calls++; return InlineResult{}, nil }), nil, LayoutContext{}, LayoutOptions{})
@@ -291,11 +291,11 @@ func TestAtomicUnsupportedWidthFailsBeforeDelegation(t *testing.T) {
 
 func TestAtomicMarginsAndZeroDescendantBasis(t *testing.T) {
 	for _, width := range []float32{0, 20} {
-		child := newRenderElement(4, "block", newRenderText(5, "x"))
+		child := newRenderElement(4, blockDisplay, newRenderText(5, "x"))
 		child.Style = &ComputedStyle{Width: lenPct(.5), Padding: EdgeLengths{Left: lenPct(.1)}}
-		a := newRenderElement(3, "inline-block", child)
+		a := newRenderElement(3, inlineBlockDisplay, child)
 		a.Style = &ComputedStyle{Width: lenPx(width), Margin: EdgeLengths{Left: lenPx(3), Right: lenPx(4), Top: lenPx(2), Bottom: lenPx(5)}, Padding: edges(lenPx(1))}
-		root, err := BuildLayoutTree(newRenderElement(1, "block", newRenderText(2, "x"), a), BuildOptions{})
+		root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, newRenderText(2, "x"), a), BuildOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

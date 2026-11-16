@@ -1,17 +1,5 @@
 package layout
 
-import (
-	"golang.org/x/net/html"
-)
-
-// StyNodeView is the minimal interface needed by core passes.
-// Order is defined by Children() slice order (Rank must remain in sync).
-type StyNodeView interface {
-	Children() []StyNodeView
-	HTMLNode() *html.Node
-	ComputedStyle(string) string
-}
-
 // InlineExtent is the paragraph's overall layout extent in CSS pixels, not ink
 // bounds. H includes paragraph-owned trailing space but excludes owner box edges
 // and margins. W may exceed ContentWidth; it does not resize the containing block.

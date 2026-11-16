@@ -18,10 +18,10 @@ func TestBuildResolve_DocumentStylesAndSources(t *testing.T) {
 		n.Text = &ref
 		refs[n.ID] = ref
 	}
-	span := newRenderElement(3, "inline", office)
-	note := newRenderElement(6, "block", inside)
+	span := newRenderElement(3, inlineDisplay, office)
+	note := newRenderElement(6, blockDisplay, inside)
 	note.Style = &ComputedStyle{Width: lenPx(120)}
-	input := newRenderElement(1, "block", before, span, dot, note, after)
+	input := newRenderElement(1, blockDisplay, before, span, dot, note, after)
 	input.Style = &ComputedStyle{Width: lenPx(240), FontSizePx: 20, Padding: edges(lenPx(5)), Border: edges(lenPx(1)), Margin: edges(lenPx(3))}
 	root, err := BuildLayoutTree(input, BuildOptions{})
 	if err != nil {
@@ -79,11 +79,11 @@ func TestBuildResolve_DocumentStylesAndSources(t *testing.T) {
 }
 
 func TestBuildResolve_SplitStyleAndFontInheritance(t *testing.T) {
-	block := newRenderElement(4, "block", newRenderText(5, "inside"))
+	block := newRenderElement(4, blockDisplay, newRenderText(5, "inside"))
 	block.Style = &ComputedStyle{Width: lenEm(2), Padding: EdgeLengths{Left: lenPct(.1)}}
-	span := newRenderElement(2, "inline", newRenderText(3, "before"), block, newRenderText(6, "after"))
+	span := newRenderElement(2, inlineDisplay, newRenderText(3, "before"), block, newRenderText(6, "after"))
 	span.Style = &ComputedStyle{Width: lenAuto(), FontSizePx: 24, Padding: EdgeLengths{Left: lenEm(1)}}
-	input := newRenderElement(1, "block", span)
+	input := newRenderElement(1, blockDisplay, span)
 	input.Style = &ComputedStyle{Width: lenPx(200), FontSizePx: 16}
 	root, err := BuildLayoutTree(input, BuildOptions{})
 	if err != nil {
@@ -128,7 +128,7 @@ func TestBuildLayoutTree_TextReferenceContract(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			n := newRenderText(2, tc.data)
 			n.Text = tc.ref
-			root, err := BuildLayoutTree(newRenderElement(1, "block", n), BuildOptions{})
+			root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, n), BuildOptions{})
 			if tc.bad {
 				if err == nil || root != nil {
 					t.Fatal("expected error without partial tree")
@@ -157,7 +157,7 @@ func TestBuildLayoutTree_InvalidTypedStyles(t *testing.T) {
 		{Width: lenAuto(), FontSizePx: -1},
 		{Width: lenAuto(), Padding: edges(lenAuto())},
 	} {
-		input := newRenderElement(1, "block")
+		input := newRenderElement(1, blockDisplay)
 		input.Style = &style
 		if tree, err := BuildLayoutTree(input, BuildOptions{}); err == nil || tree != nil {
 			t.Fatalf("accepted invalid style %+v", style)
@@ -166,15 +166,15 @@ func TestBuildLayoutTree_InvalidTypedStyles(t *testing.T) {
 }
 
 func TestBuildLayoutTree_StyleDefaultsAndInlineBlock(t *testing.T) {
-	auto := newRenderElement(2, "block")
-	zero := newRenderElement(3, "block")
+	auto := newRenderElement(2, blockDisplay)
+	zero := newRenderElement(3, blockDisplay)
 	zero.Style = &ComputedStyle{}
-	atomic := newRenderElement(4, "inline-block")
+	atomic := newRenderElement(4, inlineBlockDisplay)
 	style := DefaultComputedStyle()
 	style.Width = lenPx(80)
 	style.Border = edges(lenPx(2))
 	atomic.Style = &style
-	root, err := BuildLayoutTree(newRenderElement(1, "block", auto, zero, atomic), BuildOptions{})
+	root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, auto, zero, atomic), BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestBuildLayoutTree_StyleDefaultsAndInlineBlock(t *testing.T) {
 }
 
 func TestBuildLayoutTree_RejectsStringBoxValues(t *testing.T) {
-	root := newRenderElement(1, "block")
+	root := newRenderElement(1, blockDisplay)
 	root.Styles["width"] = "240px"
 	if tree, err := BuildLayoutTree(root, BuildOptions{}); err == nil || tree != nil {
 		t.Fatal("unconverted box values must not be silently ignored")

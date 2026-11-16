@@ -5,18 +5,20 @@ import (
 	"golang.org/x/net/html"
 )
 
-// RenderNode is a minimal render tree node for BuildLayoutTree.
-// This is a stub for now and will be replaced by the real CSSDOM adapter.
 // ReplacedContent is an explicitly sized, non-text inline leaf. Width comes
 // from Style.Width (fixed px); Height is content height in CSS pixels.
 // Payload ownership stays with the adapter/renderer. Zero dimensions are valid.
 type ReplacedContent struct{ Height float32 }
 
+// RenderNode is the adapter's render-tree projection for BuildLayoutTree.
+// HTML must identify an element or text node; other DOM nodes are filtered by
+// the adapter. Display must be explicit for elements and zero for text nodes.
 type RenderNode struct {
 	Replaced *ReplacedContent
 	ID       NodeID
 	HTML     *html.Node
-	Styles   map[string]string // display and adapter metadata; not parsed as lengths
+	Display  Display
+	Styles   map[string]string // adapter metadata; display and box-value strings are rejected
 	// Style is a complete typed box style. Nil selects defaults.
 	// FontSizePx == 0 inherits the source parent's size or ResolveContext fallback.
 	Style *ComputedStyle
@@ -38,11 +40,4 @@ func (r *RenderNode) HTMLNode() *html.Node {
 		return nil
 	}
 	return r.HTML
-}
-
-func (r *RenderNode) ComputedStyle(prop string) string {
-	if r == nil || r.Styles == nil {
-		return ""
-	}
-	return r.Styles[prop]
 }

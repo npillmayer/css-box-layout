@@ -15,9 +15,9 @@ func (f measureFunc) MeasureInline(r InlineMeasureRequest) (IntrinsicWidths, err
 
 func autoFixture(t *testing.T, children ...*RenderNode) (*LayoutNode, *LayoutNode) {
 	t.Helper()
-	a := newRenderElement(2, "inline-block", children...)
+	a := newRenderElement(2, inlineBlockDisplay, children...)
 	a.Style = &ComputedStyle{Width: lenAuto(), Margin: EdgeLengths{Left: lenPx(2), Right: lenPx(3)}, Padding: edges(lenPx(3)), Border: edges(lenPx(1))}
-	root, err := BuildLayoutTree(newRenderElement(1, "block", a), BuildOptions{})
+	root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, a), BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,11 +100,11 @@ func TestAutoShrinkToFitAndSnapshots(t *testing.T) {
 }
 
 func TestNestedIntrinsicBoundsAndOneFinalLayout(t *testing.T) {
-	b := newRenderElement(3, "inline-block", newRenderText(4, "b"))
+	b := newRenderElement(3, inlineBlockDisplay, newRenderText(4, "b"))
 	b.Style = &ComputedStyle{Width: lenAuto(), Padding: edges(lenPx(1)), Border: edges(lenPx(2)), Margin: EdgeLengths{Left: lenPx(2), Right: lenPx(2)}}
-	a := newRenderElement(2, "inline-block", newRenderText(5, "aa"), newRenderElement(6, "inline", b))
+	a := newRenderElement(2, inlineBlockDisplay, newRenderText(5, "aa"), newRenderElement(6, inlineDisplay, b))
 	a.Style = &ComputedStyle{Width: lenAuto(), Padding: edges(lenPx(2)), Border: edges(lenPx(1))}
-	root, _ := BuildLayoutTree(newRenderElement(1, "block", a), BuildOptions{})
+	root, _ := BuildLayoutTree(newRenderElement(1, blockDisplay, a), BuildOptions{})
 	an := root.Children[0].Children[0]
 	bn := an.Children[0].Children[1].Children[0]
 	used, _ := ResolveUsedValues(root, ResolveContext{ContainingBlock: Rect{W: 80}})
@@ -152,11 +152,11 @@ func TestNestedIntrinsicBoundsAndOneFinalLayout(t *testing.T) {
 }
 
 func TestIntrinsicBlocksAndDefinitePercentageBasis(t *testing.T) {
-	nested := newRenderElement(5, "inline-block", newRenderText(6, "x"))
+	nested := newRenderElement(5, inlineBlockDisplay, newRenderText(6, "x"))
 	nested.Style = &ComputedStyle{Width: lenAuto(), Padding: EdgeLengths{Left: lenPct(.1)}}
-	fixed := newRenderElement(3, "block", nested)
+	fixed := newRenderElement(3, blockDisplay, nested)
 	fixed.Style = &ComputedStyle{Width: lenPx(40), Padding: edges(lenPx(2)), Margin: EdgeLengths{Left: lenPx(2), Right: lenPx(2)}}
-	flowing := newRenderElement(4, "block", newRenderText(7, "y"))
+	flowing := newRenderElement(4, blockDisplay, newRenderText(7, "y"))
 	flowing.Style = &ComputedStyle{Width: lenAuto(), Padding: edges(lenPx(1)), Margin: EdgeLengths{Left: lenPx(1), Right: lenPx(1)}}
 	root, a := autoFixture(t, fixed, flowing)
 	used, _ := ResolveUsedValues(root, ResolveContext{ContainingBlock: Rect{W: 77}})
@@ -212,7 +212,7 @@ func TestIntrinsicFailuresAndPercentageCycles(t *testing.T) {
 		})
 	}
 	for _, edge := range []bool{false, true} {
-		child := newRenderElement(3, "block", newRenderText(4, "x"))
+		child := newRenderElement(3, blockDisplay, newRenderText(4, "x"))
 		child.Style = &ComputedStyle{Width: lenPct(.5)}
 		if edge {
 			child.Style = &ComputedStyle{Width: lenPx(20), Padding: EdgeLengths{Left: lenPct(.1)}}
@@ -264,9 +264,9 @@ func TestEmptyAutoAndConcurrentReadOnlyMeasurement(t *testing.T) {
 }
 
 func TestFixedIntrinsicAtomicAndMeasurementRecovery(t *testing.T) {
-	b := newRenderElement(3, "inline-block", newRenderText(4, "unmeasured"))
+	b := newRenderElement(3, inlineBlockDisplay, newRenderText(4, "unmeasured"))
 	b.Style = &ComputedStyle{Width: lenPx(10), Padding: edges(lenPx(1))}
-	root, a := autoFixture(t, newRenderElement(5, "inline", b))
+	root, a := autoFixture(t, newRenderElement(5, inlineDisplay, b))
 	bn := a.Children[0].Children[0].Children[0]
 	used, _ := ResolveUsedValues(root, ResolveContext{ContainingBlock: Rect{W: 100}})
 	failure := errors.New("measurement abort")

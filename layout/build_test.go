@@ -7,21 +7,29 @@ import (
 	"golang.org/x/net/html"
 )
 
-func newRenderElement(id NodeID, display string, children ...*RenderNode) *RenderNode {
+var (
+	blockDisplay       = Display{Kind: DisplayBox, Outer: OuterBlock, Inner: InnerFlow}
+	flowRootDisplay    = Display{Kind: DisplayBox, Outer: OuterBlock, Inner: InnerFlowRoot}
+	inlineDisplay      = Display{Kind: DisplayBox, Outer: OuterInline, Inner: InnerFlow}
+	inlineBlockDisplay = Display{Kind: DisplayBox, Outer: OuterInline, Inner: InnerFlowRoot}
+	noneDisplay        = Display{Kind: DisplayNone}
+)
+
+func newRenderElement(id NodeID, display Display, children ...*RenderNode) *RenderNode {
 	return &RenderNode{
 		ID:            id,
 		HTML:          &html.Node{Type: html.ElementNode, Data: "div"},
-		Styles:        map[string]string{"display": display},
+		Display:       display,
+		Styles:        map[string]string{},
 		ChildrenNodes: children,
 	}
 }
 
 func newRenderText(id NodeID, data string) *RenderNode {
 	return &RenderNode{
-		ID:     id,
-		Text:   &text.TextRef{Source: text.TextSourceID(id), Range: text.TextRange{End: uint64(len(data))}},
-		HTML:   &html.Node{Type: html.TextNode, Data: data},
-		Styles: map[string]string{"display": "inline"},
+		ID:   id,
+		Text: &text.TextRef{Source: text.TextSourceID(id), Range: text.TextRange{End: uint64(len(data))}},
+		HTML: &html.Node{Type: html.TextNode, Data: data},
 	}
 }
 
@@ -31,10 +39,10 @@ func newBoxGenWithRoot(nodeID NodeID) (*boxIDGen, BoxID) {
 }
 
 func TestBuildInlineFlow_SplitAndHoist(t *testing.T) {
-	childInline1 := newRenderElement(2, "inline")
-	childBlock := newRenderElement(3, "block")
-	childInline2 := newRenderElement(4, "inline")
-	parent := newRenderElement(1, "inline", childInline1, childBlock, childInline2)
+	childInline1 := newRenderElement(2, inlineDisplay)
+	childBlock := newRenderElement(3, blockDisplay)
+	childInline2 := newRenderElement(4, inlineDisplay)
+	parent := newRenderElement(1, inlineDisplay, childInline1, childBlock, childInline2)
 
 	gen, parentBoxID := newBoxGenWithRoot(parent.ID)
 	flow, err := buildInlineFlow(gen, parent, parentBoxID)
@@ -94,8 +102,8 @@ func TestBuildInlineFlow_TextNodeEmpty(t *testing.T) {
 }
 
 func TestBuildInlineFlow_DisplayNone(t *testing.T) {
-	child := newRenderElement(2, "inline")
-	parent := newRenderElement(1, "none", child)
+	child := newRenderElement(2, inlineDisplay)
+	parent := newRenderElement(1, noneDisplay, child)
 
 	gen, parentBoxID := newBoxGenWithRoot(parent.ID)
 	flow, err := buildInlineFlow(gen, parent, parentBoxID)
@@ -108,8 +116,8 @@ func TestBuildInlineFlow_DisplayNone(t *testing.T) {
 }
 
 func TestBuildInlineFlow_InlineBlockIsAtomic(t *testing.T) {
-	child := newRenderElement(2, "inline")
-	parent := newRenderElement(1, "inline-block", child)
+	child := newRenderElement(2, inlineDisplay)
+	parent := newRenderElement(1, inlineBlockDisplay, child)
 
 	gen, parentBoxID := newBoxGenWithRoot(parent.ID)
 	flow, err := buildInlineFlow(gen, parent, parentBoxID)
@@ -125,11 +133,11 @@ func TestBuildInlineFlow_InlineBlockIsAtomic(t *testing.T) {
 }
 
 func TestBuildInlineFlow_NestedInlineSplit(t *testing.T) {
-	innerInline1 := newRenderElement(3, "inline")
-	innerBlock := newRenderElement(4, "block")
-	innerInline2 := newRenderElement(5, "inline")
-	childInline := newRenderElement(2, "inline", innerInline1, innerBlock, innerInline2)
-	parent := newRenderElement(1, "inline", childInline)
+	innerInline1 := newRenderElement(3, inlineDisplay)
+	innerBlock := newRenderElement(4, blockDisplay)
+	innerInline2 := newRenderElement(5, inlineDisplay)
+	childInline := newRenderElement(2, inlineDisplay, innerInline1, innerBlock, innerInline2)
+	parent := newRenderElement(1, inlineDisplay, childInline)
 
 	gen, parentBoxID := newBoxGenWithRoot(parent.ID)
 	flow, err := buildInlineFlow(gen, parent, parentBoxID)
@@ -151,9 +159,9 @@ func TestBuildInlineFlow_NestedInlineSplit(t *testing.T) {
 }
 
 func TestBuildBlockContainer_InlineOnly(t *testing.T) {
-	childInline1 := newRenderElement(2, "inline")
-	childInline2 := newRenderElement(3, "inline")
-	parent := newRenderElement(1, "block", childInline1, childInline2)
+	childInline1 := newRenderElement(2, inlineDisplay)
+	childInline2 := newRenderElement(3, inlineDisplay)
+	parent := newRenderElement(1, blockDisplay, childInline1, childInline2)
 
 	gen, rootBoxID := newBoxGenWithRoot(parent.ID)
 	node, err := buildBlockContainer(gen, parent, BoxBlock, rootBoxID)
@@ -175,8 +183,8 @@ func TestBuildBlockContainer_InlineOnly(t *testing.T) {
 }
 
 func TestBuildBlockContainer_InlineOnlySingleChild(t *testing.T) {
-	childInline := newRenderElement(2, "inline")
-	parent := newRenderElement(1, "block", childInline)
+	childInline := newRenderElement(2, inlineDisplay)
+	parent := newRenderElement(1, blockDisplay, childInline)
 
 	gen, rootBoxID := newBoxGenWithRoot(parent.ID)
 	node, err := buildBlockContainer(gen, parent, BoxBlock, rootBoxID)
@@ -198,9 +206,9 @@ func TestBuildBlockContainer_InlineOnlySingleChild(t *testing.T) {
 }
 
 func TestBuildBlockContainer_MixedInlineBlock(t *testing.T) {
-	childInline := newRenderElement(2, "inline")
-	childBlock := newRenderElement(3, "block")
-	parent := newRenderElement(1, "block", childInline, childBlock)
+	childInline := newRenderElement(2, inlineDisplay)
+	childBlock := newRenderElement(3, blockDisplay)
+	parent := newRenderElement(1, blockDisplay, childInline, childBlock)
 
 	gen, rootBoxID := newBoxGenWithRoot(parent.ID)
 	node, err := buildBlockContainer(gen, parent, BoxBlock, rootBoxID)
@@ -238,7 +246,7 @@ func TestBuildLayoutTree_MixedInlineRunsPreserveSources(t *testing.T) {
 			nextID := NodeID(2)
 			for i, length := range tc.runLengths {
 				if i > 0 {
-					input = append(input, newRenderElement(nextID, "block"))
+					input = append(input, newRenderElement(nextID, blockDisplay))
 					wantBlocks = append(wantBlocks, nextID)
 					nextID++
 				}
@@ -250,7 +258,7 @@ func TestBuildLayoutTree_MixedInlineRunsPreserveSources(t *testing.T) {
 				}
 				wantRuns = append(wantRuns, ids)
 			}
-			root, err := BuildLayoutTree(newRenderElement(1, "block", input...), BuildOptions{})
+			root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, input...), BuildOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -13,7 +13,7 @@ func marginTestBlock(id NodeID, top, bottom float32, text bool, children ...*Ren
 	if text {
 		children = append(children, newRenderText(id+100, "x"))
 	}
-	n := newRenderElement(id, "block", children...)
+	n := newRenderElement(id, blockDisplay, children...)
 	n.Style = &ComputedStyle{Width: lenPx(100), Margin: EdgeLengths{Top: lenPx(top), Bottom: lenPx(bottom)}}
 	return n
 }
@@ -147,7 +147,7 @@ func TestParentChildCollapsedHeight(t *testing.T) {
 func TestCollapsedInlineBlockPreparation(t *testing.T) {
 	atomic := marginTestBlock(2, 3, 4, false,
 		marginTestBlock(3, 6, 13, true), marginTestBlock(4, 8, 7, true))
-	atomic.Styles["display"] = "inline-block"
+	atomic.Display = inlineBlockDisplay
 	g, adapter := marginTestLayout(t, marginTestBlock(1, 0, 0, false, atomic))
 	// Atomic interior: 6+10+max(13,8)+10+7 = 46; outside margins stay separate.
 	if g[2].Content.H != 46 || g[3].Frame.Y != 6 || g[4].Frame.Y != 29 || g[1].Content.H != 53 {

@@ -50,6 +50,15 @@ Outputs:
 - Layout box tree `E` (`LayoutNode`), structurally normalized.
 
 Responsibilities:
+- Require explicit typed `RenderNode.Display`; reject legacy display strings
+  and missing/malformed element values. Text nodes carry no display property.
+- Accept a non-replaced block flow or block flow-root element root;
+  nil or display:none yields no tree. Reject other roots instead of blockifying them. The supplied subtree
+  root retains its existing containment boundary, not viewport semantics.
+- Support block flow, block flow-root, inline flow and inline flow-root (atomic
+  inline-block). Suppress display:none subtrees. Non-replaced flow-root containers
+  set `LayoutNode.EstablishesBFC`; block flow-root retains `BoxBlock` outer
+  participation and normal block widths, independent of this containment flag.
 - Insert anonymous boxes for mixed inline/block children.
 - Split + hoist when inline elements contain blocks.
 - Represent inline-block as atomic inline with internal block container.
@@ -117,8 +126,10 @@ Rules for this slice, based on
 - Eligible empty blocks collapse through: no vertical border/padding or
   separating lines, no new block formatting context, and all in-flow children
   (if present) also collapse through.
-- Root and inline-block margins do not collapse with their children or through
-  themselves. Eligible sibling blocks inside either container still collapse.
+- Supplied root, flow-root and inline-block margins do not collapse with their
+  children or through themselves, even at zero height. Eligible sibling blocks
+  inside these containers still collapse. A block flow-root's own outside margins
+  can collapse with adjacent blocks and with an eligible ordinary parent.
 - For an entire adjoining group, use `max(0, margins...) + min(0, margins...)`.
   Keep both extrema until the group is complete; pairwise scalar reduction loses
   information. Zero margins participate normally.
@@ -141,8 +152,10 @@ Repository boundaries:
   existing (0,0) origin. Viewport/body margin propagation is outside this slice.
 - Preserve anonymous wrappers and inline delegation, including empty groups.
   `FCBlock` currently labels all block containers, not just formatting-context
-  roots. Internal eligibility now distinguishes those roles with an explicit
-  root argument. `InlineResult.AllowsMarginCollapse` supplies inline permission;
+  roots. `LayoutNode.EstablishesBFC` records display-derived flow-root containment;
+  it is not inherited by ordinary or anonymous descendants. Internal eligibility
+  also preserves explicit supplied-root and inline-block boundaries.
+  `InlineResult.AllowsMarginCollapse` supplies inline permission;
   false is conservative even at zero extent. True requires zero height and no
   atomic items, and certifies no separating line boxes. Neither an empty wrapper
   nor zero extent alone establishes eligibility. Positive reserved paragraph

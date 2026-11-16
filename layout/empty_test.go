@@ -3,17 +3,17 @@ package layout
 import "testing"
 
 func TestBuildLayoutTree_EmptyContainers(t *testing.T) {
-	for _, display := range []string{"block", "inline-block"} {
+	for _, display := range []Display{blockDisplay, flowRootDisplay, inlineBlockDisplay} {
 		for _, contents := range []string{"no_children", "empty_text", "hidden_children"} {
-			t.Run(display+"/"+contents, func(t *testing.T) {
+			t.Run(display.String()+"/"+contents, func(t *testing.T) {
 				var children []*RenderNode
 				switch contents {
 				case "empty_text":
 					children = []*RenderNode{newRenderText(3, "")}
 				case "hidden_children":
-					children = []*RenderNode{newRenderElement(3, "none", newRenderText(4, "hidden"))}
+					children = []*RenderNode{newRenderElement(3, noneDisplay, newRenderText(4, "hidden"))}
 				}
-				input := newRenderElement(1, "block", newRenderElement(2, display, children...))
+				input := newRenderElement(1, blockDisplay, newRenderElement(2, display, children...))
 				build := func() *LayoutNode {
 					t.Helper()
 					root, err := BuildLayoutTree(input, BuildOptions{})
@@ -24,7 +24,7 @@ func TestBuildLayoutTree_EmptyContainers(t *testing.T) {
 						t.Fatalf("root has %d children, want 1", len(root.Children))
 					}
 					container := root.Children[0]
-					if display == "inline-block" {
+					if display == inlineBlockDisplay {
 						if container.Box != BoxAnonymousInline || len(container.Children) != 1 {
 							t.Fatal("inline-block must participate in an outer inline context")
 						}
@@ -66,7 +66,7 @@ func (r *emptyInlineRecorder) LayoutInline(req InlineRequest) (InlineResult, err
 }
 
 func TestFlowLayout_BuiltEmptyRoot(t *testing.T) {
-	root, err := BuildLayoutTree(newRenderElement(1, "block"), BuildOptions{})
+	root, err := BuildLayoutTree(newRenderElement(1, blockDisplay), BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

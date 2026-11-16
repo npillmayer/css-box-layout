@@ -66,13 +66,13 @@ func TestBlockHorizontalMargins(t *testing.T) {
 }
 
 func TestAutoMarginsAfterIntrinsicWidthSelection(t *testing.T) {
-	center := newRenderElement(3, "block", newRenderText(30, "center"))
+	center := newRenderElement(3, blockDisplay, newRenderText(30, "center"))
 	center.Style = &ComputedStyle{Width: lenPx(40), Margin: EdgeLengths{Left: lenAuto(), Right: lenAuto()}, Padding: edges(lenPx(2))}
-	flowing := newRenderElement(4, "block", newRenderText(40, "flow"))
+	flowing := newRenderElement(4, blockDisplay, newRenderText(40, "flow"))
 	flowing.Style = &ComputedStyle{Width: lenAuto(), Margin: EdgeLengths{Left: lenAuto(), Right: lenAuto()}}
-	atomic := newRenderElement(2, "inline-block", center, flowing)
+	atomic := newRenderElement(2, inlineBlockDisplay, center, flowing)
 	atomic.Style = &ComputedStyle{Width: lenAuto(), Margin: edges(lenAuto()), Padding: edges(lenPx(3)), Border: edges(lenPx(1))}
-	root, err := BuildLayoutTree(newRenderElement(1, "block", atomic), BuildOptions{})
+	root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, atomic), BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

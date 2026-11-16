@@ -8,8 +8,8 @@ import (
 func TestBuildLayoutTree_BoxIDCollision(t *testing.T) {
 	// With the original arithmetic allocator, the first child's empty wrapper
 	// and the second child both receive 4611686018427387905.
-	input := newRenderElement(5207740746832417946, "block",
-		newRenderElement(2, "block"), newRenderElement(3, "block"))
+	input := newRenderElement(5207740746832417946, blockDisplay,
+		newRenderElement(2, blockDisplay), newRenderElement(3, blockDisplay))
 	root, err := BuildLayoutTree(input, BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -52,17 +52,17 @@ func TestBuildLayoutTree_BoxIDStability(t *testing.T) {
 	for _, rootID := range []NodeID{1, 5207740746832417946, ^NodeID(0)} {
 		makeInput := func(withEmpty bool) *RenderNode {
 			children := []*RenderNode{
-				newRenderElement(10, "inline", newRenderText(11, "before"),
-					newRenderElement(12, "block", newRenderText(13, "inside")), newRenderText(14, "after")),
-				newRenderElement(20, "inline-block", newRenderElement(21, "block")),
-				newRenderElement(30, "block"),
+				newRenderElement(10, inlineDisplay, newRenderText(11, "before"),
+					newRenderElement(12, blockDisplay, newRenderText(13, "inside")), newRenderText(14, "after")),
+				newRenderElement(20, inlineBlockDisplay, newRenderElement(21, blockDisplay)),
+				newRenderElement(30, blockDisplay),
 			}
 			if withEmpty {
 				children = append([]*RenderNode{newRenderText(40, "")}, children...)
 				children = append(children, newRenderText(41, ""))
 				children[1].ChildrenNodes = append([]*RenderNode{newRenderText(42, "")}, children[1].ChildrenNodes...)
 			}
-			return newRenderElement(rootID, "block", children...)
+			return newRenderElement(rootID, blockDisplay, children...)
 		}
 		build := func(empty bool) *LayoutNode {
 			t.Helper()
@@ -112,8 +112,8 @@ func TestBoxIDGen_Wraparound(t *testing.T) {
 }
 
 func TestBuildLayoutTree_BoxIDsSurvivePasses(t *testing.T) {
-	root, err := BuildLayoutTree(newRenderElement(1, "block",
-		newRenderText(2, "before"), newRenderElement(3, "block"), newRenderText(4, "after")), BuildOptions{})
+	root, err := BuildLayoutTree(newRenderElement(1, blockDisplay,
+		newRenderText(2, "before"), newRenderElement(3, blockDisplay), newRenderText(4, "after")), BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

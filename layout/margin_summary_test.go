@@ -64,16 +64,16 @@ func TestRecursiveMarginSummaries(t *testing.T) {
 		{name: "bottom barrier", borderBottom: 1, leading: marginStrut{13, -8}, trailing: marginStrut{0, -3}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			empty := newRenderElement(2, "block")
+			empty := newRenderElement(2, blockDisplay)
 			empty.Style = &ComputedStyle{Margin: EdgeLengths{Top: lenPx(-8), Bottom: lenPx(10)}}
-			solid := newRenderElement(3, "block", newRenderText(30, "x"))
+			solid := newRenderElement(3, blockDisplay, newRenderText(30, "x"))
 			solid.Style = &ComputedStyle{Margin: EdgeLengths{Top: lenPx(7), Bottom: lenPx(600)}}
-			lastSolid := newRenderElement(5, "block", newRenderText(50, "y"))
+			lastSolid := newRenderElement(5, blockDisplay, newRenderText(50, "y"))
 			lastSolid.Style = &ComputedStyle{Margin: EdgeLengths{Top: lenPx(900), Bottom: lenPx(-6)}}
-			tail := newRenderElement(4, "block")
+			tail := newRenderElement(4, blockDisplay)
 			tail.Style = &ComputedStyle{Margin: EdgeLengths{Top: lenPx(4), Bottom: lenPx(-2)}}
 			// The large internal margins must not leak into either outside group.
-			input := newRenderElement(1, "block", empty, solid, lastSolid, tail)
+			input := newRenderElement(1, blockDisplay, empty, solid, lastSolid, tail)
 			input.Style = &ComputedStyle{Width: lenPx(100), Margin: EdgeLengths{Top: lenPx(13), Bottom: lenPx(-3)},
 				Padding: EdgeLengths{Top: lenPx(tc.paddingTop)}, Border: EdgeLengths{Bottom: lenPx(tc.borderBottom)}}
 			n, err := BuildLayoutTree(input, BuildOptions{})
@@ -126,11 +126,11 @@ func TestRecursiveMarginSummaries(t *testing.T) {
 }
 
 func TestThroughMarginSummaryAndZeroHeightBarrier(t *testing.T) {
-	leaf := newRenderElement(3, "block")
+	leaf := newRenderElement(3, blockDisplay)
 	leaf.Style = &ComputedStyle{Margin: EdgeLengths{Top: lenPx(-8), Bottom: lenPx(10)}}
-	middle := newRenderElement(2, "block", leaf)
+	middle := newRenderElement(2, blockDisplay, leaf)
 	middle.Style = &ComputedStyle{Margin: EdgeLengths{Top: lenPx(13), Bottom: lenPx(-3)}}
-	input := newRenderElement(1, "block", middle)
+	input := newRenderElement(1, blockDisplay, middle)
 	input.Style = &ComputedStyle{Margin: EdgeLengths{Top: lenPx(2), Bottom: lenPx(4)}}
 	n, err := BuildLayoutTree(input, BuildOptions{})
 	if err != nil {

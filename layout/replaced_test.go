@@ -12,7 +12,7 @@ func TestExplicitReplacedLeaf(t *testing.T) {
 		style.Width = Length{Kind: LenPx, Value: 30}
 		style.Padding = EdgeLengths{Left: Length{Value: 2}, Right: Length{Value: 2}}
 		payload := &ReplacedContent{Height: height}
-		root, err := BuildLayoutTree(&RenderNode{ID: 1, HTML: &html.Node{Type: html.ElementNode, Data: "div"}, Styles: map[string]string{"display": "block"}, ChildrenNodes: []*RenderNode{{ID: 2, HTML: &html.Node{Type: html.ElementNode, Data: "img"}, Style: &style, Replaced: payload}}}, BuildOptions{})
+		root, err := BuildLayoutTree(&RenderNode{ID: 1, HTML: &html.Node{Type: html.ElementNode, Data: "div"}, Display: blockDisplay, ChildrenNodes: []*RenderNode{{ID: 2, HTML: &html.Node{Type: html.ElementNode, Data: "img"}, Display: inlineDisplay, Style: &style, Replaced: payload}}}, BuildOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,7 @@ func TestInvalidReplacedLeaf(t *testing.T) {
 	for _, h := range []float32{-1, float32(math.Inf(1)), float32(math.NaN())} {
 		s := DefaultComputedStyle()
 		s.Width = Length{Value: 20}
-		_, err := BuildLayoutTree(&RenderNode{HTML: &html.Node{Type: html.ElementNode}, Styles: map[string]string{"display": "block"}, ChildrenNodes: []*RenderNode{{HTML: &html.Node{Type: html.ElementNode}, Style: &s, Replaced: &ReplacedContent{Height: h}}}}, BuildOptions{})
+		_, err := BuildLayoutTree(&RenderNode{HTML: &html.Node{Type: html.ElementNode}, Display: blockDisplay, ChildrenNodes: []*RenderNode{{HTML: &html.Node{Type: html.ElementNode}, Display: inlineDisplay, Style: &s, Replaced: &ReplacedContent{Height: h}}}}, BuildOptions{})
 		if err == nil {
 			t.Fatal("accepted invalid height", h)
 		}

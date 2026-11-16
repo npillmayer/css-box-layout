@@ -14,9 +14,15 @@ type LayoutNode struct {
 	NodeID   NodeID
 	Box      BoxKind
 	FC       FormattingContextKind
-	Style    *ComputedStyle
-	Children []*LayoutNode
-	Text     text.TextRef // For BoxText only (range in base rope)
+	// EstablishesBFC separates a flow-root container's contents from the outer
+	// block formatting context. Its own block-level margins still participate
+	// in that outer context. The supplied layout root is separately contained.
+	// Build sets this for non-replaced block/inline flow-root containers;
+	// ordinary and anonymous block containers leave it false.
+	EstablishesBFC bool
+	Style          *ComputedStyle
+	Children       []*LayoutNode
+	Text           text.TextRef // For BoxText only (range in base rope)
 }
 
 type BoxKind uint8

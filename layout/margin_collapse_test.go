@@ -47,7 +47,7 @@ func TestInlineCollapseEligibility(t *testing.T) {
 		{"reserved space", InlineResult{Extent: InlineExtent{H: 12}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			n, err := BuildLayoutTree(newRenderElement(1, "block"), BuildOptions{})
+			n, err := BuildLayoutTree(newRenderElement(1, blockDisplay), BuildOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,11 +75,11 @@ func TestInlineCollapseEligibility(t *testing.T) {
 }
 
 func TestNestedCollapseEligibilityAndHeight(t *testing.T) {
-	leaf := newRenderElement(3, "block")
+	leaf := newRenderElement(3, blockDisplay)
 	leaf.Style = &ComputedStyle{Margin: EdgeLengths{Top: lenPx(7), Bottom: lenPx(11)}}
-	middle := newRenderElement(2, "block", leaf)
+	middle := newRenderElement(2, blockDisplay, leaf)
 	middle.Style = &ComputedStyle{Margin: EdgeLengths{Top: lenPx(3), Bottom: lenPx(5)}}
-	n, err := BuildLayoutTree(newRenderElement(1, "block", middle), BuildOptions{})
+	n, err := BuildLayoutTree(newRenderElement(1, blockDisplay, middle), BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,11 +112,11 @@ func TestNestedCollapseEligibilityAndHeight(t *testing.T) {
 
 func TestInvalidInlineCollapseDeclaration(t *testing.T) {
 	for _, atomic := range []bool{false, true} {
-		input := newRenderElement(1, "block")
+		input := newRenderElement(1, blockDisplay)
 		if atomic {
-			a := newRenderElement(2, "inline-block")
+			a := newRenderElement(2, inlineBlockDisplay)
 			a.Style = &ComputedStyle{Width: lenPx(0)}
-			input = newRenderElement(1, "block", a)
+			input = newRenderElement(1, blockDisplay, a)
 		}
 		n, err := BuildLayoutTree(input, BuildOptions{})
 		if err != nil {

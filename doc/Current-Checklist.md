@@ -69,6 +69,23 @@ and covered by separate core and tytui regressions.
 
 ## Implementation tasks
 
+### Completed display migration (2026-11-16)
+
+- [x] Add typed Display input with explicit outer/inner axes and suppression.
+- [x] Validate root and descendant input; reject legacy strings, missing/invalid
+  display, and implicit root blockification. Nil/display:none yields no tree.
+- [x] Migrate core fixtures; cover classification, error identity, root kinds,
+  text display, replaced leaves, suppression, and block flow-root construction.
+- [x] Stage 4: record `EstablishesBFC` independently of outer block participation
+  and FCBlock. Contain descendant margins and prevent empty through-collapse;
+  preserve outer parent/sibling collapse, internal sibling collapse, normal block
+  sizing, supplied-root containment and inline-block behavior.
+- [x] Cover positive/negative margins, empty descendant chains, nested flow-roots,
+  split/hoist and anonymous wrappers, fixed/auto atomics, resize and failed-result
+  isolation with numeric regressions. Floats and clearance remain deferred.
+- [x] Migrate tytui to GetDisplay and typed display input. Its integration tests
+  cover normalization, cascade errors, flow-root margins and retained proofs.
+
 ### 1. Preserve styles and source references - immediate / M1
 
 - [x] Carry typed render styles into `LayoutNode.Style`, including split inline
@@ -205,7 +222,7 @@ bounded alignment policy; full baseline behavior remains separate work.
   searched; unknown external consumers may need migration. Concrete paragraph
   results remain adapter-owned; no replacement core package is introduced.
 
-- [ ] Audit repository-wide references to `BoxMetrics` and `StyNodeView` before removing or integrating them. Lack of internal use alone
+- [ ] Audit repository-wide references to `BoxMetrics` before removing or integrating them. Lack of internal use alone
   does not establish that an exported API can be removed safely.
 - [ ] Define the role of unused `BuildOptions`, `LayoutOptions`, and
   `LayoutContext`; remove unnecessary internal parameters where appropriate.
@@ -313,7 +330,7 @@ pipeline tasks above; checked scope does not imply implemented behavior.
 - [x] Step 1: define supported rules, examples, boundaries, and deferrals
   (2026-11-16; documentation only).
 - [x] Step 2: make formatting-context and inline collapse eligibility explicit
-  (2026-11-16). Core distinguishes supplied root/inline-block boundaries from
+  (2026-11-16). Core distinguishes supplied root/flow-root/inline-block boundaries from
   ordinary FCBlock containers; inline permission defaults conservatively and
   contradictory height/atomic declarations fail. Eligibility, nested barriers,
   collapsed stacking, and input preservation are covered by core tests. Actual

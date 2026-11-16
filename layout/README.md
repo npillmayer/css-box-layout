@@ -12,6 +12,7 @@ This package implements the core CSS box layout pipeline. It defines the layout 
 - `box.go`: core layout types (LayoutNode, BoxKind, geometry, edges).
 - `boxid.go`: deterministic BoxID generation.
 - `build_style.go`: typed style validation, snapshots, and anonymous inheritance.
+- `display.go`: typed display values, validation, and supported display profile.
 - `flow.go`: Pass 1 helpers (flow items, normalizeBlockChildren, split+hoist).
 - `layout.go`: public entry points for layout passes.
 - `interfaces.go`: interfaces for inline layout and intrinsic measurement.
@@ -31,7 +32,9 @@ Minimal build of the layout tree (structural pass only):
 root := &layout.RenderNode{
 	ID: 1,
 	HTML: &html.Node{Type: html.ElementNode, Data: "div"},
-	Styles: map[string]string{"display": "block"},
+	Display: layout.Display{
+		Kind: layout.DisplayBox, Outer: layout.OuterBlock, Inner: layout.InnerFlow,
+	},
 }
 
 tree, err := layout.BuildLayoutTree(root, layout.BuildOptions{})
@@ -68,8 +71,57 @@ _ = res
 
 ## Supplying styles and text sources
 
-The builder reads display from RenderNode.Styles and box values from the typed
-RenderNode.Style field. It does not parse CSS lengths. For example:
+The builder reads typed display from `RenderNode.Display` and box values from
+`RenderNode.Style`. It does not parse CSS syntax or apply cascade/defaults.
+Elements require an explicit display; text nodes leave it zero. Supported values:
+
+| Kind | Outer | Inner | Result |
+| --- | --- | --- | --- |
+| DisplayBox | OuterBlock | InnerFlow | Ordinary block |
+| DisplayBox | OuterBlock | InnerFlowRoot | Block with an independent block formatting context |
+| DisplayBox | OuterInline | InnerFlow | Ordinary inline |
+| DisplayBox | OuterInline | InnerFlowRoot | Atomic inline-block |
+| DisplayNone | OuterNone | InnerNone | Omit subtree |
+
+`Display.Validate()` checks structure. All four outer/inner pairs are supported
+for non-replaced elements. Flex/grid/table/ruby/list-item/contents are outside
+this core input subset; adapters must reject them before projection. `InnerFlow` does not choose
+between inline and block children; normalization still makes that decision.
+
+`BuildLayoutTree` requires a non-replaced element root with block flow or block
+flow-root display. Nil input or an element with `DisplayNone` returns `(nil, nil)`. Inline,
+inline-block, replaced, text, missing-HTML and other non-element roots return
+`ErrInvalidRoot`; no root is silently blockified. The supplied root keeps its
+existing containment behavior. Filter non-element/non-text descendants in the
+adapter. Suppression skips descendant and box-style validation, but the hidden
+element's own display input must be valid.
+
+`Styles["display"]` is rejected with `ErrInvalidDisplay`, even when empty or
+accompanied by typed display. Missing or malformed element display is also an
+error. `Styles` remains available for adapter metadata and invalid-string diagnostics;
+known box-value strings still fail validation. Errors carry the source NodeID
+and can be classified with `errors.Is`.
+
+Display migration is complete across w3c-dom, CSS core and tytui. Tytui uses
+GetDisplay and typed RenderNode.Display. The unused string accessor and tree-view
+interface are removed; legacy display strings remain explicitly rejected.
+
+`LayoutNode.EstablishesBFC` records the independent block formatting context for
+non-replaced block/inline flow-root containers. Block flow-root stays `BoxBlock`
+with normal block widths and outer flow; it is not an atomic inline item.
+`FCBlock` continues to describe internal layout, and ordinary/anonymous blocks
+do not inherit the new flag. Supplied-root containment remains separate.
+
+Flow-root contains its children's margins, including collapsed empty-child
+chains, and cannot collapse its own top/bottom margins through itself, even at
+zero height. Its own margins can still collapse with adjacent blocks and with
+an eligible ordinary parent; sibling collapse inside it also remains active.
+See [CSS Display](https://www.w3.org/TR/css-display-3/#valdef-display-flow-root)
+and [CSS 2.2 margin rules](https://www.w3.org/TR/CSS22/box.html#collapsing-margins).
+This implements containment for the current in-flow subset; floats, clearance,
+positioning, and explicit/min/max heights remain outside the profile.
+
+For example, to supply box lengths:
 
 ```go
 style := layout.DefaultComputedStyle()
@@ -124,8 +176,8 @@ with positive height or atomics, then checks owner edges and containment itself.
 An empty structural group alone is not sufficient: adapters may reserve space.
 Existing keyed result literals remain conservative; consuming adapters must
 explicitly opt in for eligible empty output. Core collapses sibling and eligible
-parent/child margins, including through empty blocks; root and inline-block
-boundaries contain descendant margins. Atomic dimensions include collapsed
+parent/child margins, including through empty blocks; supplied root, flow-root
+and inline-block boundaries contain descendant margins. Atomic dimensions include collapsed
 internal layout. Existing adapters without permission still prevent collapsing
 through their inline groups.
 

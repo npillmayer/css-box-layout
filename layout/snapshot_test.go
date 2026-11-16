@@ -36,9 +36,9 @@ func copyTestGeometry(g LayoutGeometryTable) LayoutGeometryTable {
 
 func snapshotFixture(t *testing.T) *LayoutNode {
 	t.Helper()
-	note := newRenderElement(3, "block", newRenderText(4, "inside"))
+	note := newRenderElement(3, blockDisplay, newRenderText(4, "inside"))
 	note.Style = &ComputedStyle{Width: lenPct(.5)}
-	root, err := BuildLayoutTree(newRenderElement(1, "block", newRenderText(2, "before"), note, newRenderText(5, "after")), BuildOptions{})
+	root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, newRenderText(2, "before"), note, newRenderText(5, "after")), BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

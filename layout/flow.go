@@ -51,12 +51,13 @@ func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxI
 	}
 	setAnonymousStyles(children, style.FontSizePx)
 	return &LayoutNode{
-		Style:    style,
-		BoxID:    boxID,
-		NodeID:   r.ID,
-		Box:      box,
-		FC:       FCBlock,
-		Children: children,
+		Style:          style,
+		BoxID:          boxID,
+		NodeID:         r.ID,
+		Box:            box,
+		FC:             FCBlock,
+		EstablishesBFC: r.Display.Inner == InnerFlowRoot,
+		Children:       children,
 	}, nil
 }
 
@@ -70,8 +71,11 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 		return nil, nil
 	}
 
-	display := r.ComputedStyle("display")
-	if display == "none" {
+	if err := validateRenderDisplay(r); err != nil {
+		return nil, err
+	}
+	display := r.Display
+	if display.Kind == DisplayNone {
 		return nil, nil
 	}
 
@@ -93,19 +97,15 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 		return []FlowItem{InlineItem(text)}, nil
 	}
 
-	if display == "" {
-		display = "inline"
-	}
-
 	if r.Replaced != nil {
-		if (display != "inline" && display != "inline-block") || len(r.Children()) != 0 || style.Width.Kind != LenPx || !finite(style.Width.Value) || style.Width.Value < 0 || !finite(r.Replaced.Height) || r.Replaced.Height < 0 {
+		if display.Outer != OuterInline || len(r.Children()) != 0 || style.Width.Kind != LenPx || !finite(style.Width.Value) || style.Width.Value < 0 || !finite(r.Replaced.Height) || r.Replaced.Height < 0 {
 			return nil, fmt.Errorf("node %d: replaced leaf requires inline display, no children and finite nonnegative fixed dimensions", r.ID)
 		}
 		size := *r.Replaced
 		return []FlowItem{InlineItem(&LayoutNode{BoxID: gen.newChild(parentBoxID), NodeID: r.ID, Box: BoxInlineBlock, Style: style, Replaced: &size})}, nil
 	}
 	switch display {
-	case "inline":
+	case Display{Kind: DisplayBox, Outer: OuterInline, Inner: InnerFlow}:
 		flow := make([]FlowItem, 0, len(r.Children()))
 		for _, child := range r.Children() {
 			items, err := buildInlineFlowWithFont(gen, child, parentBoxID, style.FontSizePx)
@@ -127,14 +127,15 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 			FC:       FCInline,
 			Children: inlineChildren(flow),
 		})}, nil
-	case "inline-block":
+	case Display{Kind: DisplayBox, Outer: OuterInline, Inner: InnerFlowRoot}:
 		boxID := gen.newChild(parentBoxID)
 		node, err := buildBlockContainerWithFont(gen, r, BoxInlineBlock, boxID, inheritedFont)
 		if err != nil {
 			return nil, err
 		}
 		return []FlowItem{InlineItem(node)}, nil
-	case "block":
+	case Display{Kind: DisplayBox, Outer: OuterBlock, Inner: InnerFlow},
+		Display{Kind: DisplayBox, Outer: OuterBlock, Inner: InnerFlowRoot}:
 		boxID := gen.newChild(parentBoxID)
 		node, err := buildBlockContainerWithFont(gen, r, BoxBlock, boxID, inheritedFont)
 		if err != nil {
@@ -142,7 +143,7 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 		}
 		return []FlowItem{BlockItem(node)}, nil
 	default:
-		return nil, errNotImplemented
+		return nil, fmt.Errorf("node %d: %w: %s", r.ID, ErrUnsupportedDisplay, display)
 	}
 }
 

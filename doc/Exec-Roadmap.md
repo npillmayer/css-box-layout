@@ -172,6 +172,20 @@ across passes. Existing tests do not establish full pipeline correctness.
 
 ## 5) Complete Pass 1: BuildLayoutTree
 
+Display migration stages 3/4 (2026-11-16): typed `RenderNode.Display` replaces
+string display input. All four block/inline, flow/flow-root combinations and
+subtree suppression are supported. The entry point validates a non-replaced
+block flow or block flow-root root instead of forcing BoxBlock; nil/display:none
+produce no tree. `LayoutNode.EstablishesBFC` records independent flow-root
+interiors separately from FCBlock and outer participation. It contains child
+margins and blocks through-collapse without preventing a block flow-root's own
+outer margins from collapsing. Ordinary/anonymous blocks do not inherit it;
+supplied-root and inline-block behavior is retained. Numeric tests cover signed
+margins, empty chains, parent/sibling adjacency, normal block sizing and nested
+fixed/auto atomics. Core fixtures and tytui use typed display; tytui resolves normalized values
+through w3c-dom GetDisplay. Unused string accessor/tree-view APIs are removed. Previous integration evidence below
+predates this input-contract change. Floats/clearance remain outside the profile.
+
 Status: anonymous wrapping and split/hoist logic are implemented with basic
 tests. Mixed-run slice ownership and empty normalization are fixed. BoxIDs now
 have collision protection and regression coverage for uniqueness and stability.

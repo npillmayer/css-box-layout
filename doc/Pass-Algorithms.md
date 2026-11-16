@@ -21,29 +21,39 @@ criteria are in `doc/Current-Checklist.md`.
 
 ## Pass 1: BuildLayoutTree
 
-The root sketch assumes a block render root. The public entry point currently
-forces BoxBlock; general root display handling remains unspecified.
+The entry point validates typed display and the supplied root. It never applies
+implicit defaults or viewport blockification. Block flow-root stays a normal
+outer block and records independent interior containment in EstablishesBFC.
 
 ```text
 BuildLayoutTree(root):
   if root is nil: return nil
+  require root is an element
+  validate typed display; reject legacy string input
+  if display(root) == none: return nil
+  require non-replaced block flow or block flow-root root
   return buildBlockContainer(root, BoxBlock)
 
 buildBlockContainer(node, kind):
   flows = concatenate(buildFlow(child) for child in node.Children())
+  establishesBFC = (display(node).inner == flow-root)
   return box(kind, sourceIdentity(node), computedStyle(node),
-             normalizeBlockChildren(flows))
+             normalizeBlockChildren(flows), establishesBFC)
 
 buildFlow(node):
-  if node is nil or display(node) == none: return []
+  if node is nil: return []
+  require element or text; validate typed display (zero for text)
+  reject legacy string input
+  if display(node) == none: return []
   if node is text:
     if textRange(node) is empty: return []
     return [FlowInline(textBox(node))]
-  if display(node) == inline-block:
+  if node is replaced: validate fixed dimensions/inline outer; return atomic leaf
+  if display(node) == inline flow-root:
     return [FlowInline(buildBlockContainer(node, BoxInlineBlock))]
-  if display(node) == block:
+  if display(node) == block flow or block flow-root:
     return [FlowBlock(buildBlockContainer(node, BoxBlock))]
-  if display(node) == inline:
+  if display(node) == inline flow:
     flows = concatenate(buildFlow(child) for child in node.Children())
     return wrapInlineRunsForElement(node, flows)
   return unsupported-display error
@@ -78,6 +88,18 @@ from the outer B3 purity traversal and validated as their own block containers.
 | Nested inline containing block | Split fragments and hoisted block flow |
 | Inline-block with internal blocks | Atomic outer inline; normalized inner container |
 | Text leaf | Non-empty range, no children |
+| Nil / display:none root | No tree, no error |
+| Inline / replaced / text / non-element root | Explicit root error, no tree |
+| Missing / malformed / legacy string display | Input error, no partial tree |
+| Block flow-root, root or descendant | Normal outer block with independent interior containment |
+| Suppressed subtree with invalid contents | Contents skipped before validation |
+
+FlowLayout uses EstablishesBFC as a child-edge and through-collapse boundary,
+alongside supplied-root and inline-block containment. Its margin summary retains
+only the container's own leading/trailing margins. Parent/sibling placement
+continues to merge those outside margins normally for a block-level flow-root.
+Internal sibling collapse and ordinary parent/child collapse below the boundary
+remain active; empty flow-roots separate leading and trailing groups.
 | Styles and identity | Preserved source style/NodeID, unique BoxIDs |
 
 ## Pass 2: ResolveUsedValues
