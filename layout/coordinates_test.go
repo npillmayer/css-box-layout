@@ -56,14 +56,14 @@ func TestFlowLayout_NestedContentRelativeCoordinates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Independently calculated: middle content height is 6+17+4+5+12+2=46;
-	// root content height is 11+57+13+8+23+10=122. Margins do not collapse.
+	// Independently calculated: middle content height is 6+17+max(4,5)+12+2=42;
+	// root content height is 11+53+max(13,8)+23+10=110.
 	want := map[NodeID]LayoutGeometry{
-		1: {Frame: Rect{W: 330, H: 155}, Content: Rect{X: 15, Y: 22, W: 300, H: 122}},
-		2: {Frame: Rect{X: 7, Y: 11, W: 193, H: 57}, Content: Rect{X: 12, Y: 16, W: 180, H: 46}},
+		1: {Frame: Rect{W: 330, H: 143}, Content: Rect{X: 15, Y: 22, W: 300, H: 110}},
+		2: {Frame: Rect{X: 7, Y: 11, W: 193, H: 53}, Content: Rect{X: 12, Y: 16, W: 180, H: 42}},
 		3: {Frame: Rect{X: 2, Y: 6, W: 86, H: 17}, Content: Rect{X: 6, Y: 9, W: 80, H: 10}},
-		4: {Frame: Rect{X: -3, Y: 32, W: 90, H: 12}, Content: Rect{X: -3, Y: 32, W: 90, H: 12}},
-		5: {Frame: Rect{X: 9, Y: 89, W: 102, H: 23}, Content: Rect{X: 11, Y: 90, W: 100, H: 20}},
+		4: {Frame: Rect{X: -3, Y: 28, W: 90, H: 12}, Content: Rect{X: -3, Y: 28, W: 90, H: 12}},
+		5: {Frame: Rect{X: 9, Y: 77, W: 102, H: 23}, Content: Rect{X: 11, Y: 78, W: 100, H: 20}},
 	}
 	for id, expected := range want {
 		n := bySource[id]

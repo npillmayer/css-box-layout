@@ -7,12 +7,14 @@ including zero remain supported; percent/em widths on atomic boxes remain reject
 Percentage dependencies on unknown auto widths fail explicitly; definite bases
 remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
 Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
-Real tytui/P integration, full baseline behavior and speculative trials remain open.
+Bounded tytui/P integration and margin collapsing are verified; see
+[the current evidence](#7-bounded-integration-evidence). Full baseline behavior
+and speculative trials remain open.
 
 
 Assessment and implementation plan, 2026-11-12. Extent-only boundary now implemented
-in the core; M3/M4 core verification updated 2026-11-13. Actual tytui integration
-remains outstanding.
+in the core; M3/M4 core verification updated 2026-11-13. The assessment and unchecked milestones below are historical; current actual
+integration evidence is recorded in section 7.
 
 This document evaluates the collaboration proposed in tytui's
 [three document-layout views](../../tytui/doc/DOCUMENT_LAYOUT_VIEWS.md), especially
@@ -461,3 +463,36 @@ For implementation work, add owning-package regressions and affected integration
 tests. Run `go test ./...`; use build/vet/race checks where changes to integration
 or shared result ownership justify them. Mark milestones complete only when their
 boundary is exercised, not merely because an isolated package works.
+
+## 7. Bounded integration evidence
+
+Margin-collapse integration verified 2026-11-16 using the current local
+css-box-layout, tytui, typography and khipu dependency wiring. This verification
+uses working trees, including pre-existing tytui changes; repository HEADs alone
+do not reproduce the tested state. The historical experiment above describes
+its original gates, not the current completion status.
+
+Tytui `documentlayout.inlineSummary` now supplies `AllowsMarginCollapse` from
+retained line/extent/atomic evidence. The paragraph engine intentionally reserves
+a normal line-height strut for empty input; the adapter does not erase that
+space or mislabel those results as collapsible. Line-free, zero-height, atom-free
+results can grant permission. Typography/khipu APIs and behavior are unchanged.
+
+Integration evidence in tytui:
+
+- `margin_collapse_test.go`: both FirstFit and Knuth–Plass; signed sibling gaps,
+  reserved empty-line chains, parent/child collapse, auto inline-block containment,
+  resize/replay, real OpenType glyph proofs and frozen SVG snapshot stability.
+- `margin_permission_test.go`: explicit permission for genuinely line-free
+  output and rejection of missing atomic placement coverage.
+- Existing document/paragraph, empty-strut, font lifetime, TUI and replay controls
+  pass unchanged. The migration preserves unrelated adapter tracing edits.
+
+Validation: full ordinary and race suites, build and vet in css-box-layout and
+tytui. Tytui was first verified with a Go overlay, then the tested files were
+applied and document-layout tests rerun against the actual checkout.
+Real-font checks use the existing Gentium Plus and Noto Hebrew fixtures; no
+new font resources or test-output baselines were introduced.
+
+The [roadmap review map](Exec-Roadmap.md#margin-collapse-review-groups) groups
+contracts/summaries, placement/geometry, and adapter/docs for review.

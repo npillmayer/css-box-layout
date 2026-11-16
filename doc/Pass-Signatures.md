@@ -144,6 +144,7 @@ type AtomicPlacement struct {
 type InlineResult struct {
     Extent InlineExtent
     Atomics []AtomicPlacement
+    AllowsMarginCollapse bool
 }
 type InlineLayouter interface {
     LayoutInline(InlineRequest) (InlineResult, error)
@@ -163,6 +164,14 @@ zero-sized items. Unknown, foreign, duplicate or missing IDs and non-finite
 coordinates fail with nil LayoutResult. Negative coordinates are valid. Core
 validates the entire placement answer before applying it and retains no slice
 alias. Paragraph errors remain wrapped with group/owner identity.
+
+AllowsMarginCollapse defaults to false. True certifies no separating line boxes
+under CSS empty-line rules and requires zero H and no atomic items. The core
+rejects contradictory declarations, then combines permission with owner edges
+and explicit root/inline-block containment. This eligibility contract is
+implemented and used by collapsed placement. The tytui adapter grants permission
+only for line-free zero-height output without atomics; its existing reserved
+empty-paragraph strut remains a separator.
 
 Placement X/Y is the border-box origin relative to request.OwnerID content, after
 margin/alignment effects. Core adds no further margin, preserves dimensions, and

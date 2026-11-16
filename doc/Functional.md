@@ -47,7 +47,7 @@ Avoid "fat mutable nodes" that mix structure with frequently changing derived da
 ## 4) Memoization readiness (not now, design for it)
 
 - Only memoize pure functions with complete input keys.
-- Include policy/version toggles for unfinished semantics (margin collapsing, line-height policy, bidi).
+- Include policy/version toggles for unfinished semantics (line-height policy, outer bidi).
 - Key choices: stable IDs + explicit context, or hashes of immutable inputs.
 - Explicit invalidation strategy (generation counters or content hashes).
 

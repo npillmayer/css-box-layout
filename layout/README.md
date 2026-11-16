@@ -117,6 +117,18 @@ including margins/alignment. Negative positions are valid. Core rejects invalid
 identity coverage or dimensions and applies validated placements without keeping
 slice aliases. Extent-only adapters return `InlineResult{Extent: extent}`.
 
+`InlineResult.AllowsMarginCollapse` defaults to false, including at zero extent.
+Set it true only when the paragraph has no separating line boxes (applying CSS
+empty-line rules), no atomic items, and no consumed height. Core rejects true
+with positive height or atomics, then checks owner edges and containment itself.
+An empty structural group alone is not sufficient: adapters may reserve space.
+Existing keyed result literals remain conservative; consuming adapters must
+explicitly opt in for eligible empty output. Core collapses sibling and eligible
+parent/child margins, including through empty blocks; root and inline-block
+boundaries contain descendant margins. Atomic dimensions include collapsed
+internal layout. Existing adapters without permission still prevent collapsing
+through their inline groups.
+
 LayoutGeometry.RelativeTo explicitly identifies the content-coordinate parent
 (root=0). Compose that chain once; do not reapply retained whatsit positions.
 Fixed pixel atomic widths (including zero) and auto widths are supported. Percent

@@ -62,7 +62,7 @@ type emptyInlineRecorder struct {
 func (r *emptyInlineRecorder) LayoutInline(req InlineRequest) (InlineResult, error) {
 	r.calls++
 	r.root, r.width = req.Group, req.ContentWidth
-	return InlineResult{}, nil
+	return InlineResult{AllowsMarginCollapse: true}, nil
 }
 
 func TestFlowLayout_BuiltEmptyRoot(t *testing.T) {

@@ -304,6 +304,47 @@ bounded alignment policy; full baseline behavior remains separate work.
   complete document result. Separate tytui stage 5C/5D tests prove real wiring;
   shared resolvers/prepared owners still require serialized operations.
 
+## Margin-collapse implementation
+
+Accepted scope: [core contract](CSS-Algo-Overview.md#margin-collapse-contract).
+This sequence tracks the margin-collapse plan separately from the numbered
+pipeline tasks above; checked scope does not imply implemented behavior.
+
+- [x] Step 1: define supported rules, examples, boundaries, and deferrals
+  (2026-11-16; documentation only).
+- [x] Step 2: make formatting-context and inline collapse eligibility explicit
+  (2026-11-16). Core distinguishes supplied root/inline-block boundaries from
+  ordinary FCBlock containers; inline permission defaults conservatively and
+  contradictory height/atomic declarations fail. Eligibility, nested barriers,
+  collapsed stacking, and input preservation are covered by core tests. Actual
+  consuming-adapter migration is verified under step 6.
+- [x] Step 3: add immutable adjoining-margin summaries (2026-11-16). Pure strut
+  operations retain signed extrema; recursive summaries include leading/trailing
+  groups, eligibility, and completed border dimensions used by atomic preparation.
+  Tests cover merge grouping/order, nested through chains, internal-gap isolation,
+  containment/edge barriers, unchanged inputs, and repeatability.
+- [x] Step 4: replace additive stacking with deferred placement and correct
+  content-height accounting (2026-11-16). Pending groups, through-box origins,
+  edge containment, nonnegative heights, and coordinate overflow are implemented.
+  Focused geometry tests and updated existing expectations pass; atomic sizing
+  consumes collapsed dimensions without repeated inline callbacks.
+- [x] Step 5: broaden the geometry regression audit (2026-11-16).
+  `layout/margin_regression_test.go` covers anonymous inline-run owners with
+  ignorable, zero-height separating, and reserved-space output; resolved
+  auto/percent/em margins across resize; late intrinsic width selection; all
+  open/padding/border parent edge combinations; and late failure followed by
+  concurrent replay. Assertions include positions, parent heights, callback
+  order/counts, coordinate ownership, input preservation, and retained snapshots.
+  Step 4 covers empty-box origins and updated stacking expectations;
+  `margin_summary_test.go` covers strut algebra and recursive groups. No runtime
+  changes were needed for this audit. Ordinary/race suites, build, and vet pass.
+- [x] Step 6: consuming adapter migrated and cross-module checks verified
+  (2026-11-16). Tytui grants permission only for line-free, zero-height, atom-free
+  results. Its existing empty-paragraph strut remains a separator. Both breakers,
+  synthetic/real fonts, auto atomic interiors, resize/replay and retained SVG
+  proofs are covered. See [integration evidence](Document-Layout-Integration.md#7-bounded-integration-evidence)
+  and the [three review groups](Exec-Roadmap.md#margin-collapse-review-groups).
+
 ## Validation checklist
 
 Checked entries have owning/integration evidence; unchecked broad invariant
@@ -330,7 +371,11 @@ targets remain open. Bounded pipeline completion does not check them implicitly.
 - [x] Repeated layout preserves input immutability and identity, including
   resize, failure, atomic callbacks, and concurrent read-only runs (core tests).
 
-Margin collapsing, floats/positioning, fine inline metrics/fragments, outer RTL,
+Margin-collapse core placement is implemented under the accepted scope above;
+the bounded core regression audit and consuming-adapter integration are complete.
+The adapter retains its empty-paragraph strut policy; CSS empty-line suppression
+is outside this integration slice.
+Floats/positioning, fine inline metrics/fragments, outer RTL,
 vertical writing modes, selection/caret DOM mapping, adjacent text merging, and global caching
 remain deferred as described in the core contract.
 

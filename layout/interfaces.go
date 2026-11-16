@@ -82,6 +82,13 @@ type AtomicPlacement struct {
 type InlineResult struct {
 	Extent  InlineExtent
 	Atomics []AtomicPlacement
+	// AllowsMarginCollapse certifies that this group has no line boxes that
+	// separate adjoining margins. Empty lines may be ignored only under the
+	// CSS empty-line rules; zero height by itself does not establish this.
+	// False is the conservative default, even for a zero extent. True requires
+	// zero Extent.H and no atomic items; positive reserved space prevents collapse.
+	// Core still checks the owner's edges and formatting-context boundary.
+	AllowsMarginCollapse bool
 }
 
 // IntrinsicWidths are finite CSS-pixel content bounds with 0 <= Min <= Max.

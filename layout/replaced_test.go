@@ -26,7 +26,7 @@ func TestExplicitReplacedLeaf(t *testing.T) {
 			t.Fatal(err)
 		}
 		geom := LayoutGeometryTable{}
-		if err := layoutBlockContainer(leaf, used, geom, nil, nil); err != nil {
+		if _, err := layoutBlockContainer(leaf, used, geom, nil, nil, false); err != nil {
 			t.Fatal(err)
 		}
 		if geom[leaf.BoxID].Frame.W != 34 || geom[leaf.BoxID].Frame.H != height {

@@ -27,10 +27,10 @@ Phase B: ResolveUsedValues
 - Keep unresolved auto inline-block width distinct from explicit zero.
 
 Phase C: FlowLayout
-- Block stacking and inline delegation, with resolved edges.
+- Block stacking with collapsed margins and inline delegation, with resolved edges.
+  Carry adjoining groups through empty blocks; only consume contained groups.
 
 Later refinements (interface compatibility must be evaluated when designed):
-- Margin collapsing
 - More accurate inline metrics
 - Caching/memoization
 

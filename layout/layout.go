@@ -58,7 +58,7 @@ func FlowLayout(
 	}
 	used = resolved
 	geom := make(LayoutGeometryTable)
-	err = layoutBlockContainer(root, used, geom, inline, intrinsic)
+	_, err = layoutBlockContainer(root, used, geom, inline, intrinsic, true)
 	if err != nil {
 		return nil, err
 	}
@@ -94,9 +94,10 @@ func layoutBlockContainer(
 	geom LayoutGeometryTable,
 	inline InlineLayouter,
 	intrinsic IntrinsicMeasurer,
-) error {
+	isRoot bool,
+) (blockMarginSummary, error) {
 	if node == nil {
-		return nil
+		return blockMarginSummary{}, nil
 	}
 	u := used[node.BoxID]
 	content := Rect{
@@ -110,16 +111,18 @@ func layoutBlockContainer(
 		W: u.ContentWidth + u.Padding.Left + u.Padding.Right + u.Border.Left + u.Border.Right,
 	}
 
+	var contentThrough bool
+	var childMargins childMarginSummary
 	if node.Replaced != nil {
 		content.H = node.Replaced.Height
 	} else if isInlineOnlyBlockContainer(node) {
 		if inline == nil {
-			return fmt.Errorf("box %d: inline layouter required", node.BoxID)
+			return blockMarginSummary{}, fmt.Errorf("box %d: inline layouter required", node.BoxID)
 		}
 		inlineRoot := node.Children[0]
 		items, err := prepareAtomics(inlineRoot, used, geom, inline, intrinsic)
 		if err != nil {
-			return err
+			return blockMarginSummary{}, err
 		}
 		result, err := inline.LayoutInline(InlineRequest{
 			Group: inlineRoot, OwnerID: node.BoxID, ContentWidth: content.W,
@@ -127,61 +130,106 @@ func layoutBlockContainer(
 			Atomics: preparedAtomicsView{items: items},
 		})
 		if err != nil {
-			return fmt.Errorf("inline group %d (owner %d): %w", inlineRoot.BoxID, node.BoxID, err)
+			return blockMarginSummary{}, fmt.Errorf("inline group %d (owner %d): %w", inlineRoot.BoxID, node.BoxID, err)
 		}
 		extent := result.Extent
 		if !finite(extent.W) || !finite(extent.H) || extent.W < 0 || extent.H < 0 {
-			return fmt.Errorf("inline group %d: invalid layout extent %+v", inlineRoot.BoxID, extent)
+			return blockMarginSummary{}, fmt.Errorf("inline group %d: invalid layout extent %+v", inlineRoot.BoxID, extent)
+		}
+		if result.AllowsMarginCollapse && (extent.H != 0 || len(items) != 0 || len(result.Atomics) != 0) {
+			return blockMarginSummary{}, fmt.Errorf("inline group %d: margin collapse requires zero height and no atomics", inlineRoot.BoxID)
 		}
 		if err := placeAtomics(result.Atomics, items, node.BoxID, geom); err != nil {
-			return fmt.Errorf("inline group %d: %w", inlineRoot.BoxID, err)
+			return blockMarginSummary{}, fmt.Errorf("inline group %d: %w", inlineRoot.BoxID, err)
 		}
 		content.H = extent.H
+		contentThrough = result.AllowsMarginCollapse
 	} else {
-		h, err := layoutBlockChildrenVertical(node.BoxID, node.Children, used, geom, inline, intrinsic)
+		h, margins, err := layoutBlockChildrenVertical(node, used, geom, inline, intrinsic, isRoot)
 		if err != nil {
-			return err
+			return blockMarginSummary{}, err
 		}
 		content.H = h
+		childMargins = margins
+		contentThrough = margins.Through
 	}
 
 	frame.H = content.H + u.Padding.Top + u.Padding.Bottom + u.Border.Top + u.Border.Bottom
 
 	if !finite(frame.W) || !finite(frame.H) {
-		return fmt.Errorf("box %d: non-finite layout dimensions", node.BoxID)
+		return blockMarginSummary{}, fmt.Errorf("box %d: non-finite layout dimensions", node.BoxID)
 	}
 	geom[node.BoxID] = LayoutGeometry{Frame: frame, Content: content}
-	return nil
+	eligibility := blockCollapseEligibility(node, u, isRoot, contentThrough)
+	return summarizeBlockMargins(u, eligibility, childMargins, frame), nil
 }
 
+// Defer each adjoining group until a non-through child or the owner boundary.
+// Empty boxes get their own CSS hypothetical-border origin; they never advance
+// the flow cursor. Children retain coordinates relative to this owner's content.
 func layoutBlockChildrenVertical(
-	owner BoxID,
-	children []*LayoutNode,
+	owner *LayoutNode,
 	used UsedValuesTable,
 	geom LayoutGeometryTable,
 	inline InlineLayouter,
 	intrinsic IntrinsicMeasurer,
-) (contentHeight float32, err error) {
-	var y float32
-	for _, child := range children {
+	isRoot bool,
+) (contentHeight float32, margins childMarginSummary, err error) {
+	edges := blockCollapseEligibility(owner, used[owner.BoxID], isRoot, false)
+	var y float64
+	var pending marginStrut
+	atTop := true
+	margins.Through = true
+	for _, child := range owner.Children {
 		if child == nil {
 			continue
 		}
-		cu := used[child.BoxID]
-		y += cu.Margin.Top
-		err := layoutBlockContainer(child, used, geom, inline, intrinsic)
+		summary, err := layoutBlockContainer(child, used, geom, inline, intrinsic, false)
 		if err != nil {
-			return 0, err
+			return 0, childMarginSummary{}, err
 		}
-		childGeom := geom[child.BoxID]
-		childGeom.RelativeTo = owner
-		// Child geometry is relative to the parent content origin, not its border box.
-		childGeom.Frame.X = cu.Margin.Left
-		childGeom.Frame.Y = y
-		childGeom.Content.X += childGeom.Frame.X
-		childGeom.Content.Y += childGeom.Frame.Y
-		geom[child.BoxID] = childGeom
-		y += childGeom.Frame.H + cu.Margin.Bottom
+		margins = margins.append(summary)
+		var childY float64
+		if summary.Through {
+			if !(atTop && edges.TopWithChildren) {
+				childY = y + float64(pending.merge(summary.BeforeBottom).value())
+			}
+			pending = pending.merge(summary.Leading)
+		} else {
+			pending = pending.merge(summary.Leading)
+			if !(atTop && edges.TopWithChildren) {
+				childY = y + float64(pending.value())
+			}
+			y = childY + float64(summary.BorderHeight)
+			pending = summary.Trailing
+			atTop = false
+		}
+		if err := placeBlockChild(child.BoxID, owner.BoxID, used[child.BoxID].Margin.Left, childY, geom); err != nil {
+			return 0, childMarginSummary{}, err
+		}
 	}
-	return y, nil
+	// The trailing group is outside an open bottom boundary. If every child
+	// collapses through an open top, that same group has already escaped there.
+	if !edges.BottomWithChildren && !(atTop && edges.TopWithChildren) {
+		y += float64(pending.value())
+	}
+	height := float32(max(0, y))
+	if !finite(height) {
+		return 0, childMarginSummary{}, fmt.Errorf("box %d: content height overflow", owner.BoxID)
+	}
+	return height, margins, nil
+}
+
+func placeBlockChild(id, owner BoxID, x float32, y float64, geom LayoutGeometryTable) error {
+	g := geom[id]
+	contentX := float32(float64(g.Content.X) + float64(x) - float64(g.Frame.X))
+	contentY := float32(float64(g.Content.Y) + y - float64(g.Frame.Y))
+	if !finite(x) || !finite(float32(y)) || !finite(contentX) || !finite(contentY) {
+		return fmt.Errorf("box %d: block coordinate overflow", id)
+	}
+	g.RelativeTo = owner
+	g.Frame.X, g.Frame.Y = x, float32(y)
+	g.Content.X, g.Content.Y = contentX, contentY
+	geom[id] = g
+	return nil
 }

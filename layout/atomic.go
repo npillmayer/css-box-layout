@@ -36,11 +36,11 @@ func prepareAtomics(group *LayoutNode, used UsedValuesTable, geom LayoutGeometry
 			if _, exists := items[n.BoxID]; exists {
 				return fmt.Errorf("duplicate atomic box %d", n.BoxID)
 			}
-			if err := layoutBlockContainer(n, used, geom, inline, intrinsic); err != nil {
+			summary, err := layoutBlockContainer(n, used, geom, inline, intrinsic, false)
+			if err != nil {
 				return err
 			}
-			g := geom[n.BoxID]
-			items[n.BoxID] = PreparedAtomic{BoxID: n.BoxID, BorderWidth: g.Frame.W, BorderHeight: g.Frame.H}
+			items[n.BoxID] = PreparedAtomic{BoxID: n.BoxID, BorderWidth: summary.BorderWidth, BorderHeight: summary.BorderHeight}
 			return nil // Its interior belongs to independent groups.
 		case BoxInline, BoxAnonymousInline, BoxText:
 		default:

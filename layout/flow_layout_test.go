@@ -57,16 +57,16 @@ func TestFlowLayout_BlockStacking(t *testing.T) {
 	}
 
 	c2Geom := res.Geometry[c2.BoxID]
-	if c2Geom.Frame.Y != 22 {
-		t.Fatalf("child2 Frame.Y = %v, want 22", c2Geom.Frame.Y)
+	if c2Geom.Frame.Y != 10 {
+		t.Fatalf("child2 Frame.Y = %v, want 10", c2Geom.Frame.Y)
 	}
 	if c2Geom.Frame.X != 2 {
 		t.Fatalf("child2 Frame.X = %v, want 2", c2Geom.Frame.X)
 	}
 
 	rootGeom := res.Geometry[root.BoxID]
-	if rootGeom.Content.H != 26 {
-		t.Fatalf("root Content.H = %v, want 26", rootGeom.Content.H)
+	if rootGeom.Content.H != 10 {
+		t.Fatalf("root Content.H = %v, want 10", rootGeom.Content.H)
 	}
 }
 

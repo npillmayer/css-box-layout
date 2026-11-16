@@ -89,10 +89,84 @@ Outputs:
 - Layout result `F` (structural root reference + authoritative box geometry).
 
 Responsibilities:
-- Block layout: vertical stacking, no margin collapsing yet.
+- Block layout: vertical stacking with margin collapsing for the supported
+  [normal-flow profile](#margin-collapse-contract).
 - Inline layout: delegate to inline layouter when inline-only.
 - Use the returned overall inline extent for content height. Line/glyph results
   are retained by the integration adapter, including for anonymous owners.
+
+<a id="margin-collapse-contract"></a>
+### Normal-flow margin collapsing
+
+Core eligibility, immutable summaries, and collapsed placement implemented
+2026-11-16, with consuming-adapter integration verified. This slice covers the existing
+normal/anonymous block model with auto height and zero minimum
+height. `ComputedStyle` does not yet carry height or min/max-height properties;
+these assumptions describe the supported input profile, not new style support.
+
+Rules for this slice, based on
+[CSS 2.2 section 8.3.1](https://www.w3.org/TR/CSS22/box.html#collapsing-margins):
+
+- Adjoining vertical margins of in-flow block-level boxes in the same block
+  formatting context collapse; horizontal margins do not.
+- Include sibling bottom/top, parent/first-child top, and last-child/auto-height
+  parent bottom margins, transitively across nested boxes.
+- Separating borders, padding, or non-ignorable line boxes prevent adjacency.
+  Check the relevant edge: a parent's bottom border does not block top collapse.
+  Sibling borders do not separate their outside bottom/top margins.
+- Eligible empty blocks collapse through: no vertical border/padding or
+  separating lines, no new block formatting context, and all in-flow children
+  (if present) also collapse through.
+- Root and inline-block margins do not collapse with their children or through
+  themselves. Eligible sibling blocks inside either container still collapse.
+- For an entire adjoining group, use `max(0, margins...) + min(0, margins...)`.
+  Keep both extrema until the group is complete; pairwise scalar reduction loses
+  information. Zero margins participate normally.
+
+Acceptance examples (CSS pixels):
+
+| Adjoining margins | Result |
+|---|---:|
+| 13, 8 | 13 |
+| 13, -8 | 5 |
+| -13, -8 | -13 |
+| 13, -8, 10 | 5 |
+| 0, 0 | 0 |
+
+Repository boundaries:
+
+- Apply collapsing during FlowLayout after final used-value resolution; preserve
+  the input margin values. Vertical auto margins already resolve to zero.
+- Treat the supplied layout root as the containment boundary and retain its
+  existing (0,0) origin. Viewport/body margin propagation is outside this slice.
+- Preserve anonymous wrappers and inline delegation, including empty groups.
+  `FCBlock` currently labels all block containers, not just formatting-context
+  roots. Internal eligibility now distinguishes those roles with an explicit
+  root argument. `InlineResult.AllowsMarginCollapse` supplies inline permission;
+  false is conservative even at zero extent. True requires zero height and no
+  atomic items, and certifies no separating line boxes. Neither an empty wrapper
+  nor zero extent alone establishes eligibility. Positive reserved paragraph
+  space remains consumed. Eligibility propagates through block children.
+- Recursive layout returns an invocation-local value summary: eligibility,
+  leading/trailing margin struts, and completed border dimensions. Each strut
+  preserves positive/negative extrema with pure merge/value operations. Leading
+  and trailing groups include adjoining empty-child chains and stop at separating
+  content; internal sibling groups do not escape. A through summary exposes the
+  same group at both ends, to be consumed once by future placement. Containment
+  boundaries retain their own margins without absorbing descendant groups.
+  UsedValues margins remain unchanged. Dimensions match completed collapsed
+  geometry and feed atomic preparation.
+- Placement carries a pending adjoining group until the next separating child.
+  Groups escaping through an open parent edge are excluded from content height;
+  contained groups are counted once. Through boxes do not advance the cursor.
+  Their own origins use a separate hypothetical-bottom-border leading strut,
+  unless they adjoin the parent top, where their border origins coincide.
+  Descendant-local coordinates and paragraph results are not translated or
+  recomputed. Negative margins may overlap boxes; content height is clamped to
+  zero and non-finite placement/dimensions fail without publishing a result.
+- Explicit heights, min/max heights, floats, clearance, positioning, additional
+  overflow/display modes, and vertical writing modes remain deferred. This
+  contract does not introduce their style fields, parsing, or layout semantics.
 
 ---
 
@@ -253,7 +327,10 @@ Intrinsic measurement (implemented bounded 2B/3B design):
 
 ## 6) Explicit deferrals (not yet)
 
-- Margin collapsing (margins preserved, not collapsed)
+- General CSS empty-line suppression in the consuming paragraph profile. The
+  adapter deliberately retains a line-height strut for empty paragraphs, which
+  prevents collapse-through. Core collapsing and bounded adapter integration
+  are complete under the [contract](#margin-collapse-contract).
 - Floats, positioning, z-index, stacking contexts
 - Full CSS intrinsic-sizing and cyclic-percentage semantics (bounded shrink-to-fit
   is implemented under 2B/3B; this supersedes the max-content-only deferral)

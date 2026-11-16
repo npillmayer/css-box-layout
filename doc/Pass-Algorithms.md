@@ -186,6 +186,17 @@ starts. Adapters translate prepared leaves without initiating layout. No explici
 TODO stack is required. Input trees/tables remain immutable. Auto sizing uses
 the measurement phase above; speculative trials remain deferred.
 
+Block stacking now returns immutable margin summaries as well as completed
+geometry. In source order, merge a child's leading strut into the pending group;
+through children keep the group open and do not advance the cursor. A separating
+child consumes the pending value unless it escapes through the parent's top,
+then starts a new pending group from its trailing strut. Through-box origins use
+the hypothetical-bottom-border leading group (or zero when adjoining parent top),
+not the eventual group's value. At the end, include only a contained trailing
+group in content height, clamp height to zero, and reject coordinate overflow.
+Only child Frame/Content origins move; descendants remain parent-content-relative.
+See the core contract for eligibility and the inline empty-output permission.
+
 Returned sizes and geometry must agree. The concrete prepared-item/placement
 proposal is in Pass-Signatures.md; P's whatsit representation remains adapter-owned.
 Prepared dimensions are not final positions. Geometry coverage for inline
@@ -193,7 +204,7 @@ nodes/text also remains open. See checklist 2A/3A.
 
 | Test | Expected result |
 |---|---|
-| Block stacking | Vertical margins retained without collapsing |
+| Block stacking | Signed adjoining groups collapse; escaped groups do not inflate parent height |
 | Nested padded/bordered blocks | Parent-content-relative coordinates |
 | Inline-only block | Content height equals returned overall extent, including trailing space |
 | Anonymous block owner | Extent applied; adapter retains typed result by group and owner IDs |

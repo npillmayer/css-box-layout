@@ -49,6 +49,7 @@ type FormattingContextKind uint8
 
 const (
 	FCNone FormattingContextKind = iota
+	// FCBlock identifies internal block layout, not establishment of a new BFC.
 	FCBlock
 	FCInline
 )

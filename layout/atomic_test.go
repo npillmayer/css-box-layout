@@ -102,6 +102,7 @@ func (f *atomicFake) LayoutInline(r InlineRequest) (InlineResult, error) {
 	}
 	flush()
 	result.Extent = InlineExtent{maxW, y}
+	result.AllowsMarginCollapse = len(items) == 0
 	f.retained[r.Group.BoxID] = result
 	return result, nil
 }

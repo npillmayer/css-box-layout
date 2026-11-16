@@ -101,7 +101,14 @@ Keep frozen decisions here; no separate decision log is needed.
 
 - CSSDOM creation, line breaking, and text shaping are external concerns.
 - Used edges must be available before the line-breaking decisions that need them.
-- Margin collapsing is deferred; margins are preserved without collapsing.
+- Margin-collapse scope is frozen as of 2026-11-16 in the
+  [core contract](CSS-Algo-Overview.md#margin-collapse-contract): the existing
+  normal-flow block profile, including nested and empty blocks. Steps 1 (scope),
+  2 (eligibility and inline permission), 3 (immutable summaries), 4 (collapsed
+  placement/height accounting), 5 (bounded core regression audit), and 6 (adapter
+  integration) are complete. The adapter retains its reserved empty-paragraph
+  strut; general CSS empty-line suppression, height constraints and additional
+  formatting modes remain deferred.
 - Bounded shrink-to-fit is accepted for 2B/3B, superseding the max-content-only
   approximation plan. Full CSS intrinsic/cyclic-percentage semantics remain deferred.
 - IntrinsicMeasurer measures normalized groups, not whole atomic subtrees:
@@ -245,3 +252,19 @@ geometry, and immutability acceptance criteria have tests; a styled end-to-end
 pipeline is exercised; and docs describe implemented behavior and explicit
 remaining deferrals. Run `go test ./...` when validating implementation changes.
 Do not infer completion from the existence of pass entry points alone.
+
+<a id="margin-collapse-review-groups"></a>
+### Margin-collapse review groups
+
+The six implementation steps form three logical review groups. They are still
+working-tree changes, not three commits or independently applicable patches.
+
+| Review group | Main code and evidence |
+|---|---|
+| 1. Eligibility, contracts, and immutable summaries | `layout/interfaces.go`, `box.go`, `margin_collapse.go`; eligibility and summary tests |
+| 2. Collapsed placement and geometry | `layout/layout.go`, `atomic.go`; placement/regression tests and updated coordinate expectations |
+| 3. Adapter integration and documentation | Tytui `documentlayout/layout.go`, `margin_collapse_test.go`, `margin_permission_test.go`, README; core contract, checklist and integration evidence |
+
+Group 2 depends on group 1; group 3 depends on both. Existing unrelated tytui
+tracing/workbench changes are outside these review groups. No Git history or
+unrelated changes were staged or rewritten during this integration.
