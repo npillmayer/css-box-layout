@@ -23,11 +23,11 @@ func InlineItem(n *LayoutNode) FlowItem { return FlowItem{Kind: FlowInline, Node
 func BlockItem(n *LayoutNode) FlowItem  { return FlowItem{Kind: FlowBlock, Node: n} }
 
 // Entry point for a block container (BoxBlock / BoxAnonymousBlock / BoxInlineBlock):
-func buildBlockContainer(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID) (*LayoutNode, error) {
+func buildBlockContainer(gen *treeBuilder, r *RenderNode, box BoxKind, boxID BoxID) (*LayoutNode, error) {
 	return buildBlockContainerWithFont(gen, r, box, boxID, 0, WhiteSpaceNormal)
 }
 
-func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxID BoxID, inheritedFont float32, inheritedWhitespace WhiteSpace) (*LayoutNode, error) {
+func buildBlockContainerWithFont(gen *treeBuilder, r *RenderNode, box BoxKind, boxID BoxID, inheritedFont float32, inheritedWhitespace WhiteSpace) (*LayoutNode, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -38,6 +38,10 @@ func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxI
 	if err != nil {
 		return nil, err
 	}
+	return buildBlockContainerWithStyle(gen, r, box, boxID, style)
+}
+
+func buildBlockContainerWithStyle(gen *treeBuilder, r *RenderNode, box BoxKind, boxID BoxID, style *ComputedStyle) (*LayoutNode, error) {
 	flow := make([]FlowItem, 0, len(r.Children()))
 	for _, child := range r.Children() {
 		items, err := buildInlineFlowWithFont(gen, child, boxID, style.FontSizePx, style.WhiteSpace)
@@ -46,7 +50,7 @@ func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxI
 		}
 		flow = append(flow, items...)
 	}
-	children, err := normalizeBlockChildren(gen, flow, boxID)
+	children, err := normalizeBlockChildren(gen.boxIDGen, flow, boxID)
 	if err != nil {
 		return nil, err
 	}
@@ -57,17 +61,17 @@ func buildBlockContainerWithFont(gen *boxIDGen, r *RenderNode, box BoxKind, boxI
 		NodeID:         r.ID,
 		Box:            box,
 		FC:             FCBlock,
-		EstablishesBFC: r.Display.Inner == InnerFlowRoot,
+		EstablishesBFC: r.Display.Inner == InnerFlowRoot || style.Position == PositionFixed,
 		Children:       children,
 	}, nil
 }
 
 // Builds an inline-level subtree, but may return hoisted blocks as FlowBlock items:
-func buildInlineFlow(gen *boxIDGen, r *RenderNode, parentBoxID BoxID) ([]FlowItem, error) {
+func buildInlineFlow(gen *treeBuilder, r *RenderNode, parentBoxID BoxID) ([]FlowItem, error) {
 	return buildInlineFlowWithFont(gen, r, parentBoxID, 0, WhiteSpaceNormal)
 }
 
-func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, inheritedFont float32, inheritedWhitespace WhiteSpace) ([]FlowItem, error) {
+func buildInlineFlowWithFont(gen *treeBuilder, r *RenderNode, parentBoxID BoxID, inheritedFont float32, inheritedWhitespace WhiteSpace) ([]FlowItem, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -98,6 +102,13 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 		return []FlowItem{InlineItem(text)}, nil
 	}
 
+	if style.Position == PositionFixed {
+		if err := gen.divertFixed(r, gen.newChild(parentBoxID), style); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+
 	if r.Replaced != nil {
 		if display.Outer != OuterInline || len(r.Children()) != 0 || style.Width.Kind != LenPx || !finite(style.Width.Value) || style.Width.Value < 0 || !finite(r.Replaced.Height) || r.Replaced.Height < 0 {
 			return nil, fmt.Errorf("node %d: replaced leaf requires inline display, no children and finite nonnegative fixed dimensions", r.ID)
@@ -117,7 +128,7 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 		}
 		if containsBlockFlow(flow) {
 			proto := &LayoutNode{Style: style, NodeID: r.ID, Box: BoxInline, FC: FCInline}
-			return wrapInlineRunsForElement(gen, proto, flow, parentBoxID), nil
+			return wrapInlineRunsForElement(gen.boxIDGen, proto, flow, parentBoxID), nil
 		}
 		boxID := gen.newChild(parentBoxID)
 		return []FlowItem{InlineItem(&LayoutNode{
@@ -130,7 +141,7 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 		})}, nil
 	case Display{Kind: DisplayBox, Outer: OuterInline, Inner: InnerFlowRoot}:
 		boxID := gen.newChild(parentBoxID)
-		node, err := buildBlockContainerWithFont(gen, r, BoxInlineBlock, boxID, inheritedFont, inheritedWhitespace)
+		node, err := buildBlockContainerWithStyle(gen, r, BoxInlineBlock, boxID, style)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +149,7 @@ func buildInlineFlowWithFont(gen *boxIDGen, r *RenderNode, parentBoxID BoxID, in
 	case Display{Kind: DisplayBox, Outer: OuterBlock, Inner: InnerFlow},
 		Display{Kind: DisplayBox, Outer: OuterBlock, Inner: InnerFlowRoot}:
 		boxID := gen.newChild(parentBoxID)
-		node, err := buildBlockContainerWithFont(gen, r, BoxBlock, boxID, inheritedFont, inheritedWhitespace)
+		node, err := buildBlockContainerWithStyle(gen, r, BoxBlock, boxID, style)
 		if err != nil {
 			return nil, err
 		}

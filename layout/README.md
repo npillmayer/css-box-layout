@@ -244,3 +244,24 @@ service must return no line/height for empty CSS content, allowing margin collap
 with byte source maps. Other modes require corresponding inline services; accepting
 a typed mode for box generation does not implement preserved-text line layout.
 The former WhitespaceParticipation/transparent-wrapper permission API is removed.
+
+
+### Fixed boxes: construction only
+
+Set `ComputedStyle.Position = PositionFixed` and call `BuildLayoutTrees` to obtain
+`LayoutTrees{Flow, Fixed}`. Fixed roots (including nested fixed elements) are
+separate from normal flow before normalization and share the build's BoxID space.
+Use `trees.Flow` with the existing resolver and FlowLayout. Retain `trees.Fixed`
+for the future fixed sizing/placement branch; `FixedLayout` is not implemented yet.
+
+Optional `ComputedStyle.Fixed` holds `FixedStyle{Insets, Height}`. Nil means auto;
+start from `DefaultFixedStyle()` to override selected constraints. Explicit zero
+values remain zero. Width and box edges stay on ComputedStyle. Position and fixed
+constraints are not inherited, and input styles are copied. Fixed roots currently
+support non-replaced elements using the supported display pairs.
+
+`BuildLayoutTree` reports `ErrFixedLayoutRequired` instead of discarding fixed
+roots. ResolveUsedValues and FlowLayout reject fixed participants before callbacks.
+Malformed fixed values use `ErrInvalidPosition`; unsupported schemes or fixed
+replaced elements use `ErrUnsupportedPosition`. See `ExampleBuildLayoutTrees` in
+[position_example_test.go](position_example_test.go) for the public construction API.

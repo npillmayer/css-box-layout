@@ -119,7 +119,9 @@ Keep frozen decisions here; no separate decision log is needed.
   Measurement never publishes geometry or paragraph results. No speculative-layout
   protocol or baseline expansion is required for this slice. The bounded interfaces are implemented;
   see Pass-Signatures.md section 4.1 and checklist 2B/3B.
-- Floats, positioning, z-index, and stacking contexts are deferred.
+- Floats, general positioning, z-index, and painting/stacking contexts remain
+  deferred. Fixed branch construction is implemented below; its sizing/placement
+  remain planned.
 - Fine inline metrics, span-level line-height, and inline background/border
   fragments are deferred.
 - Outer flow is LTR only; outer RTL and vertical writing modes are deferred.
@@ -141,6 +143,83 @@ Keep frozen decisions here; no separate decision log is needed.
 
 Auto-margin distribution has incomplete implementation and needs a decision;
 this roadmap does not silently add it to the frozen deferrals.
+
+<a id="fixed-layout-plan"></a>
+## 2.2) Fixed-layout branch plan (2026-11-20)
+
+Status: PR 1 construction implemented; PRs 2 and 3 remain planned. User-agreed direction:
+
+- Divert fixed boxes before FlowLayout; classify before normal-flow normalization.
+- Give fixed boxes a separate sizing resolver.
+- Expose an independently callable FixedLayout branch taking a viewport rectangle.
+- Stop at that external-client boundary. Do not infer or implement page-layout
+  behavior from external paged-media standards.
+
+Controlled PR sequence agreed with the user. PR 1's concrete input contract is
+now implemented; resolver and FixedLayout signatures remain proposals:
+
+1. **Typed input and branch construction — implemented.** Added typed static/fixed positioning,
+   insets with explicit auto defaults, and fixed-root height constraints. Position
+   and insets are not inherited, including by anonymous wrappers. Preserves
+   existing normal-flow default behavior and rejects unsupported positioning and
+   legacy string values rather than silently treating them as static. The optional
+   ComputedStyle.Fixed points to a copied FixedStyle (Insets and Height); nil means
+   auto, DefaultFixedStyle sets auto, and a non-nil zero record means explicit zero.
+   Static boxes reject Fixed constraints. The additive BuildLayoutTrees result is in
+   [Pass-Signatures](Pass-Signatures.md#fixed-layout-api). The old normal-only builder
+   returns an explicit error for otherwise discarded fixed roots. One ID allocator
+   serves both branches; source inheritance/order is preserved and nested fixed
+   boxes are diverted to the same viewport branch. No fixed participant may
+   enter its outer flow's normalization, measurement, atomic preparation or stacking.
+   Source association remains available for later static-position work; there is
+   no contributing placeholder.
+
+2. **Dedicated sizing resolver — planned.** Start with non-replaced fixed roots and the
+   existing LTR horizontal-writing profile. Support px/em/percentage lengths and
+   auto dimensions; require at least one non-auto inset on each axis initially.
+   Implement horizontal/vertical constraint equations, auto-margin distribution,
+   and overconstraint handling. Distinguish auto width filled between opposing
+   insets from shrink-to-fit when only one side is specified. Preserve auto versus
+   explicit-zero height; support content-based height and height constrained by
+   opposing insets. Vertical inset/height percentages use viewport height;
+   horizontal dimensions and percentage margins/padding use viewport width.
+   Negative insets/margins and overflow are valid; non-finite results fail.
+   Share low-level length/intrinsic helpers, not normal-flow root width/margin
+   equations. Existing descendant display/sizing restrictions still apply.
+
+3. **FixedLayout integration and client API — planned.** Resolve fixed width and descendant
+   widths before final inline callbacks. Lay out each fixed interior as an
+   independent formatting context using shared recursive helpers. Its margins
+   never enter outer flow; internal normal-flow margin rules still apply. Separate
+   natural content extent from prescribed fixed-root height, then finish vertical
+   sizing and placement. Keep descendant coordinates local; do not rerun paragraph
+   layout just to translate a bottom/right-anchored root. This branch has no
+   scheduling dependency on FlowLayout within the proposed explicit-inset profile.
+
+   Expose FixedLayout and a result carrying its roots, viewport and fresh geometry. Resolve internally so callers
+   cannot accidentally supply normal-flow used widths for fixed roots. Preserve
+   callback transaction ownership, input immutability, and independent concurrent
+   calls. Add a compiling external-package example using both branch construction
+   and FixedLayout. Finish when an external client can obtain correctly positioned
+   fixed-box geometry and retain its paragraphs; no renderer/page integration is
+   needed for this milestone.
+
+Build accepts structurally valid auto constraints without performing sizing. PR 2
+will reject static-position fallback (both insets auto on an axis) in its initial
+profile. Defer ancestor-established fixed containing blocks, fixed replaced roots, additional writing modes and
+broader size constraints. Unsupported dependencies must fail explicitly within
+core's input contract or be rejected by the adapter before projection; they are
+not approximated as viewport-relative supported inputs. Source identity is
+preserved, but detailed static-position anchors/callbacks need a later design.
+
+Also outside this plan: painting/z-index order, clipping policy, page assignment,
+repetition, pagination, page-instance IDs, page composition and register-based
+storage of fixed content. The client controls subsequent use of returned results.
+PR 1 tests compare normal-flow structure, geometry, intrinsic measurements and
+paragraph callbacks with fixed content omitted, including margins, whitespace and
+auto inline-blocks. They cover branch order, shared identity, source style copying,
+root/default/error contracts and concurrent deterministic builds. Acceptance cases
+are in the [checklist](Current-Checklist.md#fixed-layout-checklist).
 
 ## 3) Define pass boundaries and signatures
 

@@ -109,6 +109,41 @@ Responsibilities:
 - Use the returned overall inline extent for content height. Line/glyph results
   are retained by the integration adapter, including for anonymous owners.
 
+### Fixed-box branch (construction implemented 2026-11-20)
+
+BuildLayoutTrees now diverts fixed boxes before normal-flow normalization and
+returns LayoutTrees{Flow, Fixed}. Fixed roots use BoxBlock with independent
+formatting-context containment; their interiors are normalized independently.
+Position is orthogonal to BoxKind. BuildLayoutTree rejects input that would lose
+a fixed branch; ResolveUsedValues and FlowLayout reject fixed participants before
+resolution or callbacks, including in manually constructed trees.
+
+Typed input uses ComputedStyle.Position (zero/static or fixed) and optional
+ComputedStyle.Fixed constraints. Nil Fixed means auto insets/height; a supplied
+FixedStyle is copied. DefaultFixedStyle initializes auto values, while a non-nil
+zero FixedStyle means explicit zero. Static boxes cannot carry Fixed constraints;
+position/insets are not inherited. Fixed replaced roots and other positioning
+schemes are rejected. Non-replaced fixed roots accept all supported display pairs;
+nested fixed roots are diverted in source preorder with one shared ID allocator.
+Both-auto axes are retained at build time; later sizing must validate its profile.
+
+A separate sizing resolver and FixedLayout entry point taking an explicit viewport
+remain planned for the next two PRs. No fixed geometry is produced yet.
+The normal-flow and fixed branches share one build's BoxID namespace but return
+independent immutable geometry. Normal-flow widths, heights, paragraph grouping,
+and margin collapse must not include fixed participants.
+
+The planning boundary ends at an external client calling this branch and receiving
+its geometry and adapter-retained paragraph results. There are no page-layout
+rules in this extension: no automatic repetition, pagination, page assignment,
+page-instance identities, or page composition. The viewport is supplied by the
+client; core does not infer it from the normal-flow root or a page standard.
+
+Agreed direction and proposed milestones are in
+[the roadmap](Exec-Roadmap.md#fixed-layout-plan); provisional client signatures and
+coordinate/ownership contracts are in
+[Pass-Signatures](Pass-Signatures.md#fixed-layout-api).
+
 <a id="margin-collapse-contract"></a>
 ### Normal-flow margin collapsing
 
@@ -348,7 +383,8 @@ Intrinsic measurement (implemented bounded 2B/3B design):
 - Preserved-whitespace text layout and decorated inline metrics beyond the current
   normal-whitespace document profile. Empty CSS-processed paragraphs now have no
   line height and can collapse through under the [contract](#margin-collapse-contract).
-- Floats, positioning, z-index, stacking contexts
+- Floats, general positioning, z-index and painting/stacking contexts.
+  Fixed branch construction is implemented above; sizing and placement remain planned.
 - Full CSS intrinsic-sizing and cyclic-percentage semantics (bounded shrink-to-fit
   is implemented under 2B/3B; this supersedes the max-content-only deferral)
 - Span-level line-height / fine inline metrics

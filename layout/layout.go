@@ -1,47 +1,27 @@
 package layout
 
-import (
-	"fmt"
+import "fmt"
 
-	"golang.org/x/net/html"
-)
-
-// BuildLayoutTree normalizes a render subtree into boxes without mutating input.
-// The root must be a non-replaced element with block flow or block flow-root display.
-// Nil input or an element with DisplayNone returns (nil, nil). Other root kinds
-// are rejected, never blockified. The supplied root is a containment boundary,
-// not an implicit document/viewport wrapper.
+// BuildLayoutTree builds normal-flow input. Use BuildLayoutTrees when fixed
+// boxes may occur: this entry point returns ErrFixedLayoutRequired rather than
+// silently discarding that branch. A static root must be a non-replaced block
+// flow or block flow-root element. Nil/display:none input returns (nil, nil).
 func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, error) {
-	if renderRoot == nil {
-		return nil, nil
-	}
-	if renderRoot.HTMLNode() == nil || renderRoot.HTMLNode().Type != html.ElementNode {
-		return nil, fmt.Errorf("node %d: %w: expected an HTML element", renderRoot.ID, ErrInvalidRoot)
-	}
-	if err := validateRenderDisplay(renderRoot); err != nil {
-		return nil, err
-	}
-	if renderRoot.Display.Kind == DisplayNone {
-		return nil, nil
-	}
-	if renderRoot.Replaced != nil || renderRoot.Display.Outer != OuterBlock {
-		return nil, fmt.Errorf("node %d: %w: expected a non-replaced block flow or block flow-root element, got %s", renderRoot.ID, ErrInvalidRoot, renderRoot.Display)
-	}
-	gen := newBoxIDGen()
-	gen.options = opts
-	rootID := gen.newRoot(renderRoot.ID)
-	root, err := buildBlockContainer(gen, renderRoot, BoxBlock, rootID)
+	trees, err := BuildLayoutTrees(renderRoot, opts)
 	if err != nil {
 		return nil, err
 	}
-	if gen.err != nil {
-		return nil, gen.err
+	if len(trees.Fixed) != 0 {
+		return nil, fmt.Errorf("node %d: %w: use BuildLayoutTrees", trees.Fixed[0].NodeID, ErrFixedLayoutRequired)
 	}
-	return root, nil
+	return trees.Flow, nil
 }
 
 // E -> used values: resolve margins/padding/borders/widths into a table keyed by BoxID.
 func ResolveUsedValues(root *LayoutNode, ctx ResolveContext) (UsedValuesTable, error) {
+	if err := validateNormalFlowPositions(root); err != nil {
+		return nil, err
+	}
 	used := make(UsedValuesTable)
 	if root == nil {
 		return used, nil
@@ -66,6 +46,9 @@ func FlowLayout(
 			Root:     nil,
 			Geometry: make(LayoutGeometryTable),
 		}, nil
+	}
+	if err := validateNormalFlowPositions(root); err != nil {
+		return nil, err
 	}
 	if err := validateUsedValues(root, used); err != nil {
 		return nil, err

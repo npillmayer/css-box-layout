@@ -362,6 +362,42 @@ pipeline tasks above; checked scope does not imply implemented behavior.
   proofs are covered. See [integration evidence](Document-Layout-Integration.md#7-bounded-integration-evidence)
   and the [three review groups](Exec-Roadmap.md#margin-collapse-review-groups).
 
+<a id="fixed-layout-checklist"></a>
+## Fixed-layout client branch — PR 1 implemented; PRs 2/3 planned
+
+Scope and sequence: [roadmap](Exec-Roadmap.md#fixed-layout-plan).
+PR 1 coverage: `position_test.go`, `position_flow_test.go`, and the external-package
+`ExampleBuildLayoutTrees`. Full ordinary/race suites, build and vet passed.
+Fixed sizing and placement remain unavailable.
+Proposed API: [Pass-Signatures](Pass-Signatures.md#fixed-layout-api).
+
+- [x] Typed fixed input, auto defaults and explicit unsupported-style errors;
+  unchanged existing static/default behavior and display:none suppression.
+- [x] One build returns disjoint normal/fixed branches with globally unique IDs.
+  Check fixed children in blocks, inline runs and inline-blocks; nested fixed roots;
+  inherited font/white-space; fixed-only, nil and suppressed roots. Fixed extraction
+  must not split surrounding text into separate paragraphs or change normal-flow
+  intrinsic widths, heights or margin adjacency. Compare geometry by source
+  association rather than requiring unchanged IDs across structurally edited inputs.
+- [x] Legacy builder reports fixed-branch loss; FlowLayout rejects leaked fixed
+  nodes; normal-flow consumers never prepare/measure fixed material as atomics.
+- [ ] Fixed resolver covers left/top and right/bottom anchors, opposing insets,
+  explicit zero, auto/stretch/shrink-to-fit dimensions, auto margins, negative
+  insets, overflow and overconstraints. Use a non-square viewport to distinguish
+  width and height percentage bases. Unsupported both-auto axes fail explicitly.
+- [ ] Fixed-root explicit/stretch height differs correctly from natural content
+  extent; bottom placement uses final border height and margins. Reuse supported
+  nested blocks and fixed/auto-width inline-blocks without duplicate final callbacks.
+- [ ] Result coordinates compose once with a nonzero viewport origin. Multiple
+  roots and nested fixed roots all reference that viewport; ordinary descendants
+  retain their content-coordinate parents. Verify empty/zero-size viewport and
+  invalid/non-finite inputs and arithmetic.
+- [ ] External-package example builds branches and calls FixedLayout independently
+  of FlowLayout. Confirm complete result publication, late callback failure,
+  immutable input/result snapshots, resize/replay and concurrent independent calls.
+- [ ] Run ordinary/race suites, build and vet with local dependency wiring.
+  Completion stops at the client API; no page-layout or paint behavior is required.
+
 ## Validation checklist
 
 Checked entries have owning/integration evidence; unchecked broad invariant
@@ -392,8 +428,9 @@ Margin-collapse core placement is implemented under the accepted scope above;
 the bounded core regression audit and consuming-adapter integration are complete.
 Empty CSS-processed paragraphs have no line strut. Core derives anonymous
 whitespace suppression from computed CSS values, text access and inline edges.
-Floats/positioning, fine inline metrics/fragments, outer RTL,
-vertical writing modes, selection/caret DOM mapping, adjacent text merging, and global caching
+Floats/general positioning (apart from the planned fixed branch), fine inline
+metrics/fragments, outer RTL, vertical writing modes, selection/caret DOM mapping,
+adjacent text merging, and global caching
 remain deferred as described in the core contract.
 
 

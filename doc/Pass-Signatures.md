@@ -72,6 +72,7 @@ IsBlockContainer includes inline-blocks for internal layout and width resolution
 
 ```go
 func BuildLayoutTree(root *RenderNode, opts BuildOptions) (*LayoutNode, error)
+func BuildLayoutTrees(root *RenderNode, opts BuildOptions) (*LayoutTrees, error)
 
 func ResolveUsedValues(root *LayoutNode, ctx ResolveContext) (UsedValuesTable, error)
 
@@ -114,10 +115,10 @@ type LayoutContext struct {
 }
 ```
 
-BuildOptions, LayoutOptions, ResolvePolicy, and LayoutPolicy are currently empty.
-BuildOptions, LayoutOptions, and FlowLayout's context are unused by the current
-implementation. Their intended roles need review; do not infer supported
-behavior from their presence. Future features may require interface changes,
+BuildOptions.ReadText supplies referenced source text during either builder.
+LayoutOptions, ResolvePolicy, and LayoutPolicy are currently empty; FlowLayout's
+context is unused by the current implementation. Do not infer supported behavior
+from their presence. Future features may require interface changes,
 not just policy fields.
 
 ## 4) Inline integration - task 2A implemented
@@ -295,3 +296,132 @@ coverage, and numeric representation. Tasks 2 and 3 cover explicit auto-width
 state and descendant resolution. Geometry exists only in LayoutResult.Geometry;
 LayoutNode.Frame/Content have been removed. Published trees, styles, and result
 tables must remain read-only for their lifetime, not only during a layout call.
+
+<a id="fixed-layout-api"></a>
+## 6) Fixed-layout client boundary (construction implemented)
+
+PR 1 implements LayoutTrees and BuildLayoutTrees below. The separate resolver
+and FixedLayout API are still proposals for PRs 2 and 3, not available Go API.
+The [roadmap](Exec-Roadmap.md#fixed-layout-plan) records that sequence. All types
+live in package `layout`.
+
+```go
+type LayoutTrees struct {
+    Flow  *LayoutNode
+    Fixed []*LayoutNode // fixed roots in source preorder; nested fixed roots diverted too
+}
+
+func BuildLayoutTrees(root *RenderNode, opts BuildOptions) (*LayoutTrees, error)
+```
+
+PositionKind supports PositionStatic (zero) and PositionFixed. ComputedStyle.Fixed
+is an optional `*FixedStyle{Insets EdgeLengths, Height Length}`; it is accepted only
+with PositionFixed. Width and ordinary box edges remain on ComputedStyle. Nil
+Fixed means auto insets/height; DefaultFixedStyle supplies explicit auto defaults.
+A non-nil zero record means explicit zero constraints. Both the style and fixed
+record are snapshotted. Build validates length kinds, finiteness, and nonnegative
+non-auto height, but does not resolve or reject both-auto axes. Negative insets
+are valid. Legacy positioning/inset/height strings and positioned text are rejected.
+
+ErrInvalidPosition classifies malformed positioning input; ErrUnsupportedPosition
+classifies unknown schemes and fixed replaced roots. ErrFixedLayoutRequired guards
+BuildLayoutTree against lost branches and both normal-flow pass entry points
+against fixed participants, before measurement/final callbacks. Errors include
+source NodeID during construction or BoxID during flow-input validation.
+
+Proposed sizing/placement API, **not implemented**:
+
+```go
+type FixedLayoutOptions struct {
+    FontSizePx float32 // explicit fallback where computed font size is absent
+}
+
+type FixedLayoutResult struct {
+    Roots    []*LayoutNode
+    Viewport Rect
+    Geometry LayoutGeometryTable
+}
+
+func FixedLayout(
+    roots []*LayoutNode,
+    viewport Rect,
+    inline InlineLayouter,
+    intrinsic IntrinsicMeasurer,
+    opts FixedLayoutOptions,
+) (*FixedLayoutResult, error)
+```
+
+Construction and migration (implemented):
+
+- Build both branches in one traversal with one BoxID allocator. Preserve source
+  identity and inherited styles before diversion; allocate no duplicate subtree.
+  Normalize each fixed interior independently, after diverting nested fixed boxes.
+- Keep the existing supplied-root restrictions for ordinary flow. Permit an
+  eligible non-replaced fixed root as a fixed-only input; its Flow result is nil.
+  Nil/display:none input yields empty branches. Suppressed descendants stay absent.
+- BuildLayoutTree preserves existing normal-flow behavior and returns an error
+  if a fixed branch would be lost. Use BuildLayoutTrees for fixed input. Both
+  ResolveUsedValues and FlowLayout reject fixed participants in hand-built input.
+- Construction profile: non-replaced fixed roots with supported flow/flow-root
+  interiors. Blockify their outer display without inserting them into parent flow.
+  Position remains distinct from BoxKind; fixed roots set EstablishesBFC even
+  when their original display was ordinary flow. Anonymous descendants stay static.
+
+Sizing and invocation (proposed):
+
+- FixedLayout orchestrates a dedicated internal fixed sizing resolver. Do not
+  make clients manufacture UsedValuesTable entries or call the normal-flow width
+  solver on fixed roots. Normal descendants can reuse existing resolution helpers
+  after the fixed root's content width is final.
+- Viewport coordinates must be finite and W/H nonnegative; zero is definite.
+  Insets/dimensions use the appropriate axis; margin/padding percentages retain
+  their existing width basis. Use a finite positive fallback FontSizePx when a
+  computed font size needed for resolution is absent; do not invent a font size.
+- Finalize fixed-root width and descendant widths before LayoutInline. Reuse
+  IntrinsicMeasurer for shrink-to-fit, including nested atomic preparation, without
+  publishing paragraph results during measurement. Determine content-based height
+  from one final interior layout before resolving bottom anchoring. A prescribed
+  root content height remains prescribed even when interior material overflows.
+- In the first proposed profile, require at least one non-auto inset per axis.
+  Reject a box needing static-position fallback, rather than assuming (0,0).
+  Every fixed root, including one extracted from another fixed subtree, uses the
+  supplied viewport. Ancestor-established fixed containing blocks are deferred;
+  the adapter must reject unsupported inputs that depend on them.
+- Validate branch shape, IDs and supported styles before final callbacks. Keep all
+  derived values private. On any sizing/callback/geometry error, return nil result;
+  the client discards this invocation's retained paragraphs. No partial root set
+  is published. Empty roots return a successful empty result for a valid viewport.
+
+Coordinates and lifetime (proposed):
+
+- Fixed-root Frame and Content coordinates are viewport-local; RelativeTo is 0
+  for each fixed root. The result's Viewport supplies the external origin. Add its
+  X/Y once when mapping to client coordinates. Descendants retain the existing
+  RelativeTo/parent-content convention; never translate every descendant directly.
+- FixedLayoutResult distinguishes this reference space from LayoutResult's normal
+  root space. Neither the normal-flow root nor a synthetic page is the parent.
+  Geometry coverage inside each fixed subtree matches existing FlowLayout coverage;
+  this proposal does not add line/text rectangles.
+- Copy the input root slice for the result; structural nodes remain shared and
+  read-only. Use a fresh geometry table per call. Calls with different rectangles
+  share no derived state; identical calls are deterministic given the same services.
+- Inline adapters retain paragraphs by group BoxID with OwnerID, as today. Each
+  invocation owns its retained state. A client choosing to combine normal and
+  fixed output coordinates publication itself; neither branch invokes the other.
+  Root order is deterministic traversal order, not a promise about paint order.
+
+Provisional client sequence (error handling elided):
+
+```go
+trees, err := layout.BuildLayoutTrees(renderRoot, buildOptions)
+// The client may independently resolve/layout trees.Flow through the existing API.
+fixed, err := layout.FixedLayout(
+    trees.Fixed, viewport, inline, intrinsic,
+    layout.FixedLayoutOptions{FontSizePx: 16},
+)
+// On success, retain fixed together with this call's adapter paragraph results.
+```
+
+This endpoint performs no clipping, painting, repetition, pagination, register
+consumption, or page composition. Placement outside the viewport remains geometry
+for the client to handle. There is no page index in this API.

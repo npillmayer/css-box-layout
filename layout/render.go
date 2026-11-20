@@ -10,7 +10,7 @@ import (
 // Payload ownership stays with the adapter/renderer. Zero dimensions are valid.
 type ReplacedContent struct{ Height float32 }
 
-// RenderNode is the adapter's render-tree projection for BuildLayoutTree.
+// RenderNode is the adapter's render-tree projection for both layout builders.
 // HTML must identify an element or text node; other DOM nodes are filtered by
 // the adapter. Display must be explicit for elements and zero for text nodes.
 type RenderNode struct {

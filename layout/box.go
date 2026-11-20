@@ -15,10 +15,10 @@ type LayoutNode struct {
 	NodeID          NodeID
 	Box             BoxKind
 	FC              FormattingContextKind
-	// EstablishesBFC separates a flow-root container's contents from the outer
-	// block formatting context. Its own block-level margins still participate
-	// in that outer context. The supplied layout root is separately contained.
-	// Build sets this for non-replaced block/inline flow-root containers;
+	// EstablishesBFC records an independent internal block formatting context.
+	// An in-flow flow-root's own margins still participate in outer flow;
+	// fixed roots do not participate there. The supplied root is separately contained.
+	// Build sets this for non-replaced flow-root containers and fixed roots;
 	// ordinary and anonymous block containers leave it false.
 	EstablishesBFC bool
 	Style          *ComputedStyle

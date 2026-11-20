@@ -7,7 +7,6 @@ var errBoxIDExhausted = errors.New("layout: BoxID space exhausted")
 // IDs are unique within a build and deterministic for the same allocation order.
 // Structural edits may change IDs; NodeID is the source identity across edits.
 type boxIDGen struct {
-	options   BuildOptions
 	next      map[BoxID]uint64
 	allocated map[BoxID]struct{}
 	err       error

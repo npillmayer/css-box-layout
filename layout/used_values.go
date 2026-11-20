@@ -28,7 +28,9 @@ type EdgeLengths struct {
 }
 
 type ComputedStyle struct {
-	WhiteSpace WhiteSpace // computed inherited value; zero is normal
+	Position   PositionKind // zero is static; not inherited
+	Fixed      *FixedStyle  // fixed-root constraints only; nil means auto insets/height
+	WhiteSpace WhiteSpace   // computed inherited value; zero is normal
 	Width      Length
 	Margin     EdgeLengths
 	Padding    EdgeLengths

@@ -9,13 +9,25 @@ import (
 func buildStyle(r *RenderNode, inheritedFont float32, inheritedWhitespace WhiteSpace) (*ComputedStyle, error) {
 	for prop := range r.Styles {
 		switch prop {
-		case "width", "margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
+		case "position", "top", "right", "bottom", "left", "inset", "height",
+			"inset-block", "inset-inline", "inset-block-start", "inset-block-end", "inset-inline-start", "inset-inline-end",
+			"width", "margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
 			"padding", "padding-top", "padding-right", "padding-bottom", "padding-left",
 			"border", "border-width", "border-top-width", "border-right-width", "border-bottom-width", "border-left-width", "font-size", "white-space":
 			return nil, fmt.Errorf("node %d: provide %s through typed RenderNode.Style", r.ID, prop)
 		}
 	}
 	style := styleOrDefault(r.Style)
+	if err := validatePosition(style); err != nil {
+		return nil, fmt.Errorf("node %d: %w", r.ID, err)
+	}
+	if isTextNode(r.HTMLNode()) && style.Position != PositionStatic {
+		return nil, fmt.Errorf("node %d: %w: text nodes cannot be positioned", r.ID, ErrInvalidPosition)
+	}
+	if style.Fixed != nil {
+		fixed := *style.Fixed
+		style.Fixed = &fixed
+	}
 	if r.Style == nil {
 		style.WhiteSpace = inheritedWhitespace
 	}

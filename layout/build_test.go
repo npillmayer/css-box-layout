@@ -33,8 +33,8 @@ func newRenderText(id NodeID, data string) *RenderNode {
 	}
 }
 
-func newBoxGenWithRoot(nodeID NodeID) (*boxIDGen, BoxID) {
-	gen := newBoxIDGen()
+func newBoxGenWithRoot(nodeID NodeID) (*treeBuilder, BoxID) {
+	gen := &treeBuilder{boxIDGen: newBoxIDGen()}
 	return gen, gen.newRoot(nodeID)
 }
 

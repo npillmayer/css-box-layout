@@ -69,3 +69,29 @@ source/range validation against actual bytes (including UTF-8 boundaries). The
 builder checks range ordering but cannot check source bounds without that storage.
 It never derives source IDs by truncating NodeID. Source lookup, richer typography
 and paint, and selection/caret mapping remain external integration work.
+
+
+## Fixed branch construction (2026-11-20)
+
+Use BuildLayoutTrees when the projection includes `Style.Position = PositionFixed`.
+It returns separate Flow and Fixed roots with one shared BoxID namespace. Static (zero Position) is unchanged; positioning is
+not inherited. Fixed boxes are diverted before outer anonymous grouping and
+split/hoist, blockified to BoxBlock, and set EstablishesBFC. Fixed interiors keep
+normal normalization, while nested fixed elements become separate roots in source
+preorder. Source NodeID and computed font/white-space are preserved.
+
+ComputedStyle.Fixed is an optional *FixedStyle containing Insets and Height.
+Nil means auto constraints; DefaultFixedStyle initializes auto values; a non-nil
+zero record means explicit zero. The record is copied, not shared with the input.
+Width remains on ComputedStyle. Static boxes must leave Fixed nil. The builder
+accepts valid auto/px/em/percentage values but performs no fixed sizing.
+Adapters must project complete computed white-space as before; a non-nil style
+with zero WhiteSpace explicitly means normal rather than inheritance.
+
+Non-replaced fixed roots accept all supported display pairs, including an inline
+supplied root. Fixed replaced elements, positioned text and other positioning
+schemes are rejected. Nil/display:none yields empty branches, without inspecting
+suppressed descendants. Errors publish neither branch. The normal-only builder
+returns ErrFixedLayoutRequired if it would lose a fixed branch; normal resolution
+and FlowLayout reject fixed input too. See [the API](Pass-Signatures.md#fixed-layout-api).
+FixedLayout itself is not yet implemented. No page-layout behavior is introduced.
