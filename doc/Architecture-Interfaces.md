@@ -31,7 +31,7 @@ flowchart TB
     end
 
     subgraph Boundary["Integration interfaces"]
-        CSS["Typed RenderNode projection"]
+        CSS["Read-only CSSDOM interface<br/>Proposed: StyNodeView"]
         TS["Text source interface"]
         IL["InlineLayouter<br/>and IntrinsicMeasurer"]
     end
@@ -63,9 +63,11 @@ flowchart TB
 
 ## Interface responsibilities and current status
 
-- **CSSDOM:** adapters project source identity, ordered children, normalized
-  display, typed box styles and text references into `RenderNode`. The unused
-  string-style tree-view proposal has been removed. See [Tree-Type.md](Tree-Type.md).
+- **CSSDOM:** intended to expose source identity, ordered children, computed
+  styles, and text references through a read-only adapter. `StyNodeView` is an
+  incomplete proposal; BuildLayoutTree currently accepts the concrete local
+  `RenderNode` stub. The proposal still exposes `html.Node` and lacks explicit
+  identity and text-source access. See [Tree-Type.md](Tree-Type.md).
 - **Text:** layout boxes carry `TextRef` source IDs and byte ranges. The current
   `TextSource` interface exposes identity and byte length; source lookup and
   actual text access for external layout/shaping still need adapter design.
