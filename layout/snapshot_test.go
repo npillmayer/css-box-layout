@@ -15,6 +15,10 @@ func copyTestTree(n *LayoutNode) *LayoutNode {
 	c := *n
 	if n.Style != nil {
 		s := *n.Style
+		if s.Fixed != nil {
+			f := *s.Fixed
+			s.Fixed = &f
+		}
 		c.Style = &s
 	}
 	if n.Children != nil {

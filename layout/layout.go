@@ -115,57 +115,75 @@ func layoutBlockContainer(
 		W: u.ContentWidth + u.Padding.Left + u.Padding.Right + u.Border.Left + u.Border.Right,
 	}
 
-	var contentThrough bool
-	var childMargins childMarginSummary
-	if node.Replaced != nil {
-		content.H = node.Replaced.Height
-	} else if isInlineOnlyBlockContainer(node) {
-		if inline == nil {
-			return blockMarginSummary{}, fmt.Errorf("box %d: inline layouter required", node.BoxID)
-		}
-		inlineRoot := node.Children[0]
-		items, err := prepareAtomics(inlineRoot, used, geom, inline, intrinsic)
-		if err != nil {
-			return blockMarginSummary{}, err
-		}
-		result, err := inline.LayoutInline(InlineRequest{
-			Group: inlineRoot, OwnerID: node.BoxID, ContentWidth: content.W,
-			Used:    usedValuesView{table: used},
-			Atomics: preparedAtomicsView{items: items},
-		})
-		if err != nil {
-			return blockMarginSummary{}, fmt.Errorf("inline group %d (owner %d): %w", inlineRoot.BoxID, node.BoxID, err)
-		}
-		extent := result.Extent
-		if !finite(extent.W) || !finite(extent.H) || extent.W < 0 || extent.H < 0 {
-			return blockMarginSummary{}, fmt.Errorf("inline group %d: invalid layout extent %+v", inlineRoot.BoxID, extent)
-		}
-		if result.AllowsMarginCollapse && (extent.H != 0 || len(items) != 0 || len(result.Atomics) != 0) {
-			return blockMarginSummary{}, fmt.Errorf("inline group %d: margin collapse requires zero height and no atomics", inlineRoot.BoxID)
-		}
-		if err := placeAtomics(result.Atomics, items, node.BoxID, geom); err != nil {
-			return blockMarginSummary{}, fmt.Errorf("inline group %d: %w", inlineRoot.BoxID, err)
-		}
-		content.H = extent.H
-		contentThrough = result.AllowsMarginCollapse
-	} else {
-		h, margins, err := layoutBlockChildrenVertical(node, used, geom, inline, intrinsic, isRoot)
-		if err != nil {
-			return blockMarginSummary{}, err
-		}
-		content.H = h
-		childMargins = margins
-		contentThrough = margins.Through
+	interior, err := layoutBlockContent(node, used, geom, inline, intrinsic, isRoot)
+	if err != nil {
+		return blockMarginSummary{}, err
 	}
-
+	content.H = interior.Height
 	frame.H = content.H + u.Padding.Top + u.Padding.Bottom + u.Border.Top + u.Border.Bottom
 
 	if !finite(frame.W) || !finite(frame.H) {
 		return blockMarginSummary{}, fmt.Errorf("box %d: non-finite layout dimensions", node.BoxID)
 	}
 	geom[node.BoxID] = LayoutGeometry{Frame: frame, Content: content}
-	eligibility := blockCollapseEligibility(node, u, isRoot, contentThrough)
-	return summarizeBlockMargins(u, eligibility, childMargins, frame), nil
+	eligibility := blockCollapseEligibility(node, u, isRoot, interior.Through)
+	return summarizeBlockMargins(u, eligibility, interior.Margins, frame), nil
+}
+
+type blockContentResult struct {
+	Height  float32
+	Through bool
+	Margins childMarginSummary
+}
+
+// Lay out the interior and descendant geometry without constructing the owner's
+// frame. Normal flow uses the natural height; fixed roots apply their own height
+// constraints before constructing and validating their final geometry.
+func layoutBlockContent(
+	node *LayoutNode,
+	used UsedValuesTable,
+	geom LayoutGeometryTable,
+	inline InlineLayouter,
+	intrinsic IntrinsicMeasurer,
+	isRoot bool,
+) (blockContentResult, error) {
+	if node.Replaced != nil {
+		return blockContentResult{Height: node.Replaced.Height}, nil
+	}
+	if isInlineOnlyBlockContainer(node) {
+		if inline == nil {
+			return blockContentResult{}, fmt.Errorf("box %d: inline layouter required", node.BoxID)
+		}
+		inlineRoot := node.Children[0]
+		items, err := prepareAtomics(inlineRoot, used, geom, inline, intrinsic)
+		if err != nil {
+			return blockContentResult{}, err
+		}
+		result, err := inline.LayoutInline(InlineRequest{
+			Group: inlineRoot, OwnerID: node.BoxID, ContentWidth: used[node.BoxID].ContentWidth,
+			Used:    usedValuesView{table: used},
+			Atomics: preparedAtomicsView{items: items},
+		})
+		if err != nil {
+			return blockContentResult{}, fmt.Errorf("inline group %d (owner %d): %w", inlineRoot.BoxID, node.BoxID, err)
+		}
+		extent := result.Extent
+		if !finite(extent.W) || !finite(extent.H) || extent.W < 0 || extent.H < 0 {
+			return blockContentResult{}, fmt.Errorf("inline group %d: invalid layout extent %+v", inlineRoot.BoxID, extent)
+		}
+		if result.AllowsMarginCollapse && (extent.H != 0 || len(items) != 0 || len(result.Atomics) != 0) {
+			return blockContentResult{}, fmt.Errorf("inline group %d: margin collapse requires zero height and no atomics", inlineRoot.BoxID)
+		}
+		if err := placeAtomics(result.Atomics, items, node.BoxID, geom); err != nil {
+			return blockContentResult{}, fmt.Errorf("inline group %d: %w", inlineRoot.BoxID, err)
+		}
+		return blockContentResult{Height: extent.H, Through: result.AllowsMarginCollapse}, nil
+	}
+	h, margins, err := layoutBlockChildrenVertical(node, used, geom, inline, intrinsic, isRoot)
+	if err != nil {
+		return blockContentResult{}, err
+	}
+	return blockContentResult{Height: h, Through: margins.Through, Margins: margins}, nil
 }
 
 // Defer each adjoining group until a non-through child or the owner boundary.

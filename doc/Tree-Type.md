@@ -94,4 +94,6 @@ schemes are rejected. Nil/display:none yields empty branches, without inspecting
 suppressed descendants. Errors publish neither branch. The normal-only builder
 returns ErrFixedLayoutRequired if it would lose a fixed branch; normal resolution
 and FlowLayout reject fixed input too. See [the API](Pass-Signatures.md#fixed-layout-api).
-FixedLayout itself is not yet implemented. No page-layout behavior is introduced.
+Pass Fixed roots and an explicit viewport to FixedLayout for sizing and geometry.
+It requires at least one non-auto inset per axis; both-auto axes need unsupported
+static-position fallback. No page-layout behavior is introduced.

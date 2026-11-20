@@ -4,7 +4,7 @@ import "fmt"
 
 // fixedSizing is invocation-local root sizing, not published geometry. Used has
 // final width/edges for later descendant resolution. Vertical must not be read
-// while HeightPending; PR3 will complete it with the interior's content height.
+// while HeightPending; FixedLayout completes it with the interior's content height.
 // The captured vertical constraints contain values, never aliases to input style.
 type fixedSizing struct {
 	Used          UsedValues
@@ -37,15 +37,19 @@ type fixedAxisResult struct {
 // lay out interiors, resolve descendants, produce geometry, or call FlowLayout.
 // Both-auto inset axes require static-position support and are rejected here.
 func resolveFixedSizing(root *LayoutNode, viewport Rect, fontSizePx float32, measure IntrinsicMeasurer) (*fixedSizing, error) {
-	if !finite(viewport.X) || !finite(viewport.Y) || !finite(viewport.W) || !finite(viewport.H) || viewport.W < 0 || viewport.H < 0 {
-		return nil, fmt.Errorf("invalid fixed viewport")
-	}
-	if !finite(fontSizePx) || fontSizePx < 0 {
-		return nil, fmt.Errorf("invalid fixed fallback font size")
+	if err := validateFixedContext(viewport, fontSizePx); err != nil {
+		return nil, err
 	}
 	if err := validateFixedSizingTree(root, fontSizePx); err != nil {
 		return nil, err
 	}
+	pass := intrinsicPass{measure: measure, bounds: map[BoxID]IntrinsicWidths{}}
+	return pass.resolveFixedSizing(root, viewport, fontSizePx)
+}
+
+// The caller validates the tree/context first. Keeping one intrinsic pass for
+// sizing and descendant preparation avoids measuring nested auto boxes twice.
+func (pass *intrinsicPass) resolveFixedSizing(root *LayoutNode, viewport Rect, fontSizePx float32) (*fixedSizing, error) {
 	s := styleOrDefault(root.Style)
 	if s.FontSizePx > 0 {
 		fontSizePx = s.FontSizePx
@@ -88,7 +92,6 @@ func resolveFixedSizing(root *LayoutNode, viewport Rect, fontSizePx float32, mea
 	}
 	var contentWidth float64
 	if x.needsContentSize() {
-		pass := intrinsicPass{measure: measure, bounds: map[BoxID]IntrinsicWidths{}}
 		bounds, err := pass.content(root, fontSizePx, edges)
 		if err != nil {
 			return nil, err

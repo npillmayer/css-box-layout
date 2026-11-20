@@ -2,14 +2,28 @@ package layout
 
 import "fmt"
 
+func validateFixedContext(viewport Rect, fontSizePx float32) error {
+	if !finite(viewport.X) || !finite(viewport.Y) || !finite(viewport.W) || !finite(viewport.H) || viewport.W < 0 || viewport.H < 0 {
+		return fmt.Errorf("invalid fixed viewport")
+	}
+	if !finite(fontSizePx) || fontSizePx < 0 {
+		return fmt.Errorf("invalid fixed fallback font size")
+	}
+	return nil
+}
+
 // Validate the entire root before intrinsic callbacks. Shared/duplicate nodes
 // would corrupt the per-BoxID intrinsic cache; nested fixed roots must have been
 // diverted by construction. This does not expand the descendant layout profile.
 func validateFixedSizingTree(root *LayoutNode, fallbackFont float32) error {
+	return validateFixedTree(root, fallbackFont, map[BoxID]bool{})
+}
+
+// A shared identity set also rejects overlapping roots in a fixed forest.
+func validateFixedTree(root *LayoutNode, fallbackFont float32, seen map[BoxID]bool) error {
 	if root == nil || root.Box != BoxBlock || root.Replaced != nil || styleOrDefault(root.Style).Position != PositionFixed {
 		return fmt.Errorf("fixed sizing requires a non-replaced fixed block root")
 	}
-	seen := map[BoxID]bool{}
 	var visit func(*LayoutNode, float32) error
 	visit = func(n *LayoutNode, font float32) error {
 		if n == nil {

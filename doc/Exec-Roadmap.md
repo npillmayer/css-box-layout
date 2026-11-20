@@ -147,7 +147,7 @@ this roadmap does not silently add it to the frozen deferrals.
 <a id="fixed-layout-plan"></a>
 ## 2.2) Fixed-layout branch plan (2026-11-20)
 
-Status: PR 1 construction and PR 2 internal sizing implemented; PR 3 remains planned. User-agreed direction:
+Status: all three implementation slices are complete. User-agreed direction:
 
 - Divert fixed boxes before FlowLayout; classify before normal-flow normalization.
 - Give fixed boxes a separate sizing resolver.
@@ -155,8 +155,7 @@ Status: PR 1 construction and PR 2 internal sizing implemented; PR 3 remains pla
 - Stop at that external-client boundary. Do not infer or implement page-layout
   behavior from external paged-media standards.
 
-Controlled PR sequence agreed with the user. PR 1's concrete input contract is
-now implemented along with PR 2's private resolver; FixedLayout remains proposed:
+Controlled PR sequence agreed with the user and implemented:
 
 1. **Typed input and branch construction — implemented.** Added typed static/fixed positioning,
    insets with explicit auto defaults, and fixed-root height constraints. Position
@@ -186,27 +185,32 @@ now implemented along with PR 2's private resolver; FixedLayout remains proposed
    Intrinsic measurement uses the existing recursive service contract. Validation
    covers normalized subtree shape, unique IDs, styles, effective em font bases,
    numeric finiteness and the existing descendant atomic profile. No final inline
-   callbacks, descendant used-value resolution or geometry publication occur yet.
+   callbacks, descendant used-value resolution or geometry publication occur
+   in this resolver.
    Tests cover the equations, percentage/font bases, numeric limits, nested
    measurement and failure, height completion, resize, immutable snapshots and
    concurrent replay. See [the private contract](Pass-Signatures.md#fixed-layout-api).
 
-3. **FixedLayout integration and client API — planned.** Resolve fixed width and descendant
-   widths before final inline callbacks. Lay out each fixed interior as an
-   independent formatting context using shared recursive helpers. Its margins
-   never enter outer flow; internal normal-flow margin rules still apply. Separate
-   natural content extent from prescribed fixed-root height, then finish vertical
-   sizing and placement. Keep descendant coordinates local; do not rerun paragraph
+3. **FixedLayout integration and client API — implemented.** Resolves fixed width and descendant
+   widths before final inline callbacks, sharing an invocation-local intrinsic
+   cache. Validates the entire forest and cross-root identities before measurement.
+   Lays out each fixed interior as an independent formatting context using shared
+   recursive helpers. Its margins never enter outer flow; internal normal-flow
+   margin rules still apply. Separates
+   natural content extent from prescribed fixed-root height, then finishes vertical
+   sizing and placement. Keeps descendant coordinates local; does not rerun paragraph
    layout just to translate a bottom/right-anchored root. This branch has no
-   scheduling dependency on FlowLayout within the proposed explicit-inset profile.
+   scheduling dependency on FlowLayout within the supported explicit-inset profile.
 
-   Expose FixedLayout and a result carrying its roots, viewport and fresh geometry. Resolve internally so callers
-   cannot accidentally supply normal-flow used widths for fixed roots. Preserve
+   Exposes FixedLayout and a result carrying a copied root slice, viewport and
+   fresh geometry. Resolves internally so callers cannot accidentally supply
+   normal-flow used widths for fixed roots. Preserves
    callback transaction ownership, input immutability, and independent concurrent
-   calls. Add a compiling external-package example using both branch construction
-   and FixedLayout. Finish when an external client can obtain correctly positioned
-   fixed-box geometry and retain its paragraphs; no renderer/page integration is
-   needed for this milestone.
+   calls. The external-package ExampleFixedLayout builds branches and calls both
+   APIs independently. Integration/lifecycle tests cover geometry, nested atomics,
+   margin containment, descendant resolution, complete publication, late failures,
+   resize/replay and concurrent calls. External clients can obtain positioned
+   fixed-box geometry and retain their paragraphs; this completes the milestone.
 
 Build accepts structurally valid auto constraints without performing sizing. PR 2
 rejects static-position fallback (both insets auto on an axis) in its initial

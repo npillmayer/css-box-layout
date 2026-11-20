@@ -363,14 +363,16 @@ pipeline tasks above; checked scope does not imply implemented behavior.
   and the [three review groups](Exec-Roadmap.md#margin-collapse-review-groups).
 
 <a id="fixed-layout-checklist"></a>
-## Fixed-layout client branch — PRs 1/2 implemented; PR 3 planned
+## Fixed-layout client branch — PRs 1/2/3 implemented
 
 Scope and sequence: [roadmap](Exec-Roadmap.md#fixed-layout-plan).
 PR 1 coverage: `position_test.go`, `position_flow_test.go`, and the external-package
 `ExampleBuildLayoutTrees`. Full ordinary/race suites, build and vet passed.
 PR 2 coverage: `fixed_sizing_test.go` and `fixed_validation_test.go`; full ordinary/
-race suites, build and vet passed. Internal root sizing is implemented; public fixed layout and geometry remain unavailable.
-Proposed API: [Pass-Signatures](Pass-Signatures.md#fixed-layout-api).
+race suites, build and vet passed. PR 3 coverage: `fixed_layout_test.go`,
+`fixed_layout_lifecycle_test.go`, and the external-package `ExampleFixedLayout`.
+PR 3 full ordinary/race suites, build and vet passed on 2026-11-20.
+Public API: [Pass-Signatures](Pass-Signatures.md#fixed-layout-api).
 
 - [x] Typed fixed input, auto defaults and explicit unsupported-style errors;
   unchanged existing static/default behavior and display:none suppression.
@@ -391,16 +393,19 @@ Proposed API: [Pass-Signatures](Pass-Signatures.md#fixed-layout-api).
   margins. Invalid heights and arithmetic fail without mutating prior sizing.
 - [x] Nested intrinsic measurement, missing/invalid/failed services, subtree input
   validation, resize/replay and concurrent sizing preserve the current contracts.
-- [ ] Integrate completed height with geometry and descendant preparation; reuse
+- [x] Integrate completed height with geometry and descendant preparation; reuse
   nested blocks and fixed/auto-width inline-blocks without duplicate final callbacks.
-- [ ] Result coordinates compose once with a nonzero viewport origin. Multiple
+- [x] Validate fixed-root frames only after height completion. Regression
+  `TestFixedLayoutNaturalFrameOverflow` covers prescribed/stretch heights with
+  inline/block interiors and retains rejection of actual fixed/normal-flow overflow.
+- [x] Result coordinates compose once with a nonzero viewport origin. Multiple
   roots and nested fixed roots all reference that viewport; ordinary descendants
   retain their content-coordinate parents. Verify empty/zero-size viewport and
   invalid/non-finite inputs and arithmetic.
-- [ ] External-package example builds branches and calls FixedLayout independently
+- [x] External-package example builds branches and calls FixedLayout independently
   of FlowLayout. Confirm complete result publication, late callback failure,
   immutable input/result snapshots, resize/replay and concurrent independent calls.
-- [ ] Run ordinary/race suites, build and vet with local dependency wiring.
+- [x] Run ordinary/race suites, build and vet with local dependency wiring.
   Completion stops at the client API; no page-layout or paint behavior is required.
 
 ## Validation checklist
@@ -433,7 +438,7 @@ Margin-collapse core placement is implemented under the accepted scope above;
 the bounded core regression audit and consuming-adapter integration are complete.
 Empty CSS-processed paragraphs have no line strut. Core derives anonymous
 whitespace suppression from computed CSS values, text access and inline edges.
-Floats/general positioning (apart from the planned fixed branch), fine inline
+Floats/general positioning (apart from the implemented fixed branch), fine inline
 metrics/fragments, outer RTL, vertical writing modes, selection/caret DOM mapping,
 adjacent text merging, and global caching
 remain deferred as described in the core contract.

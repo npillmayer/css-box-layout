@@ -109,7 +109,7 @@ Responsibilities:
 - Use the returned overall inline extent for content height. Line/glyph results
   are retained by the integration adapter, including for anonymous owners.
 
-### Fixed-box branch (construction and internal sizing implemented 2026-11-20)
+### Fixed-box branch (client API implemented 2026-11-20)
 
 BuildLayoutTrees now diverts fixed boxes before normal-flow normalization and
 returns LayoutTrees{Flow, Fixed}. Fixed roots use BoxBlock with independent
@@ -127,7 +127,7 @@ schemes are rejected. Non-replaced fixed roots accept all supported display pair
 nested fixed roots are diverted in source preorder with one shared ID allocator.
 Both-auto axes are retained at build time and rejected by the bounded fixed resolver.
 
-PR 2 adds the internal resolveFixedSizing resolver for one non-replaced fixed
+The internal resolveFixedSizing resolver accepts one non-replaced fixed
 root and an explicit viewport. It resolves px/em/percentage dimensions and insets,
 auto/stretch/shrink-to-fit widths, auto margins, and overconstraints under the
 current LTR profile. Horizontal percentages use viewport width; vertical insets
@@ -141,22 +141,35 @@ mutating the prior one. Prescribed/stretch height is retained despite natural
 content overflow. Intrinsic measurement is reused for shrink-to-fit, never for
 height or final paragraph results. Inputs and prior results stay read-only.
 
-The resolver returns root used values and viewport-local constraint solutions,
-not descendant geometry. PR 3 will resolve descendants, run interior layout,
-complete height and expose FixedLayout. No public fixed layout or page behavior
-is introduced in PR 2.
+FixedLayout accepts the diverted roots, viewport, inline/intrinsic services and
+FixedLayoutOptions (fallback FontSizePx). It validates the whole forest, including
+cross-root identities, before measurement. Root sizing and descendant preparation
+share an invocation-local intrinsic cache; all widths resolve before final inline
+callbacks. Shared recursive helpers lay out interiors once, then complete height
+and position roots without translating descendants or repeating callbacks.
+Fixed-root frame validation uses the completed height; no temporary natural-height
+frame is constructed. Natural extents and descendant geometry still require finite values.
+The fixed root contains child margins; ordinary internal sibling collapse remains.
+
+FixedLayoutResult carries a copied Roots slice, the Viewport, and fresh Geometry.
+Root Frame/Content coordinates are viewport-local with RelativeTo zero; add the
+viewport origin once externally. Descendants keep their content-coordinate
+parents. Empty input succeeds for a valid viewport, including definite zero size.
+Any validation, service or geometry failure returns no partial result; the client
+also discards that invocation's adapter-retained paragraphs. Trees/styles remain
+shared and read-only across resize, replay and independent concurrent calls.
 The normal-flow and fixed branches share one build's BoxID namespace but return
 independent immutable geometry. Normal-flow widths, heights, paragraph grouping,
 and margin collapse must not include fixed participants.
 
-The planning boundary ends at an external client calling this branch and receiving
+The implementation boundary ends at an external client calling this branch and receiving
 its geometry and adapter-retained paragraph results. There are no page-layout
 rules in this extension: no automatic repetition, pagination, page assignment,
 page-instance identities, or page composition. The viewport is supplied by the
 client; core does not infer it from the normal-flow root or a page standard.
 
-Agreed direction and proposed milestones are in
-[the roadmap](Exec-Roadmap.md#fixed-layout-plan); provisional client signatures and
+Agreed direction and completed milestones are in
+[the roadmap](Exec-Roadmap.md#fixed-layout-plan); client signatures and
 coordinate/ownership contracts are in
 [Pass-Signatures](Pass-Signatures.md#fixed-layout-api).
 

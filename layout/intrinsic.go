@@ -164,11 +164,15 @@ func (p *intrinsicPass) content(n *LayoutNode, font float32, own BoxEdges) (Intr
 // Work only on a private copy. Complete late resolution before any final layout
 // call, so callbacks cannot observe a partially updated used-values view.
 func finalizeAutoWidths(root *LayoutNode, input UsedValuesTable, measure IntrinsicMeasurer) (UsedValuesTable, error) {
+	pass := intrinsicPass{measure: measure, bounds: map[BoxID]IntrinsicWidths{}}
+	return pass.finalizeAutoWidths(root, input)
+}
+
+func (pass *intrinsicPass) finalizeAutoWidths(root *LayoutNode, input UsedValuesTable) (UsedValuesTable, error) {
 	used := make(UsedValuesTable, len(input))
 	for id, u := range input {
 		used[id] = u
 	}
-	pass := intrinsicPass{measure: measure, bounds: map[BoxID]IntrinsicWidths{}}
 	var visit func(*LayoutNode, ResolveContext, bool) error
 	visit = func(n *LayoutNode, ctx ResolveContext, refresh bool) error {
 		if n == nil {

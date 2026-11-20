@@ -298,11 +298,10 @@ LayoutNode.Frame/Content have been removed. Published trees, styles, and result
 tables must remain read-only for their lifetime, not only during a layout call.
 
 <a id="fixed-layout-api"></a>
-## 6) Fixed-layout client boundary (construction and internal sizing implemented)
+## 6) Fixed-layout client boundary (implemented)
 
 PR 1 implements LayoutTrees and BuildLayoutTrees below. PR 2 implements the
-internal sizing contract described below. The public FixedLayout API is still
-planned for PR 3, not available Go API.
+internal sizing contract. PR 3 integrates it and exposes FixedLayout.
 The [roadmap](Exec-Roadmap.md#fixed-layout-plan) records that sequence. All types
 live in package `layout`.
 
@@ -338,7 +337,7 @@ func resolveFixedSizing(root *LayoutNode, viewport Rect, fontSizePx float32,
 func (s fixedSizing) withContentHeight(height float32) (*fixedSizing, error)
 ```
 
-This remains private until FixedLayout orchestrates it. The resolver accepts one
+This remains private, orchestrated by FixedLayout. The resolver accepts one
 normalized fixed root, validates its subtree/identities/styles and the existing
 atomic-width profile, and returns no partial result on error. Nil roots, duplicate
 IDs, un-diverted fixed descendants and malformed subtrees fail before measurement.
@@ -370,7 +369,7 @@ One auto inset makes auto margins zero. Signed arithmetic uses float64 before
 checking finite float32 insets, sizes, margins, border sizes and local origins.
 No page-layout rules are used.
 
-Proposed sizing/placement API, **not implemented**:
+Public sizing/placement API:
 
 ```go
 type FixedLayoutOptions struct {
@@ -408,7 +407,7 @@ Construction and migration (implemented):
   Position remains distinct from BoxKind; fixed roots set EstablishesBFC even
   when their original display was ordinary flow. Anonymous descendants stay static.
 
-FixedLayout orchestration (PR 3 planned, using the implemented resolver):
+FixedLayout orchestration (implemented):
 
 - FixedLayout orchestrates a dedicated internal fixed sizing resolver. Do not
   make clients manufacture UsedValuesTable entries or call the normal-flow width
@@ -418,22 +417,25 @@ FixedLayout orchestration (PR 3 planned, using the implemented resolver):
   Insets/dimensions use the appropriate axis; margin/padding percentages retain
   their existing width basis. Use a finite positive fallback FontSizePx when a
   computed font size needed for resolution is absent; do not invent a font size.
-- Finalize fixed-root width and descendant widths before LayoutInline. Reuse
+- Finalize every fixed-root width and descendant width before any LayoutInline.
+  Share one invocation-local intrinsic cache across sizing and descendant
+  preparation so nested auto boxes are not measured twice. Reuse
   IntrinsicMeasurer for shrink-to-fit, including nested atomic preparation, without
   publishing paragraph results during measurement. Determine content-based height
   from one final interior layout before resolving bottom anchoring. A prescribed
   root content height remains prescribed even when interior material overflows.
-- In the first proposed profile, require at least one non-auto inset per axis.
+- In the supported profile, require at least one non-auto inset per axis.
   Reject a box needing static-position fallback, rather than assuming (0,0).
   Every fixed root, including one extracted from another fixed subtree, uses the
   supplied viewport. Ancestor-established fixed containing blocks are deferred;
   the adapter must reject unsupported inputs that depend on them.
-- Validate branch shape, IDs and supported styles before final callbacks. Keep all
+- Validate branch shape, globally unique nonzero IDs and supported styles across
+  all roots before measurement. Nil roots and overlapping subtrees fail. Keep all
   derived values private. On any sizing/callback/geometry error, return nil result;
   the client discards this invocation's retained paragraphs. No partial root set
   is published. Empty roots return a successful empty result for a valid viewport.
 
-Coordinates and lifetime (proposed):
+Coordinates and lifetime:
 
 - Fixed-root Frame and Content coordinates are viewport-local; RelativeTo is 0
   for each fixed root. The result's Viewport supplies the external origin. Add its
@@ -442,7 +444,7 @@ Coordinates and lifetime (proposed):
 - FixedLayoutResult distinguishes this reference space from LayoutResult's normal
   root space. Neither the normal-flow root nor a synthetic page is the parent.
   Geometry coverage inside each fixed subtree matches existing FlowLayout coverage;
-  this proposal does not add line/text rectangles.
+  this branch does not add line/text rectangles.
 - Copy the input root slice for the result; structural nodes remain shared and
   read-only. Use a fresh geometry table per call. Calls with different rectangles
   share no derived state; identical calls are deterministic given the same services.
@@ -451,7 +453,7 @@ Coordinates and lifetime (proposed):
   fixed output coordinates publication itself; neither branch invokes the other.
   Root order is deterministic traversal order, not a promise about paint order.
 
-Provisional client sequence (error handling elided):
+Client sequence (error handling elided; see the compiling ExampleFixedLayout):
 
 ```go
 trees, err := layout.BuildLayoutTrees(renderRoot, buildOptions)

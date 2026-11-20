@@ -246,24 +246,40 @@ a typed mode for box generation does not implement preserved-text line layout.
 The former WhitespaceParticipation/transparent-wrapper permission API is removed.
 
 
-### Fixed boxes: construction and internal sizing
+### Fixed boxes: independent layout against a viewport
 
 Set `ComputedStyle.Position = PositionFixed` and call `BuildLayoutTrees` to obtain
 `LayoutTrees{Flow, Fixed}`. Fixed roots (including nested fixed elements) are
 separate from normal flow before normalization and share the build's BoxID space.
-Use `trees.Flow` with the existing resolver and FlowLayout. Retain `trees.Fixed`
-for the future public branch; `FixedLayout` is not implemented yet. An internal
-root resolver now handles constraints, intrinsic width and pending content height;
-descendant resolution and final layout integration belong to PR 3.
+Use `trees.Flow` with the existing resolver and FlowLayout. Call the fixed branch
+independently, supplying its viewport and services:
+
+```go
+fixed, err := layout.FixedLayout(trees.Fixed, viewport, inline, intrinsic,
+    layout.FixedLayoutOptions{FontSizePx: 16})
+```
+
+FixedLayout resolves root constraints and descendant widths internally, then
+lays out each interior once. Content-based height completes bottom anchoring;
+explicit/stretch height remains fixed even if its contents overflow. Root
+Frame/Content coordinates are viewport-local (`RelativeTo == 0`); add the returned
+Viewport origin once externally. Descendants stay relative to parent content.
+The result owns its root slice and geometry table, sharing read-only nodes.
+On error, discard the invocation's adapter results; no partial geometry is returned.
 
 Optional `ComputedStyle.Fixed` holds `FixedStyle{Insets, Height}`. Nil means auto;
 start from `DefaultFixedStyle()` to override selected constraints. Explicit zero
 values remain zero. Width and box edges stay on ComputedStyle. Position and fixed
 constraints are not inherited, and input styles are copied. Fixed roots currently
-support non-replaced elements using the supported display pairs.
+support non-replaced elements using the supported display pairs. Each axis needs
+at least one non-auto inset; static-position fallback is unsupported. Viewport
+W/H must be finite and nonnegative; zero is definite. The fallback font size must
+be nonnegative, and em lengths need a positive effective font size. No page,
+repetition, clipping or paint-order rules are applied.
 
 `BuildLayoutTree` reports `ErrFixedLayoutRequired` instead of discarding fixed
 roots. ResolveUsedValues and FlowLayout reject fixed participants before callbacks.
 Malformed fixed values use `ErrInvalidPosition`; unsupported schemes or fixed
 replaced elements use `ErrUnsupportedPosition`. See `ExampleBuildLayoutTrees` in
-[position_example_test.go](position_example_test.go) for the public construction API.
+[position_example_test.go](position_example_test.go) for construction and
+`ExampleFixedLayout` for independent calls with invocation-owned adapter results.
