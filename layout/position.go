@@ -18,7 +18,7 @@ var (
 	ErrInvalidPosition     = errors.New("invalid positioning input")
 	ErrUnsupportedPosition = errors.New("unsupported positioning")
 	// ErrFixedLayoutRequired prevents normal-flow APIs from dropping or laying
-	// out fixed boxes. Fixed sizing and placement are not implemented yet.
+	// out fixed boxes. The public fixed-layout branch is not implemented yet.
 	ErrFixedLayoutRequired = errors.New("fixed boxes require separate layout")
 )
 

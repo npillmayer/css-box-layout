@@ -363,12 +363,13 @@ pipeline tasks above; checked scope does not imply implemented behavior.
   and the [three review groups](Exec-Roadmap.md#margin-collapse-review-groups).
 
 <a id="fixed-layout-checklist"></a>
-## Fixed-layout client branch — PR 1 implemented; PRs 2/3 planned
+## Fixed-layout client branch — PRs 1/2 implemented; PR 3 planned
 
 Scope and sequence: [roadmap](Exec-Roadmap.md#fixed-layout-plan).
 PR 1 coverage: `position_test.go`, `position_flow_test.go`, and the external-package
 `ExampleBuildLayoutTrees`. Full ordinary/race suites, build and vet passed.
-Fixed sizing and placement remain unavailable.
+PR 2 coverage: `fixed_sizing_test.go` and `fixed_validation_test.go`; full ordinary/
+race suites, build and vet passed. Internal root sizing is implemented; public fixed layout and geometry remain unavailable.
 Proposed API: [Pass-Signatures](Pass-Signatures.md#fixed-layout-api).
 
 - [x] Typed fixed input, auto defaults and explicit unsupported-style errors;
@@ -381,12 +382,16 @@ Proposed API: [Pass-Signatures](Pass-Signatures.md#fixed-layout-api).
   association rather than requiring unchanged IDs across structurally edited inputs.
 - [x] Legacy builder reports fixed-branch loss; FlowLayout rejects leaked fixed
   nodes; normal-flow consumers never prepare/measure fixed material as atomics.
-- [ ] Fixed resolver covers left/top and right/bottom anchors, opposing insets,
+- [x] Fixed resolver covers left/top and right/bottom anchors, opposing insets,
   explicit zero, auto/stretch/shrink-to-fit dimensions, auto margins, negative
   insets, overflow and overconstraints. Use a non-square viewport to distinguish
   width and height percentage bases. Unsupported both-auto axes fail explicitly.
-- [ ] Fixed-root explicit/stretch height differs correctly from natural content
-  extent; bottom placement uses final border height and margins. Reuse supported
+- [x] Private height completion preserves explicit/stretch height under natural
+  overflow and solves bottom anchoring from content height, border/padding and
+  margins. Invalid heights and arithmetic fail without mutating prior sizing.
+- [x] Nested intrinsic measurement, missing/invalid/failed services, subtree input
+  validation, resize/replay and concurrent sizing preserve the current contracts.
+- [ ] Integrate completed height with geometry and descendant preparation; reuse
   nested blocks and fixed/auto-width inline-blocks without duplicate final callbacks.
 - [ ] Result coordinates compose once with a nonzero viewport origin. Multiple
   roots and nested fixed roots all reference that viewport; ordinary descendants

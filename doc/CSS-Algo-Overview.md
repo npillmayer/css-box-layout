@@ -109,7 +109,7 @@ Responsibilities:
 - Use the returned overall inline extent for content height. Line/glyph results
   are retained by the integration adapter, including for anonymous owners.
 
-### Fixed-box branch (construction implemented 2026-11-20)
+### Fixed-box branch (construction and internal sizing implemented 2026-11-20)
 
 BuildLayoutTrees now diverts fixed boxes before normal-flow normalization and
 returns LayoutTrees{Flow, Fixed}. Fixed roots use BoxBlock with independent
@@ -125,10 +125,26 @@ zero FixedStyle means explicit zero. Static boxes cannot carry Fixed constraints
 position/insets are not inherited. Fixed replaced roots and other positioning
 schemes are rejected. Non-replaced fixed roots accept all supported display pairs;
 nested fixed roots are diverted in source preorder with one shared ID allocator.
-Both-auto axes are retained at build time; later sizing must validate its profile.
+Both-auto axes are retained at build time and rejected by the bounded fixed resolver.
 
-A separate sizing resolver and FixedLayout entry point taking an explicit viewport
-remain planned for the next two PRs. No fixed geometry is produced yet.
+PR 2 adds the internal resolveFixedSizing resolver for one non-replaced fixed
+root and an explicit viewport. It resolves px/em/percentage dimensions and insets,
+auto/stretch/shrink-to-fit widths, auto margins, and overconstraints under the
+current LTR profile. Horizontal percentages use viewport width; vertical insets
+and height use viewport height. Percentage margins/padding retain a width basis.
+Each axis requires at least one non-auto inset. The zero minimum content size is
+applied by re-solving with size zero if a stretched tentative size is negative.
+
+Root width is final before any final paragraph layout. Content-based height stays
+explicitly pending; withContentHeight later returns a completed value without
+mutating the prior one. Prescribed/stretch height is retained despite natural
+content overflow. Intrinsic measurement is reused for shrink-to-fit, never for
+height or final paragraph results. Inputs and prior results stay read-only.
+
+The resolver returns root used values and viewport-local constraint solutions,
+not descendant geometry. PR 3 will resolve descendants, run interior layout,
+complete height and expose FixedLayout. No public fixed layout or page behavior
+is introduced in PR 2.
 The normal-flow and fixed branches share one build's BoxID namespace but return
 independent immutable geometry. Normal-flow widths, heights, paragraph grouping,
 and margin collapse must not include fixed participants.
@@ -384,7 +400,7 @@ Intrinsic measurement (implemented bounded 2B/3B design):
   normal-whitespace document profile. Empty CSS-processed paragraphs now have no
   line height and can collapse through under the [contract](#margin-collapse-contract).
 - Floats, general positioning, z-index and painting/stacking contexts.
-  Fixed branch construction is implemented above; sizing and placement remain planned.
+  Fixed construction and internal sizing are implemented above; public layout remains planned.
 - Full CSS intrinsic-sizing and cyclic-percentage semantics (bounded shrink-to-fit
   is implemented under 2B/3B; this supersedes the max-content-only deferral)
 - Span-level line-height / fine inline metrics

@@ -298,10 +298,11 @@ LayoutNode.Frame/Content have been removed. Published trees, styles, and result
 tables must remain read-only for their lifetime, not only during a layout call.
 
 <a id="fixed-layout-api"></a>
-## 6) Fixed-layout client boundary (construction implemented)
+## 6) Fixed-layout client boundary (construction and internal sizing implemented)
 
-PR 1 implements LayoutTrees and BuildLayoutTrees below. The separate resolver
-and FixedLayout API are still proposals for PRs 2 and 3, not available Go API.
+PR 1 implements LayoutTrees and BuildLayoutTrees below. PR 2 implements the
+internal sizing contract described below. The public FixedLayout API is still
+planned for PR 3, not available Go API.
 The [roadmap](Exec-Roadmap.md#fixed-layout-plan) records that sequence. All types
 live in package `layout`.
 
@@ -328,6 +329,46 @@ classifies unknown schemes and fixed replaced roots. ErrFixedLayoutRequired guar
 BuildLayoutTree against lost branches and both normal-flow pass entry points
 against fixed participants, before measurement/final callbacks. Errors include
 source NodeID during construction or BoxID during flow-input validation.
+
+Internal sizing contract (PR 2 implemented):
+
+```go
+func resolveFixedSizing(root *LayoutNode, viewport Rect, fontSizePx float32,
+    measure IntrinsicMeasurer) (*fixedSizing, error)
+func (s fixedSizing) withContentHeight(height float32) (*fixedSizing, error)
+```
+
+This remains private until FixedLayout orchestrates it. The resolver accepts one
+normalized fixed root, validates its subtree/identities/styles and the existing
+atomic-width profile, and returns no partial result on error. Nil roots, duplicate
+IDs, un-diverted fixed descendants and malformed subtrees fail before measurement.
+Viewport coordinates must be finite, W/H nonnegative. FontSizePx is a nonnegative
+fallback; an em dependency requires a positive effective computed/inherited font.
+
+fixedSizing.Used contains **root-only** edges, final ContentWidth and resolution
+context for later descendant preparation. Horizontal contains solved margin-edge
+insets, content size, and margins. Vertical has the same form but is unavailable
+while HeightPending is true. That flag applies to auto height with one definite
+inset; a zero Vertical value is not evidence of resolved zero height.
+withContentHeight accepts a finite nonnegative natural **content** height and
+returns a fresh completed value, including bottom anchoring. Explicit/stretch
+heights ignore natural overflow. Neither operation retains style aliases.
+
+Only auto width with one definite inset triggers intrinsic content measurement;
+auto width between two definite insets stretches instead. The resolver shares
+intrinsic traversal and its existing unknown-width percentage restrictions. It
+runs no final inline callbacks and resolves no descendant used-values table.
+Normal-flow root width/margin equations are not used for fixed roots.
+
+Constraint rules follow [CSS 2.2 width](https://www.w3.org/TR/CSS22/visudet.html#abs-non-replaced-width)
+and [height](https://www.w3.org/TR/CSS22/visudet.html#abs-non-replaced-height):
+positive free space splits between two auto margins; negative horizontal space
+uses zero left margin and the residual right margin, while negative vertical
+space splits equally. Overconstraint solves right/bottom, retaining fixed margins.
+An auto-size negative stretch is re-solved with the default minimum size zero.
+One auto inset makes auto margins zero. Signed arithmetic uses float64 before
+checking finite float32 insets, sizes, margins, border sizes and local origins.
+No page-layout rules are used.
 
 Proposed sizing/placement API, **not implemented**:
 
@@ -367,7 +408,7 @@ Construction and migration (implemented):
   Position remains distinct from BoxKind; fixed roots set EstablishesBFC even
   when their original display was ordinary flow. Anonymous descendants stay static.
 
-Sizing and invocation (proposed):
+FixedLayout orchestration (PR 3 planned, using the implemented resolver):
 
 - FixedLayout orchestrates a dedicated internal fixed sizing resolver. Do not
   make clients manufacture UsedValuesTable entries or call the normal-flow width

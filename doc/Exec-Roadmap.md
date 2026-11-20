@@ -147,7 +147,7 @@ this roadmap does not silently add it to the frozen deferrals.
 <a id="fixed-layout-plan"></a>
 ## 2.2) Fixed-layout branch plan (2026-11-20)
 
-Status: PR 1 construction implemented; PRs 2 and 3 remain planned. User-agreed direction:
+Status: PR 1 construction and PR 2 internal sizing implemented; PR 3 remains planned. User-agreed direction:
 
 - Divert fixed boxes before FlowLayout; classify before normal-flow normalization.
 - Give fixed boxes a separate sizing resolver.
@@ -156,7 +156,7 @@ Status: PR 1 construction implemented; PRs 2 and 3 remain planned. User-agreed d
   behavior from external paged-media standards.
 
 Controlled PR sequence agreed with the user. PR 1's concrete input contract is
-now implemented; resolver and FixedLayout signatures remain proposals:
+now implemented along with PR 2's private resolver; FixedLayout remains proposed:
 
 1. **Typed input and branch construction — implemented.** Added typed static/fixed positioning,
    insets with explicit auto defaults, and fixed-root height constraints. Position
@@ -174,18 +174,22 @@ now implemented; resolver and FixedLayout signatures remain proposals:
    Source association remains available for later static-position work; there is
    no contributing placeholder.
 
-2. **Dedicated sizing resolver — planned.** Start with non-replaced fixed roots and the
-   existing LTR horizontal-writing profile. Support px/em/percentage lengths and
-   auto dimensions; require at least one non-auto inset on each axis initially.
-   Implement horizontal/vertical constraint equations, auto-margin distribution,
-   and overconstraint handling. Distinguish auto width filled between opposing
-   insets from shrink-to-fit when only one side is specified. Preserve auto versus
-   explicit-zero height; support content-based height and height constrained by
-   opposing insets. Vertical inset/height percentages use viewport height;
-   horizontal dimensions and percentage margins/padding use viewport width.
-   Negative insets/margins and overflow are valid; non-finite results fail.
-   Share low-level length/intrinsic helpers, not normal-flow root width/margin
-   equations. Existing descendant display/sizing restrictions still apply.
+2. **Dedicated sizing resolver — implemented.** Internal resolveFixedSizing
+   resolves one non-replaced fixed root in the LTR profile. It supports px/em/%,
+   auto/stretch/shrink-to-fit widths, height constraints, auto margins and
+   overconstraints, requiring at least one non-auto inset on each axis. Negative
+   insets/margins and finite overflow are allowed. Percentages use axis-correct
+   bases; percentage margins/padding use width. A negative stretch is re-solved
+   at zero minimum content size, including auto-margin redistribution.
+   Root used width/edges are separated from explicitly pending content height;
+   withContentHeight completes that height later and preserves prescribed sizes.
+   Intrinsic measurement uses the existing recursive service contract. Validation
+   covers normalized subtree shape, unique IDs, styles, effective em font bases,
+   numeric finiteness and the existing descendant atomic profile. No final inline
+   callbacks, descendant used-value resolution or geometry publication occur yet.
+   Tests cover the equations, percentage/font bases, numeric limits, nested
+   measurement and failure, height completion, resize, immutable snapshots and
+   concurrent replay. See [the private contract](Pass-Signatures.md#fixed-layout-api).
 
 3. **FixedLayout integration and client API — planned.** Resolve fixed width and descendant
    widths before final inline callbacks. Lay out each fixed interior as an
@@ -205,7 +209,7 @@ now implemented; resolver and FixedLayout signatures remain proposals:
    needed for this milestone.
 
 Build accepts structurally valid auto constraints without performing sizing. PR 2
-will reject static-position fallback (both insets auto on an axis) in its initial
+rejects static-position fallback (both insets auto on an axis) in its initial
 profile. Defer ancestor-established fixed containing blocks, fixed replaced roots, additional writing modes and
 broader size constraints. Unsupported dependencies must fail explicitly within
 core's input contract or be rejected by the adapter before projection; they are

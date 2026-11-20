@@ -18,7 +18,10 @@ func buildStyle(r *RenderNode, inheritedFont float32, inheritedWhitespace WhiteS
 		}
 	}
 	style := styleOrDefault(r.Style)
-	if err := validatePosition(style); err != nil {
+	if r.Style == nil {
+		style.WhiteSpace = inheritedWhitespace
+	}
+	if err := validateComputedStyle(style); err != nil {
 		return nil, fmt.Errorf("node %d: %w", r.ID, err)
 	}
 	if isTextNode(r.HTMLNode()) && style.Position != PositionStatic {
@@ -28,26 +31,31 @@ func buildStyle(r *RenderNode, inheritedFont float32, inheritedWhitespace WhiteS
 		fixed := *style.Fixed
 		style.Fixed = &fixed
 	}
-	if r.Style == nil {
-		style.WhiteSpace = inheritedWhitespace
-	}
-	if style.WhiteSpace > WhiteSpaceBreakSpaces {
-		return nil, fmt.Errorf("node %d: invalid computed white-space", r.ID)
-	}
-	if !finite(style.FontSizePx) || style.FontSizePx < 0 {
-		return nil, fmt.Errorf("node %d: invalid computed font size", r.ID)
-	}
 	if style.FontSizePx == 0 {
 		style.FontSizePx = inheritedFont
 	}
+	return &style, nil
+}
+
+// Shared by construction and the fixed resolver, including hand-built inputs.
+func validateComputedStyle(style ComputedStyle) error {
+	if err := validatePosition(style); err != nil {
+		return err
+	}
+	if style.WhiteSpace > WhiteSpaceBreakSpaces {
+		return fmt.Errorf("invalid computed white-space")
+	}
+	if !finite(style.FontSizePx) || style.FontSizePx < 0 {
+		return fmt.Errorf("invalid computed font size")
+	}
 	check := func(name string, length Length, auto, negative bool) error {
 		if length.Kind > LenAuto || !finite(length.Value) || (!auto && length.Kind == LenAuto) || (!negative && length.Kind != LenAuto && length.Value < 0) {
-			return fmt.Errorf("node %d: invalid computed %s", r.ID, name)
+			return fmt.Errorf("invalid computed %s", name)
 		}
 		return nil
 	}
 	if err := check("width", style.Width, true, false); err != nil {
-		return nil, err
+		return err
 	}
 	for _, group := range []struct {
 		name           string
@@ -63,11 +71,11 @@ func buildStyle(r *RenderNode, inheritedFont float32, inheritedWhitespace WhiteS
 			{"top", group.edges.Top}, {"right", group.edges.Right}, {"bottom", group.edges.Bottom}, {"left", group.edges.Left},
 		} {
 			if err := check(group.name+"-"+side.name, side.length, group.auto, group.negative); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
-	return &style, nil
+	return nil
 }
 
 func finite(v float32) bool { return !math.IsNaN(float64(v)) && !math.IsInf(float64(v), 0) }
