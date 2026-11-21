@@ -63,8 +63,48 @@ func TestBankVersions(t *testing.T) {
 	assertRegister(t, derived, p1, p2, local)
 }
 
+func TestBankPrependVersions(t *testing.T) {
+	for _, id := range []registers.RegisterID{"", "body"} {
+		t.Run("id="+string(id), func(t *testing.T) {
+			var empty registers.RegisterBank
+			one := empty.Prepend(id, p1)
+			base := one.Append(id, p2).Append("notes", n1)
+			_, trial, _ := base.Take(id)
+			left := trial.Prepend(id, leftItem)
+			right := trial.Prepend(id, rightItem)
+			repeated := trial.Prepend(id, p1).Prepend(id, p1)
+			item, restored, ok := left.Take(id)
+			if !ok || item != leftItem {
+				t.Fatalf("Take after Prepend = (%v, _, %v)", item, ok)
+			}
+			_, drainedName, _ := trial.Take(id)
+			recreated := drainedName.Prepend(id, newItem)
+			_, drained, _ := one.Take(id)
+			reused := drained.Prepend(id, newItem)
+			lookup, _ := trial.Lookup(id)
+			localVersion := lookup.Prepend(local)
+
+			assertBank(t, empty, nil)
+			assertBank(t, one, map[registers.RegisterID][]registers.FlowMaterial{id: {p1}})
+			assertBank(t, base, map[registers.RegisterID][]registers.FlowMaterial{id: {p1, p2}, "notes": {n1}})
+			assertBank(t, trial, map[registers.RegisterID][]registers.FlowMaterial{id: {p2}, "notes": {n1}})
+			assertBank(t, left, map[registers.RegisterID][]registers.FlowMaterial{id: {leftItem, p2}, "notes": {n1}})
+			assertBank(t, right, map[registers.RegisterID][]registers.FlowMaterial{id: {rightItem, p2}, "notes": {n1}})
+			assertBank(t, repeated, map[registers.RegisterID][]registers.FlowMaterial{id: {p1, p1, p2}, "notes": {n1}})
+			assertBank(t, restored, map[registers.RegisterID][]registers.FlowMaterial{id: {p2}, "notes": {n1}})
+			assertBank(t, drainedName, map[registers.RegisterID][]registers.FlowMaterial{"notes": {n1}})
+			assertBank(t, recreated, map[registers.RegisterID][]registers.FlowMaterial{id: {newItem}, "notes": {n1}})
+			assertBank(t, drained, nil)
+			assertBank(t, reused, map[registers.RegisterID][]registers.FlowMaterial{id: {newItem}})
+			assertRegister(t, lookup, p2)
+			assertRegister(t, localVersion, local, p2)
+		})
+	}
+}
+
 // Branch from arbitrary checkpoints and compare every retained version with an
-// independent FIFO model. This exercises interleaved appends, takes and rollbacks.
+// independent sequence model. This exercises interleaved appends, prepends, takes
+// and rollbacks.
 func TestBankCheckpointHistory(t *testing.T) {
 	type snapshot struct {
 		bank  registers.RegisterBank
@@ -81,10 +121,14 @@ func TestBankCheckpointHistory(t *testing.T) {
 		}
 		id := ids[rng.IntN(len(ids))]
 		var next registers.RegisterBank
-		if rng.IntN(2) == 0 {
+		switch rng.IntN(3) {
+		case 0:
 			next = prior.bank.Append(id, testMaterial(step+100))
 			model[id] = append(model[id], testMaterial(step+100))
-		} else {
+		case 1:
+			next = prior.bank.Prepend(id, testMaterial(step+100))
+			model[id] = append([]registers.FlowMaterial{testMaterial(step + 100)}, model[id]...)
+		case 2:
 			item, rest, ok := prior.bank.Take(id)
 			next = rest
 			items := model[id]
@@ -126,9 +170,12 @@ func TestConcurrentBranches(t *testing.T) {
 					return
 				}
 				_, branch, _ = branch.Take("notes")
-				assertBank(t, branch, map[registers.RegisterID][]registers.FlowMaterial{"body": {block, testMaterial(worker + 100)}, "local": {testMaterial(iteration + 200)}})
+				branch = branch.Prepend("body", testMaterial(worker+300)).Prepend("notes", note)
+				assertBank(t, branch, map[registers.RegisterID][]registers.FlowMaterial{"body": {testMaterial(worker + 300), block, testMaterial(worker + 100)}, "local": {testMaterial(iteration + 200)}, "notes": {note}})
 				_, tail, _ := r.Take()
 				assertRegister(t, tail.Append(testMaterial(worker+100)), block, testMaterial(worker+100))
+				assertRegister(t, tail.Prepend(testMaterial(worker+300)), testMaterial(worker+300), block)
+				assertRegister(t, tail, block)
 				assertRegister(t, r, paragraph, block)
 			}
 		}()

@@ -1,9 +1,11 @@
 package registers
 
-// Register is an immutable FIFO queue of flow material. Its zero value is empty.
-// Append copies the remaining queue in O(n) time; First, Take and Len take O(1).
+// Register is an immutable queue of flow material with explicit front insertion.
+// Its zero value is empty. Append and Prepend copy the remaining queue in O(n)
+// time and space; First, Take and Len take O(1).
 // A partially consumed register shares its backing storage with earlier versions,
-// retaining the consumed prefix until the register is emptied or appended to.
+// retaining the consumed prefix until the register is emptied, appended to, or
+// prepended to. Earlier versions continue to retain their own storage.
 type Register struct {
 	// The backing array is never modified after publication.
 	queue []FlowMaterial
@@ -20,6 +22,17 @@ func (r Register) Append(item FlowMaterial) Register {
 	q := make([]FlowMaterial, r.Len()+1)
 	copy(q, r.queue[r.head:])
 	q[len(q)-1] = item
+	return Register{queue: q}
+}
+
+// Prepend returns a register with item before all remaining items, leaving r
+// unchanged. Repeated prepends insert in reverse order: Prepend(a).Prepend(b)
+// puts b before a. Payloads are shared without inspection or copying.
+func (r Register) Prepend(item FlowMaterial) Register {
+	q := make([]FlowMaterial, r.Len()+1)
+	q[0] = item
+	// The consumed prefix may still belong to an earlier version; never reuse it.
+	copy(q[1:], r.queue[r.head:])
 	return Register{queue: q}
 }
 

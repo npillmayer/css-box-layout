@@ -10,8 +10,9 @@ type RegisterID string
 // last item removes the name from the returned bank.
 //
 // Updates copy the map, sharing unchanged registers and payloads. This is intended
-// for a small number of named flows: Append costs O(number of registers + queue
-// length), and a successful Take costs O(number of registers).
+// for a small number of named flows: Append and Prepend cost O(number of registers
+// + remaining queue length) in time and space, and a successful Take costs
+// O(number of registers).
 type RegisterBank struct {
 	registers map[RegisterID]Register
 }
@@ -43,6 +44,18 @@ func (b RegisterBank) Append(id RegisterID, item FlowMaterial) RegisterBank {
 		regs = make(map[RegisterID]Register)
 	}
 	regs[id] = b.registers[id].Append(item)
+	return RegisterBank{registers: regs}
+}
+
+// Prepend returns a bank with item before all remaining items in the named
+// register, creating it if absent. The receiver and all its registers remain
+// unchanged. Len increases only when the name was absent.
+func (b RegisterBank) Prepend(id RegisterID, item FlowMaterial) RegisterBank {
+	regs := maps.Clone(b.registers)
+	if regs == nil {
+		regs = make(map[RegisterID]Register)
+	}
+	regs[id] = b.registers[id].Prepend(item)
 	return RegisterBank{registers: regs}
 }
 

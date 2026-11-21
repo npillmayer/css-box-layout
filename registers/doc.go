@@ -1,13 +1,17 @@
-// Package registers provides immutable FIFO registers for page-layout flow material.
+// Package registers provides immutable queues for page-layout flow material.
 //
 // Registers hold material awaiting placement into a sequence of frames or regions,
 // such as prepared paragraphs and unset blocks. They store whole items; measuring,
 // splitting and placing those items belong to the page-layout consumer, not this
 // package or the normal CSS box-layout passes.
 //
-// Register and RegisterBank are persistent values: Append and Take return new
-// values without changing any earlier version. A layout trial can keep its input
-// bank as a checkpoint and publish the returned bank only when the trial succeeds.
+// Append adds at the back and Take consumes from the front, providing FIFO order.
+// Prepend explicitly inserts at the front, for example to return unfinished
+// material ahead of the remaining queue. Repeated prepends reverse insertion order.
+//
+// Register and RegisterBank are persistent values: Append, Prepend and Take return
+// new values without changing any earlier version. A layout trial can keep its
+// input bank as a checkpoint and publish the returned bank only when the trial succeeds.
 // Their zero values are ready to use, and returned values must be retained to
 // observe changes.
 //
@@ -24,7 +28,8 @@ import "github.com/npillmayer/css-box-layout/layout"
 // Values may include references to prepared paragraphs or unset blocks, provided
 // those references and their reachable data remain read-only while shared.
 // Nil (including a typed nil) is a valid item; the bool returned by First and Take
-// distinguishes an item from an empty register.
+// distinguishes an item from an empty register. Registers do not call GetBoxID
+// or deduplicate items; repeated box identities are allowed.
 type FlowMaterial interface {
 	GetBoxID() layout.BoxID
 }
