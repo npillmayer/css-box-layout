@@ -369,7 +369,32 @@ One auto inset makes auto margins zero. Signed arithmetic uses float64 before
 checking finite float32 insets, sizes, margins, border sizes and local origins.
 No page-layout rules are used.
 
-Public sizing/placement API:
+Geometry-only API (BOX-01 implemented):
+
+```go
+func ResolveFixedGeometry(style ComputedStyle, viewport Rect,
+    opts FixedLayoutOptions) (LayoutGeometry, error)
+```
+
+No tree, BoxID or content services are involved. Position must be fixed; default
+constructors preserve auto versus explicit zero. The shared typed kernel resolves
+px, viewport percentages and em with an explicit effective font size. Width and
+height must be definite or stretched between opposing insets. `Frame` and
+`Content` are viewport-local CSS pixels with `RelativeTo == 0`; viewport X/Y
+are not added. The function retains no inputs and returns zero geometry on error.
+
+- `ErrInvalidFixedGeometry`: invalid context/style, missing em font context or
+  numeric overflow; original validation causes remain wrapped.
+- `ErrUnsupportedPosition`: non-fixed positioning or a both-auto inset axis.
+- `ErrFixedContentDependency`: an auto content size with only one definite inset.
+
+Core accepts zero dimensions, signed insets/margins, auto margins and finite
+overflow, with the same LTR equations as the tree path. It does not enforce page
+bounds, positive receiving areas or overlap policy. Definite vertical constraints
+are checked before intrinsic measurement in the tree path; final callbacks and
+pending content-height completion remain there.
+
+Public content sizing/placement API:
 
 ```go
 type FixedLayoutOptions struct {

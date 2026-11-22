@@ -212,6 +212,18 @@ Controlled PR sequence agreed with the user and implemented:
    resize/replay and concurrent calls. External clients can obtain positioned
    fixed-box geometry and retain their paragraphs; this completes the milestone.
 
+4. **Geometry-only service (BOX-01) — implemented 2026-11-22.**
+   `ResolveFixedGeometry(ComputedStyle, Rect, FixedLayoutOptions)` returns one
+   viewport-local `LayoutGeometry`, sharing typed constraint preparation, the
+   axis solver and rectangle construction with `FixedLayout`. It requires no
+   DOM/tree/identity or content callbacks and rejects content-dependent sizing
+   explicitly. Invalid input/overflow, unsupported static-position fallback and
+   content dependencies have distinct errors. Zero sizes and finite overflow
+   retain core semantics; page policy stays downstream. Tests cover direct
+   geometry, parity with the tree path, callback validation order, invalid inputs,
+   percentages/em, ownership, resize/replay and concurrency. Existing content
+   layout and callback contracts remain unchanged.
+
 Build accepts structurally valid auto constraints without performing sizing. PR 2
 rejects static-position fallback (both insets auto on an axis) in its initial
 profile. Defer ancestor-established fixed containing blocks, fixed replaced roots, additional writing modes and

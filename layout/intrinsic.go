@@ -39,12 +39,21 @@ type intrinsicPass struct {
 }
 
 func measureEdges(n *LayoutNode, ctx ResolveContext) (BoxEdges, ResolveContext, error) {
-	s := styleOrDefault(n.Style)
+	e, next, err := resolveStyleEdges(styleOrDefault(n.Style), ctx)
+	if err != nil {
+		return BoxEdges{}, next, fmt.Errorf("box %d: %w", n.BoxID, err)
+	}
+	return e, next, nil
+}
+
+// resolveStyleEdges checks resolved edges without a tree or measurement service.
+// The same conversion/validation serves intrinsic traversal and fixed geometry.
+func resolveStyleEdges(s ComputedStyle, ctx ResolveContext) (BoxEdges, ResolveContext, error) {
 	if s.FontSizePx > 0 {
 		ctx.FontSizePx = s.FontSizePx
 	}
 	if ctx.widthUnresolved && percentEdges(s) {
-		return BoxEdges{}, ctx, fmt.Errorf("box %d: percentage edges depend on unresolved auto width", n.BoxID)
+		return BoxEdges{}, ctx, fmt.Errorf("percentage edges depend on unresolved auto width")
 	}
 	m, p, b, _ := resolveEdges(s, ctx)
 	e := BoxEdges{m, p, b}
@@ -54,7 +63,7 @@ func measureEdges(n *LayoutNode, ctx ResolveContext) (BoxEdges, ResolveContext, 
 	}{{m, true}, {p, false}, {b, false}} {
 		for _, v := range []float32{g.e.Top, g.e.Right, g.e.Bottom, g.e.Left} {
 			if !finite(v) || (!g.signed && v < 0) {
-				return BoxEdges{}, ctx, fmt.Errorf("box %d: invalid measurement edges", n.BoxID)
+				return BoxEdges{}, ctx, fmt.Errorf("invalid measurement edges")
 			}
 		}
 	}

@@ -127,8 +127,9 @@ schemes are rejected. Non-replaced fixed roots accept all supported display pair
 nested fixed roots are diverted in source preorder with one shared ID allocator.
 Both-auto axes are retained at build time and rejected by the bounded fixed resolver.
 
-The internal resolveFixedSizing resolver accepts one non-replaced fixed
-root and an explicit viewport. It resolves px/em/percentage dimensions and insets,
+The shared typed `prepareFixedConstraints` kernel accepts computed style and an
+explicit viewport without a tree. The internal `resolveFixedSizing` adds tree
+measurement when needed. Together they resolve px/em/percentage dimensions and insets,
 auto/stretch/shrink-to-fit widths, auto margins, and overconstraints under the
 current LTR profile. Horizontal percentages use viewport width; vertical insets
 and height use viewport height. Percentage margins/padding retain a width basis.
@@ -161,6 +162,19 @@ shared and read-only across resize, replay and independent concurrent calls.
 The normal-flow and fixed branches share one build's BoxID namespace but return
 independent immutable geometry. Normal-flow widths, heights, paragraph grouping,
 and margin collapse must not include fixed participants.
+
+`ResolveFixedGeometry` (BOX-01, implemented 2026-11-22) exposes the same typed
+kernel and rectangle construction directly. It accepts one `ComputedStyle`,
+viewport and `FixedLayoutOptions`, returning a detached `LayoutGeometry` without
+tree construction or callbacks. Both axes must have a definite content size or
+opposing-inset stretch. `ErrFixedContentDependency` rejects unresolved content
+sizing; `ErrUnsupportedPosition` rejects both-auto static-position fallback and
+non-fixed positioning. `ErrInvalidFixedGeometry` classifies invalid typed inputs,
+missing effective em font context and numeric overflow. Errors return zero
+geometry. Local-coordinate, zero-minimum, percentage-basis and immutability rules
+match `FixedLayout`; strict positive receivers and bounds remain caller policy.
+Tree validation and content-dependent measurement/layout remain in the existing
+tree path. Definite vertical validation still precedes intrinsic measurement.
 
 The implementation boundary ends at an external client calling this branch and receiving
 its geometry and adapter-retained paragraph results. There are no page-layout

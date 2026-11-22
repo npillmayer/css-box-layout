@@ -32,7 +32,7 @@ viewport contract.
 | `withContentHeight` in [fixed_sizing.go](../layout/fixed_sizing.go) | Reuse height completion and bottom anchoring, including preservation of prescribed heights under content overflow. |
 | `layoutBlockContent` in [layout.go](../layout/layout.go) | Reuse directly: interior layout is separated from construction and validation of the positioned root's final frame. |
 | [Intrinsic measurement](../layout/intrinsic.go) and [descendant resolution](../layout/used_values.go) | Reuse service interfaces, the invocation-local cache, atomic preparation, and ordinary descendant layout. |
-| `fixedRootGeometry` in [fixed_layout.go](../layout/fixed_layout.go) | Reuse local rectangle construction; generalize reference-space attachment. |
+| `fixedRootGeometry` in [fixed_geometry.go](../layout/fixed_geometry.go) | Reuse local rectangle construction; generalize reference-space attachment. |
 | `divertFixed` in [build.go](../layout/build.go) | Reuse early diversion, normalization, identity allocation, and style snapshots. Add containing-block associations. |
 
 The solver already implements the relevant CSS 2.2 absolute-positioning width

@@ -283,3 +283,31 @@ Malformed fixed values use `ErrInvalidPosition`; unsupported schemes or fixed
 replaced elements use `ErrUnsupportedPosition`. See `ExampleBuildLayoutTrees` in
 [position_example_test.go](position_example_test.go) for construction and
 `ExampleFixedLayout` for independent calls with invocation-owned adapter results.
+
+### Fixed geometry without content (BOX-01)
+
+`ResolveFixedGeometry(style, viewport, opts)` accepts `ComputedStyle` directly
+and returns one `LayoutGeometry`. It shares typed constraint preparation, axis
+equations and rectangle construction with `FixedLayout`, but needs no DOM,
+layout tree, BoxIDs, intrinsic measurer or inline layouter. See
+[`ExampleResolveFixedGeometry`](fixed_geometry_example_test.go) for a complete
+example using default constructors and the resulting border/content rectangles.
+
+The style must use `PositionFixed`, with at least one definite inset per axis.
+An explicit content size or opposing-inset stretch resolves without content;
+auto size with one definite inset is a content dependency, even for an empty box
+or a zero-size viewport. Px, percentages with viewport bases, and em with a
+positive effective font size follow the existing fixed contract. Zero sizes,
+negative margins/insets, auto margins, overconstraints and finite overflow remain
+valid core inputs. Callers enforce stricter receiving-frame or bounds policies.
+
+Errors are classifiable with `errors.Is`: `ErrInvalidFixedGeometry` for malformed
+input, unresolved font context or arithmetic overflow; `ErrUnsupportedPosition`
+for non-fixed positioning or both-auto static-position fallback;
+`ErrFixedContentDependency` for unresolved content sizing. Wrapped validation
+causes are preserved. Every failure returns a zero geometry value.
+
+The result is detached and viewport-local (`RelativeTo == 0`). Apply the external
+viewport origin once during composition. Inputs and prior results remain
+unchanged across concurrent calls and resize/replay. `FixedLayout` retains its
+existing content measurement, interior layout and callback lifecycle.

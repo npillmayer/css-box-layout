@@ -92,7 +92,7 @@ func FixedLayout(
 		}
 		g, err := fixedRootGeometry(*sizing)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("box %d: %w", root.BoxID, err)
 		}
 		// Set the root's final size and origin once. Descendants already use
 		// parent-content coordinates, including any overflow of a fixed height.
@@ -101,22 +101,4 @@ func FixedLayout(
 	return &FixedLayoutResult{
 		Roots: append([]*LayoutNode(nil), roots...), Viewport: viewport, Geometry: geom,
 	}, nil
-}
-
-func fixedRootGeometry(s fixedSizing) (LayoutGeometry, error) {
-	u, h, v := s.Used, s.Horizontal, s.Vertical
-	x, y := float64(h.Start)+float64(h.MarginStart), float64(v.Start)+float64(v.MarginStart)
-	left, top := float64(u.Padding.Left)+float64(u.Border.Left), float64(u.Padding.Top)+float64(u.Border.Top)
-	g := LayoutGeometry{
-		Frame: Rect{X: float32(x), Y: float32(y),
-			W: float32(left + float64(h.Size) + float64(u.Padding.Right) + float64(u.Border.Right)),
-			H: float32(top + float64(v.Size) + float64(u.Padding.Bottom) + float64(u.Border.Bottom))},
-		Content: Rect{X: float32(x + left), Y: float32(y + top), W: h.Size, H: v.Size},
-	}
-	for _, value := range []float32{g.Frame.X, g.Frame.Y, g.Frame.W, g.Frame.H, g.Content.X, g.Content.Y} {
-		if !finite(value) {
-			return LayoutGeometry{}, fmt.Errorf("box %d: fixed geometry overflow", s.boxID)
-		}
-	}
-	return g, nil
 }
