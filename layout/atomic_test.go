@@ -45,7 +45,7 @@ func (f *atomicFake) LayoutInline(r InlineRequest) (InlineResult, error) {
 		if n.Box == BoxInlineBlock {
 			a, ok := r.Atomics.Lookup(n.BoxID)
 			if !ok || a.BoxID != n.BoxID {
-				f.t.Fatal("unprepared branch")
+				f.t.Fatal("unrealized branch")
 			}
 			u, _ := r.Used.Lookup(n.BoxID)
 			handle := len(items) + 100
@@ -54,7 +54,7 @@ func (f *atomicFake) LayoutInline(r InlineRequest) (InlineResult, error) {
 			a.BorderWidth = 999
 			again, _ := r.Atomics.Lookup(n.BoxID)
 			if again.BorderWidth == 999 {
-				f.t.Fatal("mutable prepared view")
+				f.t.Fatal("mutable realized view")
 			}
 			return
 		}
@@ -136,7 +136,7 @@ func newAtomicFake(t *testing.T) *atomicFake {
 	return &atomicFake{t: t, retained: map[BoxID]InlineResult{}, texts: map[BoxID][]BoxID{}}
 }
 
-func TestRecursiveAtomicsPreparationPlacementAndSnapshots(t *testing.T) {
+func TestRecursiveAtomicsRealizationPlacementAndSnapshots(t *testing.T) {
 	root, n := recursiveFixture(t)
 	original := copyTestTree(root)
 	run := func(width float32, f *atomicFake) (*LayoutResult, error) {
@@ -267,7 +267,7 @@ func TestAtomicPlacementValidation(t *testing.T) {
 			}
 		})
 	}
-	items := map[BoxID]PreparedAtomic{3: {BoxID: 3}, 4: {BoxID: 4}}
+	items := map[BoxID]RealizedAtomic{3: {BoxID: 3}, 4: {BoxID: 4}}
 	geom := LayoutGeometryTable{3: {Frame: Rect{W: 2}}, 4: {Frame: Rect{W: 3}}}
 	before := copyTestGeometry(geom)
 	if err := placeAtomics([]AtomicPlacement{{BoxID: 3}, {BoxID: 3}}, items, 1, geom); err == nil || !reflect.DeepEqual(geom, before) {

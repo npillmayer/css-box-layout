@@ -45,6 +45,15 @@ and no preparation engine or geometry pass is implemented. See
 [group enumeration](../layout/README.md#enumerating-normalized-groups).
 
 
+BOX-PREP-02 (2026-11-23) is implemented: `RealizedAtomic` and
+`RealizedAtomicsView` replace the prepared-atomic names without aliases. Private
+`layoutAtomicInteriors` completes each atomic interior before outer delegation;
+its copied border dimensions are CSS-pixel geometry for that invocation.
+Margins and outer placements remain separate. Pagelayout and tytui consumers,
+guides and diagrams use the new names. This changes no sizing, callback ordering,
+immutable input contract or result publication. Reusable paragraph preparation
+still belongs to consumers. See [the geometry contract](Pass-Signatures.md#realized-atomic-items-and-placement).
+
 High-level milestones for the core layout pipeline, reviewed on 2026-11-02;
 integration sequencing aligned through bounded pipeline stage 5 on 2026-11-15.
 `doc/CSS-Algo-Overview.md` is the authoritative algorithm contract.
@@ -99,11 +108,11 @@ Frozen decisions for the current phase:
   core helpers; an explicit work stack is optional. This supersedes adapter-driven
   AtomicSizer callbacks and removes that reason for adapter reentrancy.
 - The request's external sizing callback is replaced by read-only group-local
-  prepared items keyed by existing atomic BoxID. Implemented contract:
-  request.Atomics PreparedAtomicsView with Lookup(BoxID) -> PreparedAtomic, copied
+  realized items keyed by existing atomic BoxID. Implemented contract:
+  request.Atomics RealizedAtomicsView with Lookup(BoxID) -> RealizedAtomic, copied
   border dimensions, one view per group, branch lookup by node.BoxID. Local whatsit
   IDs map back to BoxID; encoding/position storage stays private. Current code
-  uses Atomics lookup; core prepares sizes, P determines line placements.
+  uses Atomics lookup; core realizes sizes, P determines line placements.
 - Implemented output: InlineResult{Extent, Atomics}, with each
   AtomicPlacement carrying BoxID and border-origin X/Y relative to request.OwnerID
   content. This narrowly extends extent-only returns, without paragraph summaries.
@@ -115,9 +124,9 @@ Frozen decisions for the current phase:
   normal CSSLineHeight, AlignBottomMarginEdge, zero side skips and NoHyphenation.
   General CSS baseline and per-span hyphenation policies remain deferred.
 - Fixed CSS-pixel recursive support comes before auto sizing. Checklist 2A/3A
-  specifies prepared access and both adapter/P contracts, then dependency-order
+  specifies realized geometry access and both adapter/P contracts, then dependency-order
   fixtures, core scheduling/sizing/resolution, API migration, and fake-adapter
-  proof. Prepare each atomic once per invocation initially. Auto sizing follows measurement-first 2B/3B; speculative trials and their
+  proof. Lay out each atomic once per invocation initially. Auto sizing follows measurement-first 2B/3B; speculative trials and their
   acceptance/discard protocol remain outside that slice.
 
 Anonymous style rules and explicit pending auto-width/edge state are implemented.
@@ -204,7 +213,7 @@ Controlled PR sequence agreed with the user and implemented:
    returns an explicit error for otherwise discarded fixed roots. One ID allocator
    serves both branches; source inheritance/order is preserved and nested fixed
    boxes are diverted to the same viewport branch. No fixed participant may
-   enter its outer flow's normalization, measurement, atomic preparation or stacking.
+   enter its outer flow's normalization, measurement, atomic realization or stacking.
    Source association remains available for later static-position work; there is
    no contributing placeholder.
 

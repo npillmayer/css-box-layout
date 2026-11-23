@@ -31,7 +31,7 @@ viewport contract.
 | `resolveFixedSizing` in [fixed_sizing.go](../layout/fixed_sizing.go) | Generalize root-style access and validation. Retain percentage resolution, stretch/shrink-to-fit width, auto margins, and pending content height. |
 | `withContentHeight` in [fixed_sizing.go](../layout/fixed_sizing.go) | Reuse height completion and bottom anchoring, including preservation of prescribed heights under content overflow. |
 | `layoutBlockContent` in [layout.go](../layout/layout.go) | Reuse directly: interior layout is separated from construction and validation of the positioned root's final frame. |
-| [Intrinsic measurement](../layout/intrinsic.go) and [descendant resolution](../layout/used_values.go) | Reuse service interfaces, the invocation-local cache, atomic preparation, and ordinary descendant layout. |
+| [Intrinsic measurement](../layout/intrinsic.go) and [descendant resolution](../layout/used_values.go) | Reuse service interfaces, the invocation-local cache, atomic realization, and ordinary descendant layout. |
 | `fixedRootGeometry` in [fixed_geometry.go](../layout/fixed_geometry.go) | Reuse local rectangle construction; generalize reference-space attachment. |
 | `divertFixed` in [build.go](../layout/build.go) | Reuse early diversion, normalization, identity allocation, and style snapshots. Add containing-block associations. |
 
@@ -114,7 +114,7 @@ requires preserving source-position metadata and, for inline cases, extending
 the typography interface to return anchor information.
 
 Such anchors must contribute no flow size or intrinsic width. Treating the
-positioned box as an ordinary prepared atomic would violate the exclusion
+positioned box as an ordinary realized atomic would violate the exclusion
 established during fixed-box construction.
 
 ### 5. Broaden the typed model for containing-block establishment

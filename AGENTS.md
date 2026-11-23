@@ -17,6 +17,12 @@
   BoxIDs are scoped to a construction call; independent filtered projections
   preserve source IDs/styles/text ranges, not globally unique BoxIDs.
 - Glyph representations and line breaking belong to external typography services.
+- BOX-PREP-02 distinguishes realized atomic geometry from paragraph preparation.
+  `RealizedAtomic` and `RealizedAtomicsView` expose copied border-box dimensions
+  in CSS pixels for one layout invocation; margins and final placement remain
+  separate. Private `layoutAtomicInteriors` recursively lays out those interiors
+  before outer delegation. Keep input trees/used values immutable and publish
+  only complete results. The previous prepared-atomic names have no aliases.
 - `layout.MeasureIntrinsic` exposes the existing recursive intrinsic pass without
   final layout. Return border-box bounds excluding the root's margins; definite
   widths contribute their prescribed size and auto widths recurse. Each call has

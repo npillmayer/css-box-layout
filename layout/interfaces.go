@@ -27,7 +27,7 @@ type InlineRequest struct {
 	OwnerID      BoxID
 	ContentWidth float32
 	Used         UsedValuesView
-	Atomics      PreparedAtomicsView
+	Atomics      RealizedAtomicsView
 }
 
 // InlineLayouter returns extent and placements of core-owned atomic boxes.
@@ -39,21 +39,25 @@ type InlineLayouter interface {
 	LayoutInline(InlineRequest) (InlineResult, error)
 }
 
-// PreparedAtomic is a completed border box, excluding margins.
-type PreparedAtomic struct {
+// RealizedAtomic describes an atomic border box after its interior has been laid
+// out for this invocation. Dimensions are in CSS pixels, including padding and
+// borders but excluding margins. This is trial-specific geometry, not reusable
+// paragraph preparation; its position is supplied separately by AtomicPlacement.
+type RealizedAtomic struct {
 	BoxID                     BoxID
 	BorderWidth, BorderHeight float32
 }
 
-// PreparedAtomicsView contains this group's atomic boundaries, not their interiors.
-// Lookup returns copies. The view is read-only and scoped to this invocation.
-type PreparedAtomicsView interface {
-	Lookup(BoxID) (PreparedAtomic, bool)
+// RealizedAtomicsView exposes this group's completed atomic border dimensions,
+// not its interior trees or paragraph preparations. Lookup returns value copies.
+// The view is read-only and scoped to the current layout invocation.
+type RealizedAtomicsView interface {
+	Lookup(BoxID) (RealizedAtomic, bool)
 }
 
-type preparedAtomicsView struct{ items map[BoxID]PreparedAtomic }
+type realizedAtomicsView struct{ items map[BoxID]RealizedAtomic }
 
-func (v preparedAtomicsView) Lookup(id BoxID) (PreparedAtomic, bool) {
+func (v realizedAtomicsView) Lookup(id BoxID) (RealizedAtomic, bool) {
 	item, ok := v.items[id]
 	return item, ok
 }
@@ -65,7 +69,7 @@ type AtomicPlacement struct {
 	X, Y  float32
 }
 
-// InlineResult contains no paragraph payload. Every prepared item must be placed
+// InlineResult contains no paragraph payload. Every realized item must be placed
 // exactly once, including zero-sized items. The adapter retains typography data.
 type InlineResult struct {
 	Extent  InlineExtent

@@ -24,8 +24,11 @@ func validateAtomicWidths(n *LayoutNode) error {
 	return nil
 }
 
-func prepareAtomics(group *LayoutNode, used UsedValuesTable, geom LayoutGeometryTable, inline InlineLayouter, intrinsic IntrinsicMeasurer) (map[BoxID]PreparedAtomic, error) {
-	items := make(map[BoxID]PreparedAtomic)
+// layoutAtomicInteriors completes the group's atomic interiors before its outer
+// paragraph is laid out. Sizes and descendant geometry belong to this invocation;
+// placeAtomics applies the outer paragraph's border origins afterward.
+func layoutAtomicInteriors(group *LayoutNode, used UsedValuesTable, geom LayoutGeometryTable, inline InlineLayouter, intrinsic IntrinsicMeasurer) (map[BoxID]RealizedAtomic, error) {
+	items := make(map[BoxID]RealizedAtomic)
 	var walk func(*LayoutNode) error
 	walk = func(n *LayoutNode) error {
 		if n == nil {
@@ -40,7 +43,7 @@ func prepareAtomics(group *LayoutNode, used UsedValuesTable, geom LayoutGeometry
 			if err != nil {
 				return err
 			}
-			items[n.BoxID] = PreparedAtomic{BoxID: n.BoxID, BorderWidth: summary.BorderWidth, BorderHeight: summary.BorderHeight}
+			items[n.BoxID] = RealizedAtomic{BoxID: n.BoxID, BorderWidth: summary.BorderWidth, BorderHeight: summary.BorderHeight}
 			return nil // Its interior belongs to independent groups.
 		case BoxInline, BoxAnonymousInline, BoxText:
 		default:
@@ -59,14 +62,14 @@ func prepareAtomics(group *LayoutNode, used UsedValuesTable, geom LayoutGeometry
 	return items, nil
 }
 
-func placeAtomics(placements []AtomicPlacement, items map[BoxID]PreparedAtomic, owner BoxID, geom LayoutGeometryTable) error {
+func placeAtomics(placements []AtomicPlacement, items map[BoxID]RealizedAtomic, owner BoxID, geom LayoutGeometryTable) error {
 	if len(placements) != len(items) {
 		return fmt.Errorf("expected %d atomic placements, got %d", len(items), len(placements))
 	}
 	pending := make(map[BoxID]LayoutGeometry, len(items))
 	for _, p := range placements {
 		if _, ok := items[p.BoxID]; !ok {
-			return fmt.Errorf("unprepared atomic box %d", p.BoxID)
+			return fmt.Errorf("unrealized atomic box %d", p.BoxID)
 		}
 		if _, ok := pending[p.BoxID]; ok {
 			return fmt.Errorf("duplicate placement for atomic box %d", p.BoxID)

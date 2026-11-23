@@ -126,28 +126,34 @@ not just policy fields.
 Fixed CSS-pixel atomic widths (including zero) and auto widths are supported.
 Percent/em widths on atomic boxes remain rejected; descendant percentages work
 with definite bases. Unknown-auto-width percentage dependencies fail explicitly.
-Core prepares atomic subtrees before outer delegation without sizing callbacks or
+Core lays out atomic subtrees before outer delegation without sizing callbacks or
 external reentrancy. The intrinsic service is used for auto width only.
 
-### Prepared atomic items and placement
+### Realized atomic items and placement
 
 The following interfaces are implemented. The older AtomicSizer and extent-only method signature are removed.
 
+`RealizedAtomic` is invocation-specific border-box geometry in CSS pixels after
+the atomic interior has been laid out. Padding and borders are included; margins
+and the eventual outer paragraph placement are separate. These values are not
+reusable paragraph preparations. BOX-PREP-02 migrated the former `PreparedAtomic`
+and `PreparedAtomicsView` names without aliases; consumers use the realized names.
+
 ```go
 type InlineExtent struct { W, H float32 }
-type PreparedAtomic struct {
+type RealizedAtomic struct {
     BoxID BoxID
     BorderWidth, BorderHeight float32
 }
-type PreparedAtomicsView interface {
-    Lookup(BoxID) (PreparedAtomic, bool)
+type RealizedAtomicsView interface {
+    Lookup(BoxID) (RealizedAtomic, bool)
 }
 type InlineRequest struct {
     Group *LayoutNode
     OwnerID BoxID
     ContentWidth float32
     Used UsedValuesView
-    Atomics PreparedAtomicsView
+    Atomics RealizedAtomicsView
 }
 type AtomicPlacement struct {
     BoxID BoxID
@@ -167,11 +173,11 @@ One read-only view serves one group. Lookup uses the atomic branch's existing
 BoxID and returns a copy; items inside an atomic boundary belong to inner groups.
 The adapter extracts ordinary inline text but replaces atomic branches with ordered
 whatsits. Local handles map back to BoxID; source mapping, item encoding, retained
-paragraphs, and position storage remain adapter-owned. Missing preparation is an
+paragraphs, and position storage remain adapter-owned. Missing realized geometry is an
 error, not an invitation to initiate layout.
 
 Extent is finite/nonnegative; H includes paragraph trailing space, W does not
-resize the owner. Every prepared item requires exactly one placement, including
+resize the owner. Every realized item requires exactly one placement, including
 zero-sized items. Unknown, foreign, duplicate or missing IDs and non-finite
 coordinates fail with nil LayoutResult. Negative coordinates are valid. Core
 validates the entire placement answer before applying it and retains no slice
@@ -461,7 +467,7 @@ FixedLayout orchestration (implemented):
 - Finalize every fixed-root width and descendant width before any LayoutInline.
   Share one invocation-local intrinsic cache across sizing and descendant
   preparation so nested auto boxes are not measured twice. Reuse
-  IntrinsicMeasurer for shrink-to-fit, including nested atomic preparation, without
+  IntrinsicMeasurer for shrink-to-fit, including nested atomic realization, without
   publishing paragraph results during measurement. Determine content-based height
   from one final interior layout before resolving bottom anchoring. A prescribed
   root content height remains prescribed even when interior material overflows.

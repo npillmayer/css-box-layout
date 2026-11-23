@@ -110,18 +110,18 @@ and covered by separate core and tytui regressions.
 
 ### 2. Recursive inline-block sizing and placement - fixed-width first
 
-Core-owned preparation and the task-2A API are implemented and integrated with
+Core-owned atomic layout and the task-2A API are implemented and integrated with
 tytui/typography. Bounded auto/intrinsic sizing is implemented under task 2B.
 
 #### 2A. Fixed-width implementation sequence (with 3A) - core complete
 
-1. [x] Implement PreparedAtomicsView.Lookup(BoxID), one view per group, and
+1. [x] Implement RealizedAtomicsView.Lookup(BoxID), one view per group, and
    InlineResult{Extent, Atomics}; remove external AtomicSizer. Adapter-local whatsit
    handles map back to existing BoxID. Paragraph payloads remain adapter-owned.
 2. [x] Test two nested atomic boundaries beneath ordinary inline spans, including
    internal block stacks, source separation, inner-before-outer calls, and no
    external reentrancy. Separate IsBlockLevel from IsBlockContainer.
-3. [x] Recursively prepare fixed-pixel atomics, including zero, before delegation;
+3. [x] Recursively lay out fixed-pixel atomics, including zero, before delegation;
    use correct descendant widths/edges. Reject unsupported percent/em atomic
    widths explicitly before callbacks (auto is added by 2B); no intrinsic calls or line-width clamping.
 4. [x] Apply validated placements using RelativeTo, preserving descendant-local
@@ -337,7 +337,7 @@ pipeline tasks above; checked scope does not imply implemented behavior.
   consuming-adapter migration is verified under step 6.
 - [x] Step 3: add immutable adjoining-margin summaries (2026-11-16). Pure strut
   operations retain signed extrema; recursive summaries include leading/trailing
-  groups, eligibility, and completed border dimensions used by atomic preparation.
+  groups, eligibility, and completed border dimensions used by atomic realization.
   Tests cover merge grouping/order, nested through chains, internal-gap isolation,
   containment/edge barriers, unchanged inputs, and repeatability.
 - [x] Step 4: replace additive stacking with deferred placement and correct
@@ -383,7 +383,7 @@ Public API: [Pass-Signatures](Pass-Signatures.md#fixed-layout-api).
   intrinsic widths, heights or margin adjacency. Compare geometry by source
   association rather than requiring unchanged IDs across structurally edited inputs.
 - [x] Legacy builder reports fixed-branch loss; FlowLayout rejects leaked fixed
-  nodes; normal-flow consumers never prepare/measure fixed material as atomics.
+  nodes; normal-flow consumers never lay out/measure fixed material as atomics.
 - [x] Fixed resolver covers left/top and right/bottom anchors, opposing insets,
   explicit zero, auto/stretch/shrink-to-fit dimensions, auto margins, negative
   insets, overflow and overconstraints. Use a non-square viewport to distinguish

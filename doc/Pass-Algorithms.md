@@ -142,7 +142,7 @@ edges, so centering space does not enter intrinsic widths. See the core contract
 | Auto versus zero inline-block width | Distinct states; correct later sizing |
 | Build -> resolve | Render styles reach used values |
 
-## Auto-width preparation before final flow
+## Auto-width sizing before final flow
 
 ResolveUsedValues marks unresolved widths/edges as pending rather than final zero.
 FlowLayout copies the table before this phase and validates the supported subset:
@@ -173,23 +173,23 @@ The implementation and sketch construct fresh output tables without writes to
 input nodes. Results share the immutable structural root; there are no geometry
 mirrors on nodes. Callbacks must honor the same read-only input contract.
 Implemented fixed-width scheduling: block containers either stack block children
-recursively or prepare their inline group before external delegation:
+recursively or realize their inline atomics before external delegation:
 
 ```text
-prepareGroup(group):
-  prepared = fresh group-local collection
+layoutAtomicInteriors(group):
+  realized = fresh group-local collection
   walk ordinary inline descendants in order:
     at atomic boundary A:
       resolve descendants against A's fixed content width
-      layoutContainer(A)  // recursively prepares inner groups; stacks block children
-      prepared[A.BoxID] = measured border-box item
+      layoutContainer(A)  // recursively lays out inner groups; stacks block children
+      realized[A.BoxID] = realized border-box item
       do not traverse A's descendants again as members of this group
-  return readOnly(prepared)
+  return readOnly(realized)
 
 before calling inline.LayoutInline for a group:
-  prepared = prepareGroup(group)  // failure prevents the external call
-  result = inline.LayoutInline({Group: group, ..., Atomics: prepared})
-  validate extent and exactly one finite placement per prepared item
+  realized = layoutAtomicInteriors(group)  // failure prevents the external call
+  result = inline.LayoutInline({Group: group, ..., Atomics: realized})
+  validate extent and exactly one finite placement per realized item
   for p in result.Atomics:
     geom[p.BoxID].RelativeTo = groupOwnerID
     set Frame origin to (p.X, p.Y); set Content origin plus own border/padding
@@ -202,9 +202,9 @@ RelativeTo for the root and the containing block for stacked children. Adapter
 lookup uses the atomic branch's BoxID; core validates placement IDs against the
 same group-local view. Coordinates are border origins after margin/alignment;
 core adds no further margin and rejects the entire result before application if
-validation fails. Each atomic box is prepared
+validation fails. Each atomic box is laid out
 once per invocation initially; external inner calls finish before the outer call
-starts. Adapters translate prepared leaves without initiating layout. No explicit
+starts. Adapters translate realized leaves without initiating layout. No explicit
 TODO stack is required. Input trees/tables remain immutable. Auto sizing uses
 the measurement phase above; speculative trials remain deferred.
 
@@ -219,9 +219,9 @@ group in content height, clamp height to zero, and reject coordinate overflow.
 Only child Frame/Content origins move; descendants remain parent-content-relative.
 See the core contract for eligibility and the inline empty-output permission.
 
-Returned sizes and geometry must agree. The concrete prepared-item/placement
+Returned sizes and geometry must agree. The concrete realized-item/placement
 proposal is in Pass-Signatures.md; P's whatsit representation remains adapter-owned.
-Prepared dimensions are not final positions. Geometry coverage for inline
+Realized dimensions are not final positions. Geometry coverage for inline
 nodes/text also remains open. See checklist 2A/3A.
 
 | Test | Expected result |
@@ -231,7 +231,7 @@ nodes/text also remains open. See checklist 2A/3A.
 | Inline-only block | Content height equals returned overall extent, including trailing space |
 | Anonymous block owner | Extent applied; adapter retains typed result by group and owner IDs |
 | Atomic fixed / auto / zero width | Correct internal width, height, border-box return |
-| Dependency scheduling (target) | Inner groups finish first; complete prepared items; no reentrant outer adapter call |
+| Dependency scheduling (target) | Inner groups finish first; complete realized items; no reentrant outer adapter call |
 | Geometry consistency | Frame equals Content plus edges; table agrees with sizing |
 | Repeated layout | Input immutability and stable identities |
 

@@ -28,7 +28,7 @@
 <g id="node4" class="node">
 <title>n1_0</title>
 <path fill="#eaf0ee" stroke="#c2c9c9" d="M186,-818.55C186,-818.55 12,-818.55 12,-818.55 6,-818.55 0,-812.55 0,-806.55 0,-806.55 0,-792.15 0,-792.15 0,-786.15 6,-780.15 12,-780.15 12,-780.15 186,-780.15 186,-780.15 192,-780.15 198,-786.15 198,-792.15 198,-792.15 198,-806.55 198,-806.55 198,-812.55 192,-818.55 186,-818.55"/>
-<text xml:space="preserve" text-anchor="middle" x="99" y="-800.9" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">Prepare G at 200px</text>
+<text xml:space="preserve" text-anchor="middle" x="99" y="-800.9" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">Lay out G at 200px</text>
 <text xml:space="preserve" text-anchor="middle" x="99" y="-788.9" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">Discover atomic A: BoxID 42</text>
 </g>
 <!-- n0_0&#45;&gt;n1_0 -->
@@ -103,7 +103,7 @@
 <title>n3_0</title>
 <path fill="#eaf0ee" stroke="#c2c9c9" d="M186,-705.75C186,-705.75 12,-705.75 12,-705.75 6,-705.75 0,-699.75 0,-693.75 0,-693.75 0,-679.35 0,-679.35 0,-673.35 6,-667.35 12,-667.35 12,-667.35 186,-667.35 186,-667.35 192,-667.35 198,-673.35 198,-679.35 198,-679.35 198,-693.75 198,-693.75 198,-699.75 192,-705.75 186,-705.75"/>
 <text xml:space="preserve" text-anchor="middle" x="99" y="-688.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">Call inner H</text>
-<text xml:space="preserve" text-anchor="middle" x="99" y="-676.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">width 40 / empty prepared view</text>
+<text xml:space="preserve" text-anchor="middle" x="99" y="-676.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">width 40 / empty realized view</text>
 </g>
 <!-- n2_0&#45;&gt;n3_0 -->
 <g id="edge15" class="edge">
@@ -261,7 +261,7 @@
 <title>n7_0</title>
 <path fill="#eaf0ee" stroke="#c2c9c9" d="M186,-482.55C186,-482.55 12,-482.55 12,-482.55 6,-482.55 0,-476.55 0,-470.55 0,-470.55 0,-456.15 0,-456.15 0,-450.15 6,-444.15 12,-444.15 12,-444.15 186,-444.15 186,-444.15 192,-444.15 198,-450.15 198,-456.15 198,-456.15 198,-470.55 198,-470.55 198,-476.55 192,-482.55 186,-482.55"/>
 <text xml:space="preserve" text-anchor="middle" x="99" y="-464.9" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">Finish A: 40 x 24</text>
-<text xml:space="preserve" text-anchor="middle" x="99" y="-452.9" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">Prepared[42] = measured A</text>
+<text xml:space="preserve" text-anchor="middle" x="99" y="-452.9" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">Realized[42] = completed A</text>
 </g>
 <!-- n6_0&#45;&gt;n7_0 -->
 <g id="edge35" class="edge">
@@ -301,7 +301,7 @@
 <title>n8_0</title>
 <path fill="#eaf0ee" stroke="#c2c9c9" d="M186,-426.15C186,-426.15 12,-426.15 12,-426.15 6,-426.15 0,-420.15 0,-414.15 0,-414.15 0,-399.75 0,-399.75 0,-393.75 6,-387.75 12,-387.75 12,-387.75 186,-387.75 186,-387.75 192,-387.75 198,-393.75 198,-399.75 198,-399.75 198,-414.15 198,-414.15 198,-420.15 192,-426.15 186,-426.15"/>
 <text xml:space="preserve" text-anchor="middle" x="99" y="-408.5" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">Call outer G</text>
-<text xml:space="preserve" text-anchor="middle" x="99" y="-396.5" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">width 200 / prepared A</text>
+<text xml:space="preserve" text-anchor="middle" x="99" y="-396.5" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#18313c">width 200 / realized A</text>
 </g>
 <!-- n7_0&#45;&gt;n8_0 -->
 <g id="edge40" class="edge">

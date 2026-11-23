@@ -7,7 +7,7 @@ n0_1 [label="Inline adapter", group="lane1", fillcolor="#183f4b", fontcolor=whit
 n0_2 [label="Paragraph engine P", group="lane2", fillcolor="#183f4b", fontcolor=white, color="#183f4b", fontsize=13];
 {rank=same; n0_0; n0_1; n0_2;}
 n0_0 -> n0_1 -> n0_2 [style=invis, weight=100];
-n1_0 [label="Prepare G at 200px\nDiscover atomic A: BoxID 42", group="lane0", fillcolor="#eaf0ee"];
+n1_0 [label="Lay out G at 200px\nDiscover atomic A: BoxID 42", group="lane0", fillcolor="#eaf0ee"];
 n1_1 [label="", group="lane1", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
 n1_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
 {rank=same; n1_0; n1_1; n1_2;}
@@ -23,7 +23,7 @@ n2_0 -> n2_1 -> n2_2 [style=invis, weight=100];
 n1_0 -> n2_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
 n1_1 -> n2_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
 n1_2 -> n2_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
-n3_0 [label="Call inner H\nwidth 40 / empty prepared view", group="lane0", fillcolor="#eaf0ee"];
+n3_0 [label="Call inner H\nwidth 40 / empty realized view", group="lane0", fillcolor="#eaf0ee"];
 n3_1 [label="Receive inner request", group="lane1", fillcolor="#f2e8d9"];
 n3_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
 {rank=same; n3_0; n3_1; n3_2;}
@@ -55,7 +55,7 @@ n6_0 -> n6_1 -> n6_2 [style=invis, weight=100];
 n5_0 -> n6_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
 n5_1 -> n6_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
 n5_2 -> n6_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
-n7_0 [label="Finish A: 40 x 24\nPrepared[42] = measured A", group="lane0", fillcolor="#eaf0ee"];
+n7_0 [label="Finish A: 40 x 24\nRealized[42] = completed A", group="lane0", fillcolor="#eaf0ee"];
 n7_1 [label="", group="lane1", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
 n7_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
 {rank=same; n7_0; n7_1; n7_2;}
@@ -63,7 +63,7 @@ n7_0 -> n7_1 -> n7_2 [style=invis, weight=100];
 n6_0 -> n7_0 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
 n6_1 -> n7_1 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
 n6_2 -> n7_2 [style=dashed, color="#c7cecd", arrowhead=none, weight=50];
-n8_0 [label="Call outer G\nwidth 200 / prepared A", group="lane0", fillcolor="#eaf0ee"];
+n8_0 [label="Call outer G\nwidth 200 / realized A", group="lane0", fillcolor="#eaf0ee"];
 n8_1 [label="Receive outer request", group="lane1", fillcolor="#f2e8d9"];
 n8_2 [label="", group="lane2", shape=point, width=0.025, height=0.025, style=filled, color="#c7cecd"];
 {rank=same; n8_0; n8_1; n8_2;}

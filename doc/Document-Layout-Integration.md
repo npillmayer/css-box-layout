@@ -109,7 +109,7 @@ and nonnegative. Empty groups may reserve space without dummy lines. Ink bounds
 are a different quantity. Core no longer derives height from line rectangles.
 
 The implemented request carries Group (BoxAnonymousInline), OwnerID, definite
-ContentWidth in CSS pixels, a read-only UsedValuesView, and prepared-item access
+ContentWidth in CSS pixels, a read-only UsedValuesView, and realized-item access
 through Atomics (section 4.1). Group.BoxID identifies
 an existing group B; OwnerID identifies its existing owner A. The returned extent
 sets A's content height. No new box or BoxID is created for the vlist.
@@ -164,7 +164,7 @@ values; build a new tree for style/structure edits. Published result tables also
 remain read-only by ownership contract. Core cannot roll back arbitrary callback
 side effects; the adapter must discard failed invocation state.
 
-### 4.1. Core-owned recursive inline-block preparation
+### 4.1. Core-owned recursive inline-block layout
 
 Revised decision: core owns discovery, dependency scheduling, and sizing of nested
 inline-blocks. This supersedes the earlier adapter-driven AtomicSizer callback
@@ -173,7 +173,7 @@ been removed.
 
 InlineRequest carries a normalized group tree, not one source-text span. Core
 traverses ordinary inline descendants to find atomic boundaries. Each inline-block
-is laid out as its own block container, recursively preparing any inner groups
+is laid out as its own block container, recursively laying out any inner groups
 and stacking internal block children before its border-box size is complete.
 Ordinary inline spans do not create extra paragraph calls. Normalization already
 handles block-flow material that must be split/hoisted; this is not a fallback
@@ -186,12 +186,12 @@ flow downward; completed dimensions flow upward. No outer adapter call is active
 while an inner group is being laid out, so atomic scheduling no longer requires
 adapter reentrancy. Invocation-local result retention is still required.
 
-#### Concrete prepared-item and BoxID association proposal
+#### Concrete realized-item and BoxID association proposal
 
-The current Go API is in [Pass-Signatures.md](Pass-Signatures.md#prepared-atomic-items-and-placement).
-It replaces request.Atomic with `Atomics PreparedAtomicsView`, whose
-`Lookup(BoxID) (PreparedAtomic, bool)` returns copied BoxID and border-box W/H.
-One view belongs to one group/request, not to each item. Core prepares the atomic
+The current Go API is in [Pass-Signatures.md](Pass-Signatures.md#realized-atomic-items-and-placement).
+It replaces request.Atomic with `Atomics RealizedAtomicsView`, whose
+`Lookup(BoxID) (RealizedAtomic, bool)` returns copied BoxID and border-box W/H.
+One view belongs to one group/request, not to each item. Core lays out the atomic
 subtree and inserts its measurements using that node's existing BoxID. All atomic
 boundaries in the group (through ordinary inline spans) must be present before
 external delegation; nested atomic interiors belong to their own requests.
@@ -199,7 +199,7 @@ external delegation; nested atomic interiors belong to their own requests.
 ```text
 Group branch: BoxInlineBlock, BoxID=42
   -> req.Atomics.Lookup(42)
-  -> PreparedAtomic{BoxID:42, BorderWidth:40, BorderHeight:24}
+  -> RealizedAtomic{BoxID:42, BorderWidth:40, BorderHeight:24}
 
 Adapter input: Text("Hello ") -- Whatsit(handle=7) -- Text(" world.")
 Adapter association: handle 7 -> BoxID 42
@@ -209,12 +209,12 @@ Output to core: AtomicPlacement{BoxID:42, X:55, Y:3}
 The adapter traverses ordinary inline descendants for text/styles. At an
 inline-block it retrieves the item, creates an ordered whatsit anchor, and skips
 the entire subtree for outer rope generation. Skipping text must not erase the
-item's position in the prepared sequence. BoxID can serve directly as the whatsit
+item's position in the realized sequence. BoxID can serve directly as the whatsit
 ID, or an adapter-local handle can map back to it. Node pointers, NodeID and rope
 offsets are not the core association key. Source correspondence and anchor offsets
 are explicit adapter data, not fabricated ranges containing inner text.
 
-Prepared dimensions are finite nonnegative border-box sizes; margins are obtained
+Realized dimensions are finite nonnegative border-box sizes; margins are obtained
 separately via Used.Lookup. The view is read-only and invocation-scoped. Missing
 entries fail explicitly rather than triggering adapter-initiated sizing. No opaque
 paragraph payload or new vlist identity crosses this boundary.
@@ -232,8 +232,8 @@ This deliberately refines the earlier extent-only return: atomic-box placements
 are added, not paragraph line summaries, glyphs or opaque payloads. Placement has
 BoxID and X/Y only. X/Y is the atomic border-box origin relative to the requesting
 owner's content origin in CSS pixels, after margin and alignment effects. Core
-must not add margins again or let placement alter prepared dimensions. Validate
-finite extent and coordinates, with exactly one placement per prepared item,
+must not add margins again or let placement alter realized dimensions. Validate
+finite extent and coordinates, with exactly one placement per realized item,
 including zero-sized items. Missing/duplicate/unknown/foreign-group IDs fail;
 negative coordinates are allowed. Validate all output before applying placements.
 
@@ -249,7 +249,7 @@ reapplied from the adapter's retained whatsit position.
 For the zero-edge example above, Geometry[42] becomes RelativeTo=outer OwnerID,
 Frame=(55,3,40,24), Content=(55,3,40,24). Its inner paragraph is retained under its
 own group with owner 42 and placed at that content origin. BoxID alone is not a
-cross-invocation key: prepared views, handles and accepted output belong to one
+cross-invocation key: realized views, handles and accepted output belong to one
 layout invocation. Failed output must not alter old snapshots.
 
 These interfaces are implemented for the bounded fixed-width core path. Actual typography
@@ -271,7 +271,7 @@ See the [layout process flowchart](Architecture-Interfaces.md#layout-process-flo
 for the surrounding construction, resolution, block stacking, and recursion.
 A has BoxID 42; height 24 is illustrative test data, not a font measurement.
 
-![Proposed call order: complete inner paragraph, prepare atomic BoxID 42, then lay out the outer paragraph and apply its returned atomic placement.](diagrams/inline-block-sequence.svg)
+![Proposed call order: complete inner paragraph, realize atomic BoxID 42, then lay out the outer paragraph and apply its returned atomic placement.](diagrams/inline-block-sequence.svg)
 
 [Editable DOT source](diagrams/inline-block-sequence.dot). Regenerate from the repository root:
 
@@ -280,12 +280,12 @@ dot -Tsvg doc/diagrams/inline-block-sequence.dot -o doc/diagrams/inline-block-se
 ```
 
 The inner paragraph call finishes before the outer adapter call starts. Core
-owns that ordering; BoxID connects the structural branch, prepared measurements,
+owns that ordering; BoxID connects the structural branch, realized dimensions,
 whatsit identity, and final geometry. The adapter owns its internal handle and
 position representation, and never initiates recursive sizing.
 
 The item notation is conceptual, not an existing API. A has structural identity
-before preparation, size before outer delegation, and final position afterward.
+before layout, size before outer delegation, and final position afterward.
 Publish inner/outer paragraphs, placements, and geometry only after the entire
 layout succeeds. An inner failure prevents the dependent outer call and discards
 the whole pending document without replacing an earlier successful snapshot.
@@ -293,14 +293,14 @@ the whole pending document without replacing an earlier successful snapshot.
 Start with fixed CSS-pixel widths including zero, correct descendant resolution,
 and border/padding accounting. Fixed widths are not clamped to remaining line
 width; outer P handles fitting/overflow. Define a bounded alignment/margin policy
-rather than claiming full baseline-correct CSS from W/H alone. Prepare each atomic
+rather than claiming full baseline-correct CSS from W/H alone. Lay out each atomic
 box once per invocation in the initial proof. Auto/intrinsic sizing and speculative
 trials require later measurement and nested-result acceptance/discard semantics;
 a different stack representation does not solve those dependencies.
 
-Current code uses core-owned preparation. The old M4 atomic-callback test is
-superseded by multi-level preparation, placement and snapshot regressions. Checklist 2A/3A covers API migration,
-core scheduling, prepared-item input, final-placement output, and multi-level
+Current code uses core-owned atomic layout. The old M4 atomic-callback test is
+superseded by multi-level realization, placement and snapshot regressions. Checklist 2A/3A covers API migration,
+core scheduling, realized-item input, final-placement output, and multi-level
 regressions; 2B/3B covers later auto sizing. This extension is not a prerequisite
 for the initial M1-M6 fixture and does not establish actual tytui integration.
 

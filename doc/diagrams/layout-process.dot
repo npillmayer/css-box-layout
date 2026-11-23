@@ -16,8 +16,8 @@ digraph LayoutProcess {
     discover [label="Find atomic boundaries\nTraverse ordinary inline spans"];
     atom [shape=diamond, style=filled, label="Next atomic\nitem?"];
     recurse [shape=box, peripheries=2, label="RECURSE: atomic container\nFinish inner groups and block stacks"];
-    measured [label="Record measured border box\nPrepared view keyed by BoxID"];
-    ready [label="All atomic items ready\nDelegate group + width + prepared view", fillcolor="#183f4b", fontcolor=white, color="#183f4b"];
+    measured [label="Record measured border box\nRealized view keyed by BoxID"];
+    ready [label="All atomic items ready\nDelegate group + width + realized view", fillcolor="#183f4b", fontcolor=white, color="#183f4b"];
     enter -> kind;
     kind -> blocks [label="blocks"]; blocks -> child [label="yes"]; child -> stack; stack -> blocks;
     kind -> discover [label="inline group"]; discover -> atom;

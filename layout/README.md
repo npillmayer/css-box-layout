@@ -255,7 +255,7 @@ branch. Do not flatten its inner text or initiate sizing. Retain paragraphs by
 Group.BoxID with OwnerID; local whatsit handles map to atomic BoxID.
 
 Return full finite nonnegative Extent plus exactly one AtomicPlacement per
-prepared item. X/Y denotes the border origin relative to OwnerID content, already
+realized item. X/Y denotes the border origin relative to OwnerID content, already
 including margins/alignment. Negative positions are valid. Core rejects invalid
 identity coverage or dimensions and applies validated placements without keeping
 slice aliases. Extent-only adapters return `InlineResult{Extent: extent}`.

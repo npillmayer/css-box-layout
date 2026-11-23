@@ -56,8 +56,8 @@ flowchart TB
 
     CSS --> BUILD
     TS -.->|"text access through references"| IL
-    FLOW -->|"core-owned recursive preparation"| FLOW
-    FLOW -->|"delegate ready group + prepared atomic items / intrinsic queries"| IL
+    FLOW -->|"core-owned recursive atomic layout"| FLOW
+    FLOW -->|"delegate ready group + realized atomic items / intrinsic queries"| IL
     IL -->|"proposed: extent + atomic box placements"| FLOW
 ```
 
@@ -78,18 +78,18 @@ flowchart TB
   includes group/owner identities and a read-only used-values view. Typed paragraph
   results stay in an invocation-local adapter table; the integration layer joins
   them with geometry after success. IntrinsicMeasurer.MeasureInline measures one inline group's
-  min/max content widths with core-prepared intrinsic atomic bounds and an
+  min/max content widths with core-measured intrinsic atomic bounds and an
   edges-only view; see Pass-Signatures.md section 4.1. Measurement never publishes
   paragraph results and need not share the final layouter implementation.
-- **Atomic preparation (target):** core discovers and recursively lays out atomic
-  subtrees before delegating each group. The adapter receives read-only prepared
+- **Atomic realization (implemented):** core discovers and recursively lays out atomic
+  subtrees before delegating each group. The adapter receives read-only realized
   border-box items keyed by BoxID, translates them for P, and retains their final
   placements. It does not initiate sizing. The diagram shows this target; Go now
-  uses prepared views and atomic placement output (checklist 2A/3A).
-  Concrete prepared lookup and placement output are documented in Pass-Signatures.md,
+  uses realized views and atomic placement output (checklist 2A/3A).
+  Concrete realized geometry lookup and placement output are documented in Pass-Signatures.md,
   including branch lookup by BoxID and explicit geometry.RelativeTo. P's whatsit
   encoding/position storage remains private; the types are implemented;
-  see [integration section 4.1](Document-Layout-Integration.md#41-core-owned-recursive-inline-block-preparation).
+  see [integration section 4.1](Document-Layout-Integration.md#41-core-owned-recursive-inline-block-layout).
 
 ## Reading the pipeline
 
@@ -107,7 +107,7 @@ See [Current-Checklist.md](Current-Checklist.md), tasks 2 and 3.
 
 This visual aid depicts the fixed-width task-2A design, now implemented in core. The written
 [core contract](CSS-Algo-Overview.md) remains authoritative; concrete proposed
-types are in [Pass-Signatures.md](Pass-Signatures.md#prepared-atomic-items-and-placement).
+types are in [Pass-Signatures.md](Pass-Signatures.md#realized-atomic-items-and-placement).
 For the order of external calls, see the
 [single-inline-block sequence](Document-Layout-Integration.md#single-inline-block-call-sequence).
 
@@ -117,7 +117,7 @@ same procedure, followed by resuming the caller. Each atomic container's inner
 groups finish before its outer group is delegated. Auto sizing is outside this
 diagram's scope; fixed atomic descendant widths must be resolved before layout.
 
-![Proposed layout flow: core recursively prepares atomic items before external paragraph layout, validates placements, and publishes only after root success.](diagrams/layout-process.svg)
+![Proposed layout flow: core recursively lays out atomic items before external paragraph layout, validates placements, and publishes only after root success.](diagrams/layout-process.svg)
 
 [Editable DOT source](diagrams/layout-process.dot). Regenerate from the repository root:
 
@@ -127,6 +127,6 @@ dot -Tsvg doc/diagrams/layout-process.dot -o doc/diagrams/layout-process.svg
 
 Publication happens only after the root returns successfully: the integration
 layer publishes geometry and retained paragraph results together. Any error,
-including during preparation or an external call, aborts the pending document;
+including during atomic layout or an external call, aborts the pending document;
 the failure edge drawn above is representative, not the only failure source.
 The previous successful snapshot remains unchanged.

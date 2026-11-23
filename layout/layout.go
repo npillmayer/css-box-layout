@@ -157,14 +157,14 @@ func layoutBlockContent(
 			return blockContentResult{}, fmt.Errorf("box %d: inline layouter required", node.BoxID)
 		}
 		inlineRoot := node.Children[0]
-		items, err := prepareAtomics(inlineRoot, used, geom, inline, intrinsic)
+		items, err := layoutAtomicInteriors(inlineRoot, used, geom, inline, intrinsic)
 		if err != nil {
 			return blockContentResult{}, err
 		}
 		result, err := inline.LayoutInline(InlineRequest{
 			Group: inlineRoot, OwnerID: node.BoxID, ContentWidth: used[node.BoxID].ContentWidth,
 			Used:    usedValuesView{table: used},
-			Atomics: preparedAtomicsView{items: items},
+			Atomics: realizedAtomicsView{items: items},
 		})
 		if err != nil {
 			return blockContentResult{}, fmt.Errorf("inline group %d (owner %d): %w", inlineRoot.BoxID, node.BoxID, err)

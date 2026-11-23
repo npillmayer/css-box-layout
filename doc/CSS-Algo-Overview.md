@@ -254,7 +254,7 @@ Repository boundaries:
   same group at both ends, to be consumed once by future placement. Containment
   boundaries retain their own margins without absorbing descendant groups.
   UsedValues margins remain unchanged. Dimensions match completed collapsed
-  geometry and feed atomic preparation.
+  geometry and feed atomic realization.
 - Placement carries a pending adjoining group until the next separating child.
   Groups escaping through an open parent edge are excluded from content height;
   contained groups are counted once. Through boxes do not advance the cursor.
@@ -338,8 +338,8 @@ Inline layouter (black box):
 - Current API: LayoutInline(InlineRequest) -> InlineResult{Extent, Atomics}, error
 - Implemented task-2A boundary: LayoutInline(InlineRequest) -> InlineResult{Extent, Atomics}, error
   - Request: anonymous inline Group (Group.BoxID is the retention key), OwnerID,
-    definite ContentWidth in CSS pixels, a UsedValuesView, and read-only prepared
-    atomic items through Atomics; see the implemented preparation boundary below
+    definite ContentWidth in CSS pixels, a UsedValuesView, and read-only realized
+    atomic items through Atomics; see the implemented realization boundary below
     and current signatures in Pass-Signatures.md.
   - Extent is finite and nonnegative, including at zero available width. H is
     authoritative consumed height, including paragraph-owned trailing spacing;
@@ -361,23 +361,23 @@ Inline layouter (black box):
     The core never mutates the input tree or used values, on success or failure.
     Callbacks must honor the read-only contract; discard partial retained state.
 
-Atomic preparation (implemented 2A/3A boundary):
+Atomic realization (implemented 2A/3A boundary):
 - Core discovers atomic boundaries through ordinary inline descendants and lays
   out each internal block container recursively before delegating its outer group.
   Ordinary inline spans stay within the current group; nested block children are
   stacked inside their atomic owner. Prefer recursive core helpers; an explicit
   work stack is an equivalent implementation choice, not required machinery.
-- External AtomicSizer callbacks are replaced by read-only prepared-item lookup by
+- External AtomicSizer callbacks are replaced by read-only realized-item lookup by
   existing atomic BoxID. Group-local items have complete finite border-box sizes
-  before LayoutInline starts. Missing preparation is an error. Current Go code
+  before LayoutInline starts. Missing realized geometry is an error. Current Go code
   uses request.Atomics with
-  PreparedAtomicsView.Lookup(BoxID) returning PreparedAtomic{BoxID, BorderWidth,
+  RealizedAtomicsView.Lookup(BoxID) returning RealizedAtomic{BoxID, BorderWidth,
   BorderHeight}; see Pass-Signatures.md. One view serves one group; the branch's
   node.BoxID is its lookup key. Local whatsit handles map back to that same ID.
-- The adapter translates text/styles and prepared atomic leaves, not layout
+- The adapter translates text/styles and realized atomic leaves, not layout
   scheduling. It must not flatten inner text into outer input. Inner paragraph
   calls finish before the outer call starts; this no longer requires reentrancy
-  of the adapter. Input trees/tables stay immutable; prepared data is per invocation.
+  of the adapter. Input trees/tables stay immutable; realized geometry is per invocation.
 - Two adapter/P contracts are implemented in tytui/typography: anchored input with identity,
   dimensions, source mapping, alignment/margin/break policy; and identity-preserving
   final-placement output. Core owns internal geometry; P chooses line placement,
@@ -387,17 +387,17 @@ Atomic preparation (implemented 2A/3A boundary):
   changing dimensions/descendant-local coordinates. Geometry.RelativeTo
   identifies that coordinate parent explicitly (root=0, stacked block=container,
   atomic=request.OwnerID), not necessarily the structural parent. Validate exactly
-  one placement per prepared item, identity membership and finite coordinates
+  one placement per realized item, identity membership and finite coordinates
   before applying; negative positions are allowed. P's input/position storage
-  remains private. Neither prepared sizes nor provisional origins are positions.
+  remains private. Neither realized sizes nor provisional origins are positions.
 - Start with fixed CSS-pixel widths including zero; do not clamp them to remaining
   line width. Resolve descendants against atomic content width before layout.
-  Border-box dimensions include padding/borders but not margins. Prepare each
+  Border-box dimensions include padding/borders but not margins. Lay out each
   atomic box once per invocation initially. Auto/intrinsic sizing follows the measurement-first 2B/3B design below;
   speculative trials and their acceptance semantics remain later work. Inner failure
   prevents dependent outer delegation and aborts publication of pending results.
 - InlineResult deliberately adds atomic placements to extent-only
-  returns, not line summaries or opaque paragraph payloads. The types and RelativeTo are implemented. Checklist 2A/3A covers migration, prepared
+  returns, not line summaries or opaque paragraph payloads. The types and RelativeTo are implemented. Checklist 2A/3A covers migration, realized geometry
   access and bounded alignment policy; 2B/3B covers bounded auto sizing. Full
   baseline alignment remains deferred.
 
@@ -467,7 +467,7 @@ RenderNode.Replaced opts into a childless atomic inline leaf, with fixed px widt
 from Style and finite nonnegative px content height from ReplacedContent. Build
 copies the supplied size. No anonymous inline group is created inside it, and no
 paragraph callback or strut supplies its height. The ordinary box-edge rules and
-prepared-atomic placement contract apply unchanged; fixed intrinsic width includes
+realized-atomic placement contract apply unchanged; fixed intrinsic width includes
 padding/borders. Payloads remain outside CSS core. Auto/ratio image sizing and
 block-level replaced items are not part of this bounded contract.
 
