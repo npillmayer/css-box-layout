@@ -31,6 +31,19 @@ noncomparable payloads, independent/concurrent derivation, exhausted-name remova
 and drained-storage release. Consumer-specific Box validity remains pagelayout's
 responsibility; no routing or preparation behavior is added to storage.
 
+BOX-PREP-01 (2026-11-23) is implemented: `layout.InlineGroups` returns a repeatable
+`iter.Seq[layout.InlineGroup]` in normalized structural preorder. Descriptors
+identify the actual group/owner, immediate atomics and nearest parent atomic;
+empty groups and nested interiors remain separate. Nodes are borrowed read-only;
+each descriptor owns its Atomics slice. Nil/subtree inputs and early termination
+have explicit semantics. Pagelayout's content index now consumes this traversal
+while retaining source-context validation and qualified immutable Box handles.
+Tests cover split/anonymous owners, replaced leaves, empty groups, nested atomics,
+tree-local ID collisions, slice independence and concurrent enumeration without
+input changes. No typography, font or DOM dependency is added by enumeration,
+and no preparation engine or geometry pass is implemented. See
+[group enumeration](../layout/README.md#enumerating-normalized-groups).
+
 
 High-level milestones for the core layout pipeline, reviewed on 2026-11-02;
 integration sequencing aligned through bounded pipeline stage 5 on 2026-11-15.

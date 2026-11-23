@@ -17,6 +17,10 @@
   BoxIDs are scoped to a construction call; independent filtered projections
   preserve source IDs/styles/text ranges, not globally unique BoxIDs.
 - Glyph representations and line breaking belong to external typography services.
+- `layout.InlineGroups` enumerates normalized groups in structural preorder,
+  including empty groups and atomic interiors. Descriptors borrow read-only
+  nodes; each Atomics slice is caller-owned. Keep BoxIDs tree-local, and keep
+  source interpretation, shaping and sizing out of enumeration.
 - `registers` provides persistent `Register[T any]` and `RegisterBank[T any]`.
   Payloads need no identity/comparability interface; empty reads return zero T
   and false. Keep queue/map versions immutable, share only read-only referenced

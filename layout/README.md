@@ -4,6 +4,7 @@ This package implements the core CSS box layout pipeline. It defines the layout 
 
 ## Scope
 - BuildLayoutTree: structural box tree construction (anonymous boxes, split+hoist).
+- InlineGroups: pure enumeration of normalized groups, owners and atomic boundaries.
 - Used-values resolution (lengths, padding/border/margins).
 - Flow layout entry points (block stacking + inline delegation).
 - Shared types for layout nodes, geometry, and inline extent requests/results.
@@ -15,6 +16,7 @@ This package implements the core CSS box layout pipeline. It defines the layout 
 - `build_error.go`: structured source/root locations and preserved error causes.
 - `display.go`: typed display values, validation, and supported display profile.
 - `flow.go`: Pass 1 helpers (flow items, normalizeBlockChildren, split+hoist).
+- `groups.go`: read-only normalized group enumeration for preparation/indexing.
 - `layout.go`: public entry points for layout passes.
 - `interfaces.go`: interfaces for inline layout and intrinsic measurement.
 - `render.go`: minimal render-node stub for BuildLayoutTree (to be replaced by CSSDOM adapter).
@@ -200,6 +202,39 @@ zero means inherit/fallback, not explicit CSS zero. Anonymous wrappers inherit
 font size but not box edges. See [Tree-Type.md](../doc/Tree-Type.md) for the supported
 subset and adapter responsibilities. Run `go test ./...` and `go vet ./...` for
 validation.
+
+## Enumerating normalized groups
+
+`InlineGroups(root) iter.Seq[InlineGroup]` visits actual `BoxAnonymousInline`
+groups in structural preorder. Each descriptor contains `Group`, its nearest
+block-container `Owner`, immediate `Atomics` in inline order, and the nearest
+enclosing `ParentAtomic` (nil outside an inline-block). Owners may be anonymous
+blocks. Ordinary inline elements are not separate groups.
+
+```go
+for group := range layout.InlineGroups(tree) {
+    // Retain identities with the caller's tree/snapshot identity.
+    fmt.Println(group.Group.BoxID, group.Owner.BoxID, len(group.Atomics))
+}
+```
+
+The outer group precedes groups inside its atomics. Its `Atomics` list stops at
+each inline-block boundary; nested interiors are enumerated separately. Empty
+groups are included. Replaced leaves appear as atomics but have no interior
+group. The iterator does not reconstruct runs omitted during normalization.
+See the executable [example](groups_example_test.go).
+
+Supply a normalized block-container tree or subtree. Nil yields nothing;
+ancestors outside the supplied root are ignored. An inline-block root encloses
+its own interior groups. This is a traversal, not a malformed-tree or cycle
+validator, and performs no text processing, style resolution or sizing.
+
+All node pointers borrow the input tree: nodes, styles and child slices must
+remain read-only while descriptors are used. Each returned `Atomics` slice is
+independent caller-owned storage; changing that slice does not change traversal.
+The iterator is repeatable after early termination and supports concurrent reads
+of an immutable tree. BoxIDs remain local to their construction call; enumeration
+neither assigns IDs nor establishes identity across independent trees.
 
 ## Inline adapter migration
 
