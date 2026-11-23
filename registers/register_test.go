@@ -4,14 +4,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/npillmayer/css-box-layout/layout"
 	"github.com/npillmayer/css-box-layout/registers"
 )
 
-// testMaterial carries the identity required by FlowMaterial.
-type testMaterial layout.BoxID
-
-func (m testMaterial) GetBoxID() layout.BoxID { return layout.BoxID(m) }
+// testMaterial has no methods; payloads need no identity interface.
+type testMaterial uint64
 
 const (
 	paragraph testMaterial = iota + 1
@@ -35,12 +32,7 @@ type opaqueMaterial struct {
 	payload any
 }
 
-var (
-	_ registers.FlowMaterial = testMaterial(0)
-	_ registers.FlowMaterial = (*opaqueMaterial)(nil)
-)
-
-func assertRegister(t *testing.T, r registers.Register, want ...registers.FlowMaterial) {
+func assertRegister[T any](t *testing.T, r registers.Register[T], want ...T) {
 	t.Helper()
 	if r.Len() != len(want) {
 		t.Fatalf("Len() = %d, want %d", r.Len(), len(want))
@@ -59,16 +51,17 @@ func assertRegister(t *testing.T, r registers.Register, want ...registers.FlowMa
 		}
 		r = rest
 	}
-	if first, ok := r.First(); first != nil || ok {
+	var zero T
+	if first, ok := r.First(); !reflect.DeepEqual(first, zero) || ok {
 		t.Fatalf("empty First() = (%#v, %v)", first, ok)
 	}
-	if item, rest, ok := r.Take(); item != nil || ok || rest.Len() != 0 {
+	if item, rest, ok := r.Take(); !reflect.DeepEqual(item, zero) || ok || rest.Len() != 0 {
 		t.Fatalf("empty Take() = (%#v, %#v, %v)", item, rest, ok)
 	}
 }
 
 func TestRegisterVersions(t *testing.T) {
-	var empty registers.Register
+	var empty registers.Register[testMaterial]
 	one := empty.Append(paragraph)
 	original := one.Append(block).Append(tail)
 	_, rest, _ := original.Take()
@@ -88,7 +81,7 @@ func TestRegisterVersions(t *testing.T) {
 }
 
 func TestRegisterPrependVersions(t *testing.T) {
-	var empty registers.Register
+	var empty registers.Register[testMaterial]
 	one := empty.Prepend(paragraph)
 	base := one.Append(block).Append(tail)
 	_, rest, _ := base.Take()
@@ -120,15 +113,15 @@ func TestRegisterPrependVersions(t *testing.T) {
 func TestOpaqueMaterial(t *testing.T) {
 	p := &opaqueMaterial{testMaterial: 1, payload: "prepared"}
 	var typedNil *opaqueMaterial
-	items := []registers.FlowMaterial{
+	items := []any{
 		nil, typedNil, p,
-		opaqueMaterial{testMaterial: 1, payload: []int{1, 2}}, // Same BoxID, distinct material.
+		opaqueMaterial{testMaterial: 1, payload: []int{1, 2}}, // Same ID, distinct material.
 		opaqueMaterial{testMaterial: 3, payload: map[string]int{"block": 3}},
 	}
 	for _, operation := range []string{"append", "prepend"} {
 		t.Run(operation, func(t *testing.T) {
-			var r registers.Register
-			var bank registers.RegisterBank
+			var r registers.Register[any]
+			var bank registers.RegisterBank[any]
 			for i := range items {
 				if operation == "prepend" {
 					item := items[len(items)-1-i]
@@ -160,4 +153,73 @@ func TestOpaqueMaterial(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Exercise concrete, unconstrained Ts as well as the interface-valued payloads
+// above. Zero payloads must remain distinguishable from missing items.
+func checkConcretePayloads[T any](t *testing.T, items ...T) {
+	t.Helper()
+	for _, prepend := range []bool{false, true} {
+		var r registers.Register[T]
+		var b registers.RegisterBank[T]
+		for i := range items {
+			if prepend {
+				r = r.Prepend(items[len(items)-1-i])
+				b = b.Prepend("", items[len(items)-1-i])
+			} else {
+				r = r.Append(items[i])
+				b = b.Append("", items[i])
+			}
+		}
+		assertRegister(t, r, items...)
+		assertBank(t, b, map[registers.RegisterID][]T{"": items})
+		original := b
+		for _, want := range items {
+			first, ok := b.First("")
+			if !ok || !reflect.DeepEqual(first, want) {
+				t.Fatalf("stored payload lost: %#v %v", first, ok)
+			}
+			item, next, ok := b.Take("")
+			if !ok || !reflect.DeepEqual(item, want) {
+				t.Fatalf("stored payload not taken: %#v %v", item, ok)
+			}
+			b = next
+		}
+		assertBank(t, b, nil)
+		if _, ok := b.Lookup(""); ok {
+			t.Fatal("drained name retained")
+		}
+		assertBank(t, original, map[registers.RegisterID][]T{"": items})
+	}
+}
+
+func TestConcreteGenericPayloads(t *testing.T) {
+	t.Run("integer", func(t *testing.T) { checkConcretePayloads(t, 0, 7, 0, 7) })
+	t.Run("string", func(t *testing.T) { checkConcretePayloads(t, "", "body", "", "body") })
+	t.Run("value", func(t *testing.T) {
+		type value struct{ Tree, Box uint64 }
+		checkConcretePayloads(t, value{}, value{1, 7}, value{2, 7}, value{1, 7})
+	})
+	t.Run("slice", func(t *testing.T) { checkConcretePayloads(t, []int(nil), []int{}, []int{1, 2}, []int(nil)) })
+	t.Run("map", func(t *testing.T) {
+		checkConcretePayloads(t, map[string]int(nil), map[string]int{}, map[string]int{"x": 1})
+	})
+	t.Run("noncomparable-struct", func(t *testing.T) {
+		type value struct {
+			Words   []string
+			Indices map[string]int
+		}
+		checkConcretePayloads(t, value{}, value{[]string{"a"}, map[string]int{"a": 0}})
+	})
+	t.Run("pointer", func(t *testing.T) {
+		type value struct{ Text string }
+		var nilValue *value
+		p := &value{Text: "shared immutable data"}
+		checkConcretePayloads(t, nilValue, p, nilValue)
+		b := registers.RegisterBank[*value]{}.Append("body", p)
+		got, _, ok := b.Take("body")
+		if !ok || got != p {
+			t.Fatal("payload reference was cloned")
+		}
+	})
 }

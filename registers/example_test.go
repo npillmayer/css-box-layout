@@ -3,20 +3,18 @@ package registers_test
 import (
 	"fmt"
 
-	"github.com/npillmayer/css-box-layout/layout"
 	"github.com/npillmayer/css-box-layout/registers"
 )
 
 type exampleMaterial struct {
-	id   layout.BoxID
+	id   uint64
 	text string
 }
 
-func (m exampleMaterial) GetBoxID() layout.BoxID { return m.id }
-func (m exampleMaterial) String() string         { return m.text }
+func (m exampleMaterial) String() string { return m.text }
 
 func ExampleRegisterBank() {
-	var bank registers.RegisterBank
+	var bank registers.RegisterBank[exampleMaterial]
 	bank = bank.Append("body", exampleMaterial{1, "prepared paragraph"})
 	bank = bank.Append("body", exampleMaterial{2, "unset block"})
 	bank = bank.Append("notes", exampleMaterial{3, "footnote"})
@@ -42,7 +40,7 @@ func ExampleRegisterBank() {
 }
 
 func ExampleRegister_Prepend() {
-	original := registers.Register{}.Append(exampleMaterial{1, "paragraph"})
+	original := registers.Register[exampleMaterial]{}.Append(exampleMaterial{1, "paragraph"})
 	updated := original.Prepend(exampleMaterial{2, "introduction"})
 	item, rest, _ := updated.Take()
 	fmt.Println("prepended:", item)
@@ -57,12 +55,12 @@ func ExampleRegister_Prepend() {
 }
 
 func ExampleRegisterBank_Prepend() {
-	bank := registers.RegisterBank{}.Append("body", exampleMaterial{1, "paragraph"}).
+	bank := registers.RegisterBank[exampleMaterial]{}.Append("body", exampleMaterial{1, "paragraph"}).
 		Append("body", exampleMaterial{2, "next block"})
-	_, trial, _ := bank.Take("body")
-	// The consumer splits the paragraph and returns the unfinished part to the
-	// front. The remainder can retain the original material's box identity.
-	trial = trial.Prepend("body", exampleMaterial{1, "paragraph remainder"})
+	item, trial, _ := bank.Take("body")
+	// Restore the unchanged whole item in a derived version. Registers do not
+	// split or prepare material, and the original bank remains unchanged.
+	trial = trial.Prepend("body", item)
 	first, _ := trial.First("body")
 	fmt.Println("trial:", first)
 	first, _ = bank.First("body")
@@ -71,7 +69,19 @@ func ExampleRegisterBank_Prepend() {
 	first, _ = trial.First("body")
 	fmt.Println("then:", first)
 	// Output:
-	// trial: paragraph remainder
+	// trial: paragraph
 	// checkpoint: paragraph
 	// then: next block
+}
+
+func ExampleRegister_zeroValue() {
+	var r registers.Register[int]
+	item, ok := r.First()
+	fmt.Println(item, ok) // Empty, not a stored zero.
+	r = r.Append(0)
+	item, rest, ok := r.Take()
+	fmt.Println(item, ok, rest.Len())
+	// Output:
+	// 0 false
+	// 0 true 0
 }

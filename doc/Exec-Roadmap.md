@@ -13,6 +13,24 @@ transactional result lifetime and retained real-font proofs. See
 [the integration evidence](Document-Layout-Integration.md#7-bounded-integration-evidence).
 Full CSS baseline behavior, speculative trials and broader core work remain open.
 
+BOX-CONT-01 (2026-11-23) is implemented: construction failures expose
+`layout.BuildError` with input RootID, offending NodeID when HasNode is true,
+and preserved error causes. Tree-wide failures identify the input boundary.
+Independent filtered-projection tests pin source/text/style preservation,
+normalization after filtering, input immutability and build-local BoxID scope.
+This adds no routing/forest API and changes no geometry pass. See
+[construction diagnostics](../layout/README.md#construction-diagnostics-and-independent-trees).
+
+BOX-CONT-02 (2026-11-23) is implemented: `registers.Register[T any]` and
+`RegisterBank[T any]` replace the provisional FlowMaterial interface, with no
+GetBoxID requirement or layout dependency. Existing queue/map algorithms retain
+persistent versions, FIFO/front insertion, structural sharing and zero-value
+usability. Empty reads return zero T/false; stored zero/nil items return true.
+Referenced payload data must remain immutable. Tests cover concrete and
+noncomparable payloads, independent/concurrent derivation, exhausted-name removal
+and drained-storage release. Consumer-specific Box validity remains pagelayout's
+responsibility; no routing or preparation behavior is added to storage.
+
 
 High-level milestones for the core layout pipeline, reviewed on 2026-11-02;
 integration sequencing aligned through bounded pipeline stage 5 on 2026-11-15.

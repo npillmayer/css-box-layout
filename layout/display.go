@@ -100,19 +100,19 @@ func (d Display) String() string {
 // Descendants of a suppressed element are deliberately not inspected.
 func validateRenderDisplay(r *RenderNode) error {
 	if _, legacy := r.Styles["display"]; legacy {
-		return fmt.Errorf("node %d: %w: provide display through typed RenderNode.Display, not Styles[\"display\"]", r.ID, ErrInvalidDisplay)
+		return buildError(r.ID, fmt.Errorf("%w: provide display through typed RenderNode.Display, not Styles[\"display\"]", ErrInvalidDisplay))
 	}
 	if isTextNode(r.HTMLNode()) {
 		if r.Display != (Display{}) {
-			return fmt.Errorf("node %d: %w: text nodes must leave Display zero", r.ID, ErrInvalidDisplay)
+			return buildError(r.ID, fmt.Errorf("%w: text nodes must leave Display zero", ErrInvalidDisplay))
 		}
 		return nil
 	}
 	if r.HTMLNode() == nil || r.HTMLNode().Type != html.ElementNode {
-		return fmt.Errorf("node %d: render input requires an HTML element or text node", r.ID)
+		return buildError(r.ID, fmt.Errorf("render input requires an HTML element or text node"))
 	}
 	if err := r.Display.Validate(); err != nil {
-		return fmt.Errorf("node %d: %w", r.ID, err)
+		return buildError(r.ID, err)
 	}
 	return nil
 }

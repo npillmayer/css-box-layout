@@ -2,19 +2,21 @@ package layout
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 )
 
 // buildStyle snapshots the adapter's typed values before structural normalization.
 func buildStyle(r *RenderNode, inheritedFont float32, inheritedWhitespace WhiteSpace) (*ComputedStyle, error) {
-	for prop := range r.Styles {
+	for _, prop := range slices.Sorted(maps.Keys(r.Styles)) {
 		switch prop {
 		case "position", "top", "right", "bottom", "left", "inset", "height",
 			"inset-block", "inset-inline", "inset-block-start", "inset-block-end", "inset-inline-start", "inset-inline-end",
 			"width", "margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
 			"padding", "padding-top", "padding-right", "padding-bottom", "padding-left",
 			"border", "border-width", "border-top-width", "border-right-width", "border-bottom-width", "border-left-width", "font-size", "white-space":
-			return nil, fmt.Errorf("node %d: provide %s through typed RenderNode.Style", r.ID, prop)
+			return nil, buildError(r.ID, fmt.Errorf("provide %s through typed RenderNode.Style", prop))
 		}
 	}
 	style := styleOrDefault(r.Style)
@@ -22,10 +24,10 @@ func buildStyle(r *RenderNode, inheritedFont float32, inheritedWhitespace WhiteS
 		style.WhiteSpace = inheritedWhitespace
 	}
 	if err := validateComputedStyle(style); err != nil {
-		return nil, fmt.Errorf("node %d: %w", r.ID, err)
+		return nil, buildError(r.ID, err)
 	}
 	if isTextNode(r.HTMLNode()) && style.Position != PositionStatic {
-		return nil, fmt.Errorf("node %d: %w: text nodes cannot be positioned", r.ID, ErrInvalidPosition)
+		return nil, buildError(r.ID, fmt.Errorf("%w: text nodes cannot be positioned", ErrInvalidPosition))
 	}
 	if style.Fixed != nil {
 		fixed := *style.Fixed

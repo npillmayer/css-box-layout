@@ -32,7 +32,7 @@ func buildBlockContainerWithFont(gen *treeBuilder, r *RenderNode, box BoxKind, b
 		return nil, nil
 	}
 	if r.Replaced != nil {
-		return nil, fmt.Errorf("replaced leaf cannot be a block container")
+		return nil, buildError(r.ID, fmt.Errorf("replaced leaf cannot be a block container"))
 	}
 	style, err := buildStyle(r, inheritedFont, inheritedWhitespace)
 	if err != nil {
@@ -52,7 +52,7 @@ func buildBlockContainerWithStyle(gen *treeBuilder, r *RenderNode, box BoxKind, 
 	}
 	children, err := normalizeBlockChildren(gen.boxIDGen, flow, boxID)
 	if err != nil {
-		return nil, err
+		return nil, buildError(r.ID, err)
 	}
 	setAnonymousStyles(children, style.FontSizePx, style.WhiteSpace)
 	return &LayoutNode{
@@ -111,7 +111,7 @@ func buildInlineFlowWithFont(gen *treeBuilder, r *RenderNode, parentBoxID BoxID,
 
 	if r.Replaced != nil {
 		if display.Outer != OuterInline || len(r.Children()) != 0 || style.Width.Kind != LenPx || !finite(style.Width.Value) || style.Width.Value < 0 || !finite(r.Replaced.Height) || r.Replaced.Height < 0 {
-			return nil, fmt.Errorf("node %d: replaced leaf requires inline display, no children and finite nonnegative fixed dimensions", r.ID)
+			return nil, buildError(r.ID, fmt.Errorf("replaced leaf requires inline display, no children and finite nonnegative fixed dimensions"))
 		}
 		size := *r.Replaced
 		return []FlowItem{InlineItem(&LayoutNode{BoxID: gen.newChild(parentBoxID), NodeID: r.ID, Box: BoxInlineBlock, Style: style, Replaced: &size})}, nil
@@ -155,7 +155,7 @@ func buildInlineFlowWithFont(gen *treeBuilder, r *RenderNode, parentBoxID BoxID,
 		}
 		return []FlowItem{BlockItem(node)}, nil
 	default:
-		return nil, fmt.Errorf("node %d: %w: %s", r.ID, ErrUnsupportedDisplay, display)
+		return nil, buildError(r.ID, fmt.Errorf("%w: %s", ErrUnsupportedDisplay, display))
 	}
 }
 
@@ -167,11 +167,11 @@ func buildText(r *RenderNode, opts BuildOptions, whitespace WhiteSpace) (*Layout
 		if r.HTMLNode().Data == "" {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("node %d: nonempty text requires a source TextRef", r.ID)
+		return nil, buildError(r.ID, fmt.Errorf("nonempty text requires a source TextRef"))
 	}
 	ref := *r.Text
 	if ref.Range.End < ref.Range.Start {
-		return nil, fmt.Errorf("node %d: reversed text range", r.ID)
+		return nil, buildError(r.ID, fmt.Errorf("reversed text range"))
 	}
 	if ref.Range.End == ref.Range.Start {
 		return nil, nil
@@ -181,11 +181,11 @@ func buildText(r *RenderNode, opts BuildOptions, whitespace WhiteSpace) (*Layout
 		var err error
 		content, err = opts.ReadText(ref)
 		if err != nil {
-			return nil, fmt.Errorf("node %d: read text: %w", r.ID, err)
+			return nil, buildError(r.ID, fmt.Errorf("read text: %w", err))
 		}
 	}
 	if uint64(len(content)) != ref.Range.End-ref.Range.Start || !utf8.ValidString(content) {
-		return nil, fmt.Errorf("node %d: text reader must supply the referenced UTF-8 range", r.ID)
+		return nil, buildError(r.ID, fmt.Errorf("text reader must supply the referenced UTF-8 range"))
 	}
 	return &LayoutNode{Box: BoxText, Text: ref, collapsibleText: whitespace.collapsesEntirely(content)}, nil
 }

@@ -6,13 +6,15 @@ import "fmt"
 // boxes may occur: this entry point returns ErrFixedLayoutRequired rather than
 // silently discarding that branch. A static root must be a non-replaced block
 // flow or block flow-root element. Nil/display:none input returns (nil, nil).
+// Errors are *BuildError values and retain errors.Is/errors.As causes. BoxIDs
+// are scoped to this build; qualify them with the caller's tree identity.
 func BuildLayoutTree(renderRoot *RenderNode, opts BuildOptions) (*LayoutNode, error) {
 	trees, err := BuildLayoutTrees(renderRoot, opts)
 	if err != nil {
 		return nil, err
 	}
 	if len(trees.Fixed) != 0 {
-		return nil, fmt.Errorf("node %d: %w: use BuildLayoutTrees", trees.Fixed[0].NodeID, ErrFixedLayoutRequired)
+		return nil, buildRootError(renderRoot.ID, buildError(trees.Fixed[0].NodeID, fmt.Errorf("%w: use BuildLayoutTrees", ErrFixedLayoutRequired)))
 	}
 	return trees.Flow, nil
 }

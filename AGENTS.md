@@ -11,7 +11,17 @@
 - `doc/Pass-Algorithms.md`: per-pass pseudocode sketches and test outlines.
 - `doc/Tree-Type.md`: CSSDOM tree types and traversal interface.
 - Core layout code lives under `layout/`; source-reference types live under `text/`.
+- `BuildLayoutTree`/`BuildLayoutTrees` return `*layout.BuildError` with RootID,
+  optional offending NodeID (HasNode), and an unwrapped cause. Preserve these
+  source locations and errors.Is/errors.As compatibility without parsing prose.
+  BoxIDs are scoped to a construction call; independent filtered projections
+  preserve source IDs/styles/text ranges, not globally unique BoxIDs.
 - Glyph representations and line breaking belong to external typography services.
+- `registers` provides persistent `Register[T any]` and `RegisterBank[T any]`.
+  Payloads need no identity/comparability interface; empty reads return zero T
+  and false. Keep queue/map versions immutable, share only read-only referenced
+  payload data, and release drained storage. No layout dependency or consumer
+  box/preparation semantics belong in this package.
 
 ## Build, Test, and Development Commands
 - Run `go test ./... -count=1`, `go test -race ./... -count=1`, `go build ./...`

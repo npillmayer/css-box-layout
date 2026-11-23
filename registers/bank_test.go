@@ -2,13 +2,14 @@ package registers_test
 
 import (
 	"math/rand/v2"
+	"reflect"
 	"sync"
 	"testing"
 
 	"github.com/npillmayer/css-box-layout/registers"
 )
 
-func assertBank(t *testing.T, bank registers.RegisterBank, want map[registers.RegisterID][]registers.FlowMaterial) {
+func assertBank[T any](t *testing.T, bank registers.RegisterBank[T], want map[registers.RegisterID][]T) {
 	t.Helper()
 	if bank.Len() != len(want) {
 		t.Fatalf("bank Len() = %d, want %d", bank.Len(), len(want))
@@ -23,16 +24,17 @@ func assertBank(t *testing.T, bank registers.RegisterBank, want map[registers.Re
 	if r, ok := bank.Lookup("missing"); ok || r.Len() != 0 {
 		t.Fatal("absent register must return empty, false")
 	}
-	if item, ok := bank.First("missing"); ok || item != nil {
-		t.Fatal("absent First must return nil, false")
+	var zero T
+	if item, ok := bank.First("missing"); ok || !reflect.DeepEqual(item, zero) {
+		t.Fatal("absent First must return zero, false")
 	}
-	if item, rest, ok := bank.Take("missing"); ok || item != nil || rest.Len() != bank.Len() {
-		t.Fatal("absent Take must return nil, unchanged bank, false")
+	if item, rest, ok := bank.Take("missing"); ok || !reflect.DeepEqual(item, zero) || rest.Len() != bank.Len() {
+		t.Fatal("absent Take must return zero, unchanged bank, false")
 	}
 }
 
 func TestBankVersions(t *testing.T) {
-	var empty registers.RegisterBank
+	var empty registers.RegisterBank[testMaterial]
 	base := empty.Append("body", p1).Append("body", p2).Append("notes", n1)
 	item, trial, ok := base.Take("body")
 	if !ok || item != p1 {
@@ -53,20 +55,20 @@ func TestBankVersions(t *testing.T) {
 	_, unchanged, _ := base.Take("missing")
 
 	assertBank(t, empty, nil)
-	assertBank(t, base, map[registers.RegisterID][]registers.FlowMaterial{"body": {p1, p2}, "notes": {n1}})
-	assertBank(t, trial, map[registers.RegisterID][]registers.FlowMaterial{"body": {p2}, "notes": {n1}})
-	assertBank(t, drainedNotes, map[registers.RegisterID][]registers.FlowMaterial{"body": {p2}})
+	assertBank(t, base, map[registers.RegisterID][]testMaterial{"body": {p1, p2}, "notes": {n1}})
+	assertBank(t, trial, map[registers.RegisterID][]testMaterial{"body": {p2}, "notes": {n1}})
+	assertBank(t, drainedNotes, map[registers.RegisterID][]testMaterial{"body": {p2}})
 	assertBank(t, drained, nil)
-	assertBank(t, reused, map[registers.RegisterID][]registers.FlowMaterial{"body": {newItem}})
-	assertBank(t, branch, map[registers.RegisterID][]registers.FlowMaterial{"body": {p1, p2, p3}, "notes": {n1}, "other": {o1}})
-	assertBank(t, unchanged, map[registers.RegisterID][]registers.FlowMaterial{"body": {p1, p2}, "notes": {n1}})
+	assertBank(t, reused, map[registers.RegisterID][]testMaterial{"body": {newItem}})
+	assertBank(t, branch, map[registers.RegisterID][]testMaterial{"body": {p1, p2, p3}, "notes": {n1}, "other": {o1}})
+	assertBank(t, unchanged, map[registers.RegisterID][]testMaterial{"body": {p1, p2}, "notes": {n1}})
 	assertRegister(t, derived, p1, p2, local)
 }
 
 func TestBankPrependVersions(t *testing.T) {
 	for _, id := range []registers.RegisterID{"", "body"} {
 		t.Run("id="+string(id), func(t *testing.T) {
-			var empty registers.RegisterBank
+			var empty registers.RegisterBank[testMaterial]
 			one := empty.Prepend(id, p1)
 			base := one.Append(id, p2).Append("notes", n1)
 			_, trial, _ := base.Take(id)
@@ -85,17 +87,17 @@ func TestBankPrependVersions(t *testing.T) {
 			localVersion := lookup.Prepend(local)
 
 			assertBank(t, empty, nil)
-			assertBank(t, one, map[registers.RegisterID][]registers.FlowMaterial{id: {p1}})
-			assertBank(t, base, map[registers.RegisterID][]registers.FlowMaterial{id: {p1, p2}, "notes": {n1}})
-			assertBank(t, trial, map[registers.RegisterID][]registers.FlowMaterial{id: {p2}, "notes": {n1}})
-			assertBank(t, left, map[registers.RegisterID][]registers.FlowMaterial{id: {leftItem, p2}, "notes": {n1}})
-			assertBank(t, right, map[registers.RegisterID][]registers.FlowMaterial{id: {rightItem, p2}, "notes": {n1}})
-			assertBank(t, repeated, map[registers.RegisterID][]registers.FlowMaterial{id: {p1, p1, p2}, "notes": {n1}})
-			assertBank(t, restored, map[registers.RegisterID][]registers.FlowMaterial{id: {p2}, "notes": {n1}})
-			assertBank(t, drainedName, map[registers.RegisterID][]registers.FlowMaterial{"notes": {n1}})
-			assertBank(t, recreated, map[registers.RegisterID][]registers.FlowMaterial{id: {newItem}, "notes": {n1}})
+			assertBank(t, one, map[registers.RegisterID][]testMaterial{id: {p1}})
+			assertBank(t, base, map[registers.RegisterID][]testMaterial{id: {p1, p2}, "notes": {n1}})
+			assertBank(t, trial, map[registers.RegisterID][]testMaterial{id: {p2}, "notes": {n1}})
+			assertBank(t, left, map[registers.RegisterID][]testMaterial{id: {leftItem, p2}, "notes": {n1}})
+			assertBank(t, right, map[registers.RegisterID][]testMaterial{id: {rightItem, p2}, "notes": {n1}})
+			assertBank(t, repeated, map[registers.RegisterID][]testMaterial{id: {p1, p1, p2}, "notes": {n1}})
+			assertBank(t, restored, map[registers.RegisterID][]testMaterial{id: {p2}, "notes": {n1}})
+			assertBank(t, drainedName, map[registers.RegisterID][]testMaterial{"notes": {n1}})
+			assertBank(t, recreated, map[registers.RegisterID][]testMaterial{id: {newItem}, "notes": {n1}})
 			assertBank(t, drained, nil)
-			assertBank(t, reused, map[registers.RegisterID][]registers.FlowMaterial{id: {newItem}})
+			assertBank(t, reused, map[registers.RegisterID][]testMaterial{id: {newItem}})
 			assertRegister(t, lookup, p2)
 			assertRegister(t, localVersion, local, p2)
 		})
@@ -107,33 +109,33 @@ func TestBankPrependVersions(t *testing.T) {
 // and rollbacks.
 func TestBankCheckpointHistory(t *testing.T) {
 	type snapshot struct {
-		bank  registers.RegisterBank
-		model map[registers.RegisterID][]registers.FlowMaterial
+		bank  registers.RegisterBank[testMaterial]
+		model map[registers.RegisterID][]testMaterial
 	}
 	history := []snapshot{{}}
 	rng := rand.New(rand.NewPCG(13, 29))
 	ids := []registers.RegisterID{"", "body", "notes"}
 	for step := 0; step < 200; step++ {
 		prior := history[rng.IntN(len(history))]
-		model := make(map[registers.RegisterID][]registers.FlowMaterial)
+		model := make(map[registers.RegisterID][]testMaterial)
 		for id, items := range prior.model {
-			model[id] = append([]registers.FlowMaterial(nil), items...)
+			model[id] = append([]testMaterial(nil), items...)
 		}
 		id := ids[rng.IntN(len(ids))]
-		var next registers.RegisterBank
+		var next registers.RegisterBank[testMaterial]
 		switch rng.IntN(3) {
 		case 0:
 			next = prior.bank.Append(id, testMaterial(step+100))
 			model[id] = append(model[id], testMaterial(step+100))
 		case 1:
 			next = prior.bank.Prepend(id, testMaterial(step+100))
-			model[id] = append([]registers.FlowMaterial{testMaterial(step + 100)}, model[id]...)
+			model[id] = append([]testMaterial{testMaterial(step + 100)}, model[id]...)
 		case 2:
 			item, rest, ok := prior.bank.Take(id)
 			next = rest
 			items := model[id]
 			if len(items) == 0 {
-				if ok || item != nil {
+				if ok || item != 0 {
 					t.Fatal("Take from empty model succeeded")
 				}
 			} else {
@@ -155,7 +157,7 @@ func TestBankCheckpointHistory(t *testing.T) {
 }
 
 func TestConcurrentBranches(t *testing.T) {
-	base := registers.RegisterBank{}.Append("body", paragraph).Append("body", block).Append("notes", note)
+	base := registers.RegisterBank[testMaterial]{}.Append("body", paragraph).Append("body", block).Append("notes", note)
 	r, _ := base.Lookup("body")
 	var wg sync.WaitGroup
 	for worker := 0; worker < 16; worker++ {
@@ -171,7 +173,7 @@ func TestConcurrentBranches(t *testing.T) {
 				}
 				_, branch, _ = branch.Take("notes")
 				branch = branch.Prepend("body", testMaterial(worker+300)).Prepend("notes", note)
-				assertBank(t, branch, map[registers.RegisterID][]registers.FlowMaterial{"body": {testMaterial(worker + 300), block, testMaterial(worker + 100)}, "local": {testMaterial(iteration + 200)}, "notes": {note}})
+				assertBank(t, branch, map[registers.RegisterID][]testMaterial{"body": {testMaterial(worker + 300), block, testMaterial(worker + 100)}, "local": {testMaterial(iteration + 200)}, "notes": {note}})
 				_, tail, _ := r.Take()
 				assertRegister(t, tail.Append(testMaterial(worker+100)), block, testMaterial(worker+100))
 				assertRegister(t, tail.Prepend(testMaterial(worker+300)), testMaterial(worker+300), block)
@@ -181,5 +183,5 @@ func TestConcurrentBranches(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	assertBank(t, base, map[registers.RegisterID][]registers.FlowMaterial{"body": {paragraph, block}, "notes": {note}})
+	assertBank(t, base, map[registers.RegisterID][]testMaterial{"body": {paragraph, block}, "notes": {note}})
 }

@@ -9,27 +9,20 @@
 // Prepend explicitly inserts at the front, for example to return unfinished
 // material ahead of the remaining queue. Repeated prepends reverse insertion order.
 //
-// Register and RegisterBank are persistent values: Append, Prepend and Take return
+// Register[T] and RegisterBank[T] are persistent values: Append, Prepend and Take return
 // new values without changing any earlier version. A layout trial can keep its
 // input bank as a checkpoint and publish the returned bank only when the trial succeeds.
 // Their zero values are ready to use, and returned values must be retained to
-// observe changes.
+// observe changes. T may be any type; storage neither inspects payloads nor
+// requires identity methods. First/Take return the zero T and false when empty.
+// A stored zero T (including nil for a nil-capable T) is an ordinary item with
+// true; only the boolean distinguishes absence. Duplicate payloads are allowed.
 //
 // Published values can be read and used to derive independent versions concurrently.
 // This does not synchronize assignment to a shared Register or RegisterBank variable;
 // callers must coordinate publication of a new current version themselves. Payloads
-// are shared, not deep-copied, and must remain immutable while any version uses them.
+// are copied as T values, not deep-copied. Referenced data is shared and must
+// remain immutable while any version uses it. The generic constraint cannot
+// enforce this ownership rule. Register persistence does not make a mutable
+// payload or an execution/preparation session safe to share.
 package registers
-
-import "github.com/npillmayer/css-box-layout/layout"
-
-// FlowMaterial is an item of page-layout content identified by its layout box.
-// Consumers use their own concrete types or interfaces for further layout work.
-// Values may include references to prepared paragraphs or unset blocks, provided
-// those references and their reachable data remain read-only while shared.
-// Nil (including a typed nil) is a valid item; the bool returned by First and Take
-// distinguishes an item from an empty register. Registers do not call GetBoxID
-// or deduplicate items; repeated box identities are allowed.
-type FlowMaterial interface {
-	GetBoxID() layout.BoxID
-}

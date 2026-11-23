@@ -12,6 +12,7 @@ This package implements the core CSS box layout pipeline. It defines the layout 
 - `box.go`: core layout types (LayoutNode, BoxKind, geometry, edges).
 - `boxid.go`: deterministic BoxID generation.
 - `build_style.go`: typed style validation, snapshots, and anonymous inheritance.
+- `build_error.go`: structured source/root locations and preserved error causes.
 - `display.go`: typed display values, validation, and supported display profile.
 - `flow.go`: Pass 1 helpers (flow items, normalizeBlockChildren, split+hoist).
 - `layout.go`: public entry points for layout passes.
@@ -99,8 +100,53 @@ element's own display input must be valid.
 `Styles["display"]` is rejected with `ErrInvalidDisplay`, even when empty or
 accompanied by typed display. Missing or malformed element display is also an
 error. `Styles` remains available for adapter metadata and invalid-string diagnostics;
-known box-value strings still fail validation. Errors carry the source NodeID
-and can be classified with `errors.Is`.
+known box-value strings still fail validation. Construction errors carry structured
+source identities and can be classified with `errors.Is`.
+
+### Construction diagnostics and independent trees
+
+`BuildLayoutTree` and `BuildLayoutTrees` return `*BuildError` on failure, with no
+partial tree/result. `RootID` is the supplied render root's source NodeID;
+`HasNode` and `NodeID` identify the offending source when one applies. Check
+`HasNode` rather than comparing NodeID with zero: callers may supply zero IDs.
+An allocation-wide failure has only the tree boundary, not an invented source
+for an anonymous box. Display/style/text/replaced/fixed diagnostics use the
+relevant source; nested failures are not relabeled as their outer ancestors.
+
+```go
+var construction *layout.BuildError
+if errors.As(err, &construction) {
+    if construction.HasNode {
+        // Map construction.NodeID to the adapter's original source record.
+    } else {
+        // Report the input branch identified by construction.RootID.
+    }
+}
+// errors.Is(err, layout.ErrInvalidDisplay) and errors.As for a ReadText
+// callback's error still work through BuildError.Unwrap().
+```
+
+The error retains IDs and its cause, not input DOM/render/layout nodes. The
+caller's cause may itself retain application data. This contract applies to
+construction only; direct value validators and geometry/layout errors keep their
+existing error types. Diagnostic prose is not an API to parse.
+
+Adapters may filter `RenderNode.ChildrenNodes` into independent projections and
+call the existing builder on each block root. Filter before normalization so
+residual inline runs become adjacent and empty decorated ancestors remain.
+Snapshot effective root fonts/whitespace and other source styles before
+detaching: the builder does not rediscover the original cascade. It preserves
+source NodeIDs and TextRefs, snapshots typed values and leaves inputs unchanged.
+Named channels and cross-tree ownership remain adapter responsibilities; no
+channel callback or forest builder is required.
+
+BoxIDs are unique across flow/fixed roots within one `BuildLayoutTrees` call,
+not across independent calls. Identical builds can reuse numerical IDs; edits
+can change allocation. Use `(caller tree identity, BoxID)` for retained boxes,
+and original NodeIDs/TextRefs for source correspondence. Anonymous boxes have
+NodeID zero; split inline fragments can share a source NodeID. Tests in
+`partition_test.go` cover detached source context, filtering, copied values,
+failed later builds and concurrent read-only construction.
 
 Display migration is complete across w3c-dom, CSS core and tytui. Tytui uses
 GetDisplay and typed RenderNode.Display. The unused string accessor and tree-view
