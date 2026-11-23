@@ -204,6 +204,22 @@ Implemented under tasks 2B/3B. MaxContentWidth and InlineIntrinsic are removed;
 external providers implement the measurement-only operation below. Fixed-width
 flow does not require a measurer.
 
+PREP-03 standalone entry point (2026-11-23):
+
+```go
+func MeasureIntrinsic(root *LayoutNode, ctx ResolveContext,
+    measure IntrinsicMeasurer) (IntrinsicWidths, error)
+```
+
+This runs the same recursive pass without final layout or a used-value table.
+It returns root border-box bounds, excluding root margins; definite root widths
+contribute their prescribed width plus padding/borders, while auto roots recurse.
+The context supplies the root's definite containing-width percentage basis and
+fallback font size. Unknown-auto descendant percentage dependencies remain
+unsupported. Each call owns fresh scratch and returns zero bounds on error,
+preserving callback causes; input trees and earlier outputs are unchanged.
+No heights, paragraph layout, final geometry or cross-call cache are introduced.
+
 ```go
 type IntrinsicWidths struct {
     MinContent float32

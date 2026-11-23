@@ -2,6 +2,60 @@ package layout
 
 import "fmt"
 
+// MeasureIntrinsic returns a normalized block container's intrinsic border-box
+// widths in CSS pixels, excluding its own margins. A definite width contributes
+// that width plus padding/borders; auto width recursively measures content.
+// ctx supplies a definite containing width for the root's percentages and a
+// fallback font size. Descendants of an auto width have no percentage basis.
+//
+// Each call owns fresh scratch. No used-value table, final heights, line layout
+// or geometry is produced. Input and callback views are read-only; views are
+// borrowed for the callback only. Failure returns zero widths and preserves
+// callback causes. Nil input is empty. The normal-flow atomic profile applies.
+func MeasureIntrinsic(root *LayoutNode, ctx ResolveContext, measure IntrinsicMeasurer) (IntrinsicWidths, error) {
+	if root == nil {
+		return IntrinsicWidths{}, nil
+	}
+	if !IsBlockContainer(root.Box) || !finite(ctx.ContainingBlock.W) || ctx.ContainingBlock.W < 0 || !finite(ctx.FontSizePx) || ctx.FontSizePx < 0 {
+		return IntrinsicWidths{}, fmt.Errorf("invalid intrinsic root or context")
+	}
+	if err := validateMeasureTree(root, make(map[BoxID]bool)); err != nil {
+		return IntrinsicWidths{}, err
+	}
+	if err := validateAtomicWidths(root); err != nil {
+		return IntrinsicWidths{}, err
+	}
+	pass := intrinsicPass{measure: measure, bounds: make(map[BoxID]IntrinsicWidths)}
+	w, _, err := pass.border(root, ctx)
+	if err != nil {
+		return IntrinsicWidths{}, err
+	}
+	return w, nil
+}
+
+func validateMeasureTree(n *LayoutNode, seen map[BoxID]bool) error {
+	if n == nil {
+		return nil
+	}
+	if n.BoxID == 0 || seen[n.BoxID] {
+		return fmt.Errorf("invalid or repeated intrinsic box %d", n.BoxID)
+	}
+	seen[n.BoxID] = true
+	s := styleOrDefault(n.Style)
+	if err := validateComputedStyle(s); err != nil {
+		return fmt.Errorf("box %d: %w", n.BoxID, err)
+	}
+	if s.Position != PositionStatic {
+		return fmt.Errorf("box %d: %w", n.BoxID, ErrFixedLayoutRequired)
+	}
+	for _, child := range n.Children {
+		if err := validateMeasureTree(child, seen); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type intrinsicAtoms map[BoxID]IntrinsicAtomic
 
 func (v intrinsicAtoms) Lookup(id BoxID) (IntrinsicAtomic, bool) { a, ok := v[id]; return a, ok }

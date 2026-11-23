@@ -8,6 +8,9 @@ Percentage dependencies on unknown auto widths fail explicitly; definite bases
 remain supported. Horizontal block auto margins are now resolved in the core
 (2026-11-15), including after late containing-width selection. See [current API](Pass-Signatures.md#intrinsic-measurement).
 Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
+PREP-03 (2026-11-23) exposes `MeasureIntrinsic` for standalone border-box bounds
+using the existing recursive pass. It adds no used sizing, final heights, geometry,
+font dependencies or persistent cache; input and failure contracts remain unchanged.
 Bounded tytui/typography integration is verified through pipeline stage 5
 (2026-11-15): normalized input, intrinsic/final callbacks, nested geometry,
 transactional result lifetime and retained real-font proofs. See

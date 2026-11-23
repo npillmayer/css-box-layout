@@ -6,6 +6,7 @@ This package implements the core CSS box layout pipeline. It defines the layout 
 - BuildLayoutTree: structural box tree construction (anonymous boxes, split+hoist).
 - InlineGroups: pure enumeration of normalized groups, owners and atomic boundaries.
 - Used-values resolution (lengths, padding/border/margins).
+- Standalone intrinsic border-box measurement without final layout or geometry.
 - Flow layout entry points (block stacking + inline delegation).
 - Shared types for layout nodes, geometry, and inline extent requests/results.
 
@@ -73,6 +74,15 @@ _ = res
 ```
 
 ## Supplying styles and text sources
+
+`MeasureIntrinsic(tree, resolveContext, intrinsicMeasurer)` exposes the same
+recursive intrinsic pass used by auto sizing. It returns CSS-pixel border-box
+bounds excluding the supplied root's margins. Definite widths contribute their
+prescribed width plus padding/borders; auto widths recurse. The context supplies
+a definite percentage basis for the root and a fallback font size. No final
+heights, used-value table or geometry are produced. Each call owns fresh scratch;
+callbacks borrow read-only views and errors return zero widths with causes intact.
+The tree must be normalized and obey the existing normal-flow atomic profile.
 
 The builder reads typed display from `RenderNode.Display` and box values from
 `RenderNode.Style`. It does not parse CSS syntax or apply cascade/defaults.

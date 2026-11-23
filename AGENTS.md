@@ -17,6 +17,11 @@
   BoxIDs are scoped to a construction call; independent filtered projections
   preserve source IDs/styles/text ranges, not globally unique BoxIDs.
 - Glyph representations and line breaking belong to external typography services.
+- `layout.MeasureIntrinsic` exposes the existing recursive intrinsic pass without
+  final layout. Return border-box bounds excluding the root's margins; definite
+  widths contribute their prescribed size and auto widths recurse. Each call has
+  fresh scratch; preserve inputs, callback causes and zero output on failure.
+  Keep unknown-auto percentage restrictions and the normal-flow atomic profile.
 - `layout.InlineGroups` enumerates normalized groups in structural preorder,
   including empty groups and atomic interiors. Descriptors borrow read-only
   nodes; each Atomics slice is caller-owned. Keep BoxIDs tree-local, and keep

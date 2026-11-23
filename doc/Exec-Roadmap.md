@@ -144,6 +144,10 @@ Keep frozen decisions here; no separate decision log is needed.
 - IntrinsicMeasurer measures normalized groups, not whole atomic subtrees:
   MeasureInline returns min/max content bounds, with edges-only input and nested
   atomic border bounds keyed by BoxID. Core owns recursion and width selection.
+- PREP-03 (2026-11-23) adds standalone `MeasureIntrinsic` over that same pass:
+  root border-box bounds exclude root margins, definite widths retain their
+  prescribed contribution, and auto widths recurse with fresh scratch. No
+  used-value table, final heights, geometry or new font dependency is introduced.
 - Use containing-block available content width, not line remainder; select
   min(max(minContent, availableContent), maxContent), resolve descendants privately,
   then lay out once. Reject unknown-width percentage dependencies initially.
