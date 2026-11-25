@@ -9,6 +9,8 @@ This is a planning artifact, not the algorithm contract.
 `doc/Exec-Roadmap.md`. Unchecked tasks below remain open.
 
 - [x] BOX-SHIP-01: detached normalization boundaries and explicit omission dispositions; split/hoist, empty, suppressed, text and lifetime tests.
+- [x] BOX-SHIP-02: structural finite-height alternatives and exact open-container/paragraph continuation; synthetic conservation, changed-width, zero-height, stop/limit/failure and payload-lifetime tests. Auto-width/zero-edge profile only.
+- [ ] BOX-SHIP-03: used geometry, signed margin/edge handling, inline atomics and fragment paint in finite-height fitting.
 
 ## Established requirements
 

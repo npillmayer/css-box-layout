@@ -1,5 +1,22 @@
 # Execution Roadmap
 
+BOX-SHIP-02 (2026-11-25) is implemented: pure finite-height traversal over a
+detached structural snapshot, qualified opaque continuations/stops, logical
+positions, occupied extents and first/last container facts. `ParagraphFitter`
+supplies whole-line choices and cloneable payloads without font/typography
+dependencies. Stable depth-first enumeration visits complete choices before
+partial ones, descending paragraph end and provider order for ties; extensions
+precede shorter block prefixes. Exhaustion, voluntary stop and typed failure
+(including cancellation/limits) are distinct. Tests conserve material across
+every supported structural/line cut, changed widths and repeated resumes, and
+cover zero-height progress, oversized non-fit, copied inspection, late failures,
+callback scratch reuse and concurrent independent runs. An external-package
+example demonstrates narrower-width continuation with fixed earlier output.
+The supported structural profile has auto-width blocks and zero CSS edges.
+BOX-SHIP-03 still owns actual edge/margin/width resolution, fragment paint and
+inline-atomic geometry; unsupported cases are diagnosed now. Registers, spans,
+paragraph shaping and page loss do not enter this core API.
+
 BOX-SHIP-01 (2026-11-25) is implemented. `BuildLayoutTreesWithProvenance`
 returns unchanged normalized trees plus detached source/structural boundary
 records. Source IDs are unique within this opt-in build (zero is permitted).

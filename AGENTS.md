@@ -71,3 +71,13 @@
   Source IDs must be unique for this API, with zero allowed. Structural ordinals
   are root/build-local; source occurrences may split or disappear. Preserve
   explicit omitted/empty/suppressed endpoints without nearest-box guessing.
+- BOX-SHIP-02 provides `NewStructuralFitter`/`Enumerate` for finite-height block
+  fragments with a neutral `ParagraphFitter`. Snapshot structure; keep opaque
+  continuations/stops fitter-qualified. Clone backend checkpoints/output at the
+  service boundary and on inspection/resumption; never retain mutable scratch,
+  source nodes or services in results. Enumerate shorter prefixes and distinguish
+  exhaustion, voluntary stop and errors/limits. Initial profile is static,
+  auto-width, zero-edge blocks/groups; nonzero/unresolved edges, specified block
+  widths and atomics are unsupported until BOX-SHIP-03. Keep pending container
+  facts and zero-height logical progress independent of occupied height. No
+  channels, spans, scoring, fonts or typography dependencies enter this API.

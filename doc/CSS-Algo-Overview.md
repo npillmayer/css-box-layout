@@ -1,5 +1,21 @@
 # Core Algorithm Contract (CSS Box + Flow Layout)
 
+Finite-height structural fitting is available through `NewStructuralFitter`
+and `Enumerate`, separately from whole-tree `FlowLayout`. The initial profile
+is static auto-width blocks with zero edges, nested containers and ordinary
+inline/text groups. Nonzero/unresolved edges, specified block widths and atomics
+fail explicitly pending used-geometry integration. A neutral paragraph service
+enumerates shorter legal prefixes with matching cloneable output/checkpoints;
+core freezes each choice, traverses structure, and retains exact open ancestors,
+next-child/group position and pending opening/closing facts. Results and
+continuations retain neither input nodes nor services. Boundary/progress identity
+is fitter-local, with BOX-SHIP-01-compatible structural ordinals. Only exhaustive
+enumeration certifies all choices; service/caller stops, cancellation, work limits
+and failures never imply non-fit. See
+[the fitting API](../layout/README.md#fit-a-structural-fragment-and-resume).
+Used CSS fragment geometry/paint, signed margin collapse and atomic interiors
+remain BOX-SHIP-03; paragraph shaping and page/register policy remain external.
+
 Normalization provenance is available through `BuildLayoutTreesWithProvenance`.
 It is an out-of-band result of the same builder, not layout material. Source
 before/after endpoints, retained occurrences and per-root structural ordinals

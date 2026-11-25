@@ -8,6 +8,7 @@ This package implements the core CSS box layout pipeline. It defines the layout 
 - Used-values resolution (lengths, padding/border/margins).
 - Standalone intrinsic border-box measurement without final layout or geometry.
 - Flow layout entry points (block stacking + inline delegation).
+- Finite-height structural fragments and exact continuation through paragraph callbacks.
 - Shared types for layout nodes, geometry, and inline extent requests/results.
 
 ## Files (overview)
@@ -447,3 +448,82 @@ separate responsibility. Sources filtered out before this build are absent.
 All returned records and slices are independent value copies without mutable
 node pointers. Qualify identities by your build/tree snapshot. Errors return no
 trees or provenance and retain `BuildError` source locations and original causes.
+
+## Fit a structural fragment and resume
+
+Create a `StructuralFitter` from a normalized block root and a `ParagraphFitter`.
+The supported profile is static auto-width blocks with zero margins, borders and
+padding, containing nested blocks or ordinary inline/text groups. Specified block
+widths, nonzero/unresolved edges, positioned/replaced boxes and inline atomics
+return `ErrUnsupportedFit`.
+
+```go
+fitter, err := layout.NewStructuralFitter(tree, paragraphFitter)
+if err != nil {
+    return err
+}
+var choices []layout.FitAlternative
+status, err := fitter.Enumerate(ctx, layout.FitRequest{
+    Width: 320, Height: 480, // finite, nonnegative CSS pixels
+}, func(a layout.FitAlternative) bool {
+    choices = append(choices, a)
+    return true
+})
+if err != nil {
+    return err
+}
+if status != layout.FitExhausted {
+    // Interrupted: choices are valid snapshots, but enumeration is incomplete.
+    return fmt.Errorf("fitting interrupted")
+}
+if len(choices) == 0 {
+    // No legal progressing prefix fits these dimensions.
+    return nil
+}
+selected := choices[0] // apply the client's selection policy here
+fmt.Println(selected.Extent(), selected.Progress(), selected.Complete())
+next := layout.FitRequest{
+    Width: 240, Height: 480, Continuation: selected.Continuation(),
+}
+_ = next // pass to the same fitter; the accepted prefix remains unchanged
+```
+
+`ParagraphFitter.EnumerateParagraph` receives copied group/owner/root identities,
+receiving dimensions, a logical `From` and the selected opaque checkpoint. Supply
+all legal whole-line prefixes, including shorter choices. Partial choices must
+advance their width-independent `ParagraphPosition` and provide a checkpoint;
+complete choices consume the remaining group and have no checkpoint. Each choice
+includes its exact extent and matching output. An empty group may complete with
+zero extent and unchanged paragraph position; consuming it still advances the
+structural cursor. Oversized prefixes are filtered as non-fit.
+
+Checkpoint and output types implement `FitPayload.Clone`. Return an independent
+snapshot, or the same value only when immutable. Core clones on receipt, output
+inspection and checkpoint resumption. Do not retain mutable callback scratch in
+a clone. The service owns text preparation and line breaking; core does not
+reconstruct checkpoints from offsets. See the runnable
+[changed-width example](fit_example_test.go).
+
+Enumeration is depth first. Within each paragraph, complete choices come first,
+then descending logical ends, with provider order preserved for ties. Extensions
+precede their shorter block prefix. Per-group choices are collected and frozen
+before traversal. `IncludeEmpty` adds an unchanged, non-progress alternative last;
+an already completed or stopped cursor is reported even without that option.
+`Paragraphs()` returns copied outputs at `(0,Y)` in the receiving rectangle.
+`Containers()` describes first/last fragments; continuation inspection lists
+open ancestors, their next children and pending opening/closing facts.
+
+Use `fitter.Boundary(boxID, edge)` for an optional `FitRequest.Stop`. Block and
+anonymous-group boundaries are supported; cuts inside inline material return
+`ErrUnsupportedFit`. A trailing child's after-cut includes closing ancestors.
+Boundaries and continuations belong to exactly one fitter, even when another
+fitter has the same numerical BoxIDs. `End().Compare` compares progress only
+within that identity; positions are not continuation authority.
+
+A false visitor or voluntary service stop returns `FitStopped`. Context errors,
+`MaxSteps` limits, malformed callback results and backend failures return
+`FitFailed` with an error. Only `FitExhausted` certifies full enumeration; an empty
+exhaustive result is ordinary non-fit. `FitError` identifies the box and preserves
+causes for `errors.Is`/`errors.As`. Limits and cancellation are cooperative between
+structural steps and paragraph yields/calls. Results retain no source nodes or
+paragraph service; concurrent use requires a concurrency-safe service.
