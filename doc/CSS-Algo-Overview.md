@@ -1,5 +1,13 @@
 # Core Algorithm Contract (CSS Box + Flow Layout)
 
+Normalization provenance is available through `BuildLayoutTreesWithProvenance`.
+It is an out-of-band result of the same builder, not layout material. Source
+before/after endpoints, retained occurrences and per-root structural ordinals
+preserve split/hoist and anonymous-group correspondence. Omitted/empty/suppressed
+endpoints are explicit and do not imply a nearby position or consumer affinity.
+Accessors return detached copies; identity is build-local. See
+[boundary inspection](../layout/README.md#inspect-normalized-source-boundaries).
+
 Implementation update: tasks 2A/3A and bounded auto-width tasks 2B/3B are
 implemented. Core measures nested intrinsic bounds, selects auto content widths,
 resolves descendants privately, then performs final layout. Fixed pixel widths

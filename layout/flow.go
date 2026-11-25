@@ -71,7 +71,15 @@ func buildInlineFlow(gen *treeBuilder, r *RenderNode, parentBoxID BoxID) ([]Flow
 	return buildInlineFlowWithFont(gen, r, parentBoxID, 0, WhiteSpaceNormal)
 }
 
-func buildInlineFlowWithFont(gen *treeBuilder, r *RenderNode, parentBoxID BoxID, inheritedFont float32, inheritedWhitespace WhiteSpace) ([]FlowItem, error) {
+func buildInlineFlowWithFont(gen *treeBuilder, r *RenderNode, parentBoxID BoxID, inheritedFont float32, inheritedWhitespace WhiteSpace) (result []FlowItem, failure error) {
+	defer func() {
+		if gen.trace != nil && r != nil && failure == nil {
+			for _, item := range result {
+				gen.trace.record(r.ID, item.Node)
+			}
+		}
+	}()
+
 	if r == nil {
 		return nil, nil
 	}

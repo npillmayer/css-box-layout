@@ -64,3 +64,10 @@
 - It is acceptable to sketch logic in comments or Markdown and to design unit test cases up-front without implementing them.
 - We are not optimizing for speed of delivery; correctness and clarity of the algorithm come first.
 - Do not create or maintain a separate decision log; frozen decisions live in `doc/Exec-Roadmap.md`.
+
+- BOX-SHIP-01 provides opt-in `BuildLayoutTreesWithProvenance`, using the same
+  normalizer with private emitted-flow tracing. Keep records detached and copied;
+  no markers, nodes, text processing or pagination semantics belong in them.
+  Source IDs must be unique for this API, with zero allowed. Structural ordinals
+  are root/build-local; source occurrences may split or disappear. Preserve
+  explicit omitted/empty/suppressed endpoints without nearest-box guessing.

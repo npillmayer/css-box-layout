@@ -1,5 +1,19 @@
 # Execution Roadmap
 
+BOX-SHIP-01 (2026-11-25) is implemented. `BuildLayoutTreesWithProvenance`
+returns unchanged normalized trees plus detached source/structural boundary
+records. Source IDs are unique within this opt-in build (zero is permitted).
+Before/after source boundaries track emitted flow through split/hoist; retained
+occurrences distinguish multiple boxes from one source. Structural enter/exit
+ordinals are local to each flow/fixed root, never numeric BoxID order. Anonymous
+groups and atomic interiors are identified without source/channel/font semantics.
+Omitted, empty and suppressed endpoints have explicit dispositions and no guessed
+nearby position. No layout markers or additional text reads are introduced.
+Tests cover splits, hoisted-only inlines, empty anchors, mixed-flow whitespace,
+suppression, anonymous groups, atomics, fixed roots, text ranges, copied results,
+independent/concurrent builds and atomic error publication. Consumer affinity and
+prepared-text mapping remain outside core normalization.
+
 Implementation update: tasks 2A/3A and bounded auto-width tasks 2B/3B are
 implemented. Core measures nested intrinsic bounds, selects auto content widths,
 resolves descendants privately, then performs final layout. Fixed pixel widths

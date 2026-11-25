@@ -402,3 +402,48 @@ The result is detached and viewport-local (`RelativeTo == 0`). Apply the externa
 viewport origin once during composition. Inputs and prior results remain
 unchanged across concurrent calls and resize/replay. `FixedLayout` retains its
 existing content measurement, interior layout and callback lifecycle.
+
+## Inspect normalized source boundaries
+
+Use `BuildLayoutTreesWithProvenance` when source positions must survive anonymous
+wrapping, inline splitting and block hoisting:
+
+```go
+trees, provenance, err := layout.BuildLayoutTreesWithProvenance(renderRoot, layout.BuildOptions{})
+if err != nil {
+    return err
+}
+for _, source := range provenance.Sources() {
+    if source.Before.Disposition == layout.BoundaryRetained {
+        position := source.Before.Position
+        fmt.Println(source.Source, position.Root, position.Box, position.Group, position.Order)
+    }
+}
+_ = trees
+```
+
+Each input `NodeID` must be unique within this build, including suppressed
+subtrees; zero is permitted. Source records follow input preorder. Before/after
+positions enclose the source's emitted flow, including hoisted blocks. Retained
+occurrences list boxes actually bearing that source ID, so a split inline can
+have several occurrences and a hoisted-only inline can have none. Generated
+anonymous boxes have structural positions but no invented source identities.
+
+`Boundaries()` returns depth-first before/after positions for every box. Order
+is one-based and restarts within each root; compare it only for positions in the
+same root and build. Flow precedes fixed roots in the returned inventory. These
+positions describe structure, not legal line/page cuts. `Group` identifies a
+containing anonymous inline group; atomic interiors have their own groups.
+Existing `TextRef` byte ranges describe retained text without text processing.
+
+Check each endpoint's disposition. `BoundaryOmitted` means normalization dropped
+its emitted endpoint, such as a whitespace-only mixed-flow run; `BoundaryEmpty`
+means the source emitted no boxes, such as zero-length text; `BoundarySuppressed`
+means display suppression. These have no fabricated position or nearest-box
+fallback. Even an empty inline may be retained in an inline-only group but omitted
+between blocks. Choosing affinity or mapping to processed text is the caller's
+separate responsibility. Sources filtered out before this build are absent.
+
+All returned records and slices are independent value copies without mutable
+node pointers. Qualify identities by your build/tree snapshot. Errors return no
+trees or provenance and retain `BuildError` source locations and original causes.

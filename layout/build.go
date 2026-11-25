@@ -20,6 +20,7 @@ type treeBuilder struct {
 	*boxIDGen
 	options BuildOptions
 	fixed   []*LayoutNode
+	trace   *normalizationTrace
 }
 
 // BuildLayoutTrees normalizes a render subtree and diverts fixed boxes before
@@ -30,6 +31,10 @@ type treeBuilder struct {
 // partial branches. Fixed sizing and placement are not implemented by this pass.
 // Every returned error is a *BuildError with the input root's source identity.
 func BuildLayoutTrees(renderRoot *RenderNode, opts BuildOptions) (trees *LayoutTrees, err error) {
+	return buildLayoutTrees(renderRoot, opts, nil)
+}
+
+func buildLayoutTrees(renderRoot *RenderNode, opts BuildOptions, trace *normalizationTrace) (trees *LayoutTrees, err error) {
 	if renderRoot == nil {
 		return &LayoutTrees{}, nil
 	}
@@ -47,7 +52,7 @@ func BuildLayoutTrees(renderRoot *RenderNode, opts BuildOptions) (trees *LayoutT
 	if err != nil {
 		return nil, err
 	}
-	gen := &treeBuilder{boxIDGen: newBoxIDGen(), options: opts}
+	gen := &treeBuilder{boxIDGen: newBoxIDGen(), options: opts, trace: trace}
 	rootID := gen.newRoot(renderRoot.ID)
 	var root *LayoutNode
 	if style.Position == PositionFixed {
@@ -64,6 +69,9 @@ func BuildLayoutTrees(renderRoot *RenderNode, opts BuildOptions) (trees *LayoutT
 	if gen.err != nil {
 		return nil, gen.err
 	}
+	if root != nil {
+		gen.trace.record(renderRoot.ID, root)
+	}
 	return &LayoutTrees{Flow: root, Fixed: gen.fixed}, nil
 }
 
@@ -79,5 +87,6 @@ func (b *treeBuilder) divertFixed(r *RenderNode, id BoxID, style *ComputedStyle)
 		return err
 	}
 	b.fixed[index] = root
+	b.trace.record(r.ID, root)
 	return nil
 }

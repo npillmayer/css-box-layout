@@ -8,6 +8,8 @@ This is a planning artifact, not the algorithm contract.
 `doc/CSS-Algo-Overview.md` is authoritative; frozen decisions are recorded in
 `doc/Exec-Roadmap.md`. Unchecked tasks below remain open.
 
+- [x] BOX-SHIP-01: detached normalization boundaries and explicit omission dispositions; split/hoist, empty, suppressed, text and lifetime tests.
+
 ## Established requirements
 
 - Identity: `BoxID` is unique per box, including anonymous boxes and split
