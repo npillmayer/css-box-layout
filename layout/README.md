@@ -527,6 +527,15 @@ Signed and empty-block margins collapse within a fragment, never across frames.
 `Extent()` includes physical box/paragraph bounds and root margin advances.
 Continuation inspection lists open ancestors, next children and pending edges.
 
+For intermediate composition of independently rooted fragments, set
+`FitRequest.DeferVerticalBounds: true`. This retains finite negative/oversized
+vertical margins that can change when adjoining sibling margins collapse.
+Horizontal checks and the paragraph height ceiling still apply. Such candidates
+are not certified to fit: compose their frozen interiors in source order and
+check every final physical box/paragraph and the total allocated extent against
+the receiver. Keep each root's interior contained while letting outer margins
+adjoin through `FlowLayout`. The default request enforces complete bounds.
+
 The callback's `Used` view and `Atomics` slice are borrowed, read-only inputs.
 Atomics are realized before the enclosing paragraph callback; each input has
 border dimensions, separate margins and a `Consumed` flag. Consumed occurrences

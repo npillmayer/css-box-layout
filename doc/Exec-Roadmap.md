@@ -26,6 +26,13 @@ percent/font bases, signed/empty margin collapse, shrink-to-fit, nested/replaced
 atomics, oversized retry, invalid placements, interruption and retained output.
 Registers, spans, paragraph shaping and page loss do not enter this core API.
 
+SHIP-06 composition support (2026-11-26): the opt-in `DeferVerticalBounds` request
+keeps intermediate finite geometry for independently rooted siblings whose
+vertical margins may collapse together. Horizontal bounds and paragraph ceilings
+remain enforced; default calls still require full physical fit. External
+composition must check final bounds before acceptance. Regression tests cover
+negative leading/oversized trailing margins and retained horizontal/height guards.
+
 BOX-SHIP-01 (2026-11-25) is implemented. `BuildLayoutTreesWithProvenance`
 returns unchanged normalized trees plus detached source/structural boundary
 records. Source IDs are unique within this opt-in build (zero is permitted).

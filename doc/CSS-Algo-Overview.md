@@ -23,6 +23,13 @@ rectangle, with no collapse across frame boundaries. Extent includes box and
 paragraph occupied bounds and root margin advances; overflowing physical bounds
 produce non-fit, while invalid/nonfinite geometry produces an error.
 
+An explicit `FitRequest.DeferVerticalBounds` supports intermediate same-receiver
+composition of independent roots. It defers negative-Y and height-bound rejection
+so external sibling margins may collapse before final acceptance. Finite geometry,
+horizontal bounds and paragraph height ceilings remain checked. The caller must
+compose and validate final physical bounds/allocated extent; this option alone
+does not certify a fitting arrangement. Default requests retain full checks.
+
 Atomic interiors are completed before the outer paragraph callback. Fixed, em
 and definite-percentage widths need no intrinsic service; auto widths use the
 existing intrinsic pass. ParagraphAtomic inputs are in source order and include

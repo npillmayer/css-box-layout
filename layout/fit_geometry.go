@@ -122,7 +122,7 @@ func (r *fitRun) fragmentGeometry(s fitState) (*fitResult, bool, error) {
 		if !finite(rect.X) || !finite(rect.Y) || !finite(rect.W) || !finite(rect.H) || !finite(rect.X+rect.W) || !finite(rect.Y+rect.H) || rect.W < 0 || rect.H < 0 {
 			return fmt.Errorf("%w: invalid fragment bounds", ErrInvalidFit)
 		}
-		if rect.X < 0 || rect.Y < 0 {
+		if rect.X < 0 || !r.req.DeferVerticalBounds && rect.Y < 0 {
 			fits = false
 		}
 		w, h = max(w, rect.X+rect.W), max(h, rect.Y+rect.H)
@@ -157,7 +157,7 @@ func (r *fitRun) fragmentGeometry(s fitState) (*fitResult, bool, error) {
 		return nil, false, fmt.Errorf("%w: fragment extent overflow", ErrInvalidFit)
 	}
 	result.extent = InlineExtent{w, h}
-	return result, fits && w <= r.req.Width && h <= r.req.Height, nil
+	return result, fits && w <= r.req.Width && (r.req.DeferVerticalBounds || h <= r.req.Height), nil
 }
 
 func fitContentOrigin(id BoxID, geometry LayoutGeometryTable) (x, y float32) {

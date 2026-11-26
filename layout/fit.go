@@ -272,6 +272,12 @@ type FitRequest struct {
 	// Zero means no local cap. Each structural/atomic step and paragraph alternative
 	// counts; caller cancellation is checked between steps and after callbacks.
 	MaxSteps uint64
+	// DeferVerticalBounds retains finite fragment geometry whose standalone
+	// vertical bounds exceed the receiver. Use only when composing independently
+	// rooted fragments in one receiver: adjoining margins can change their final
+	// placement. Check the complete composition before accepting it. Horizontal
+	// bounds and paragraph height ceilings remain checked.
+	DeferVerticalBounds bool
 }
 
 // ParagraphFragment has its origin at (X,Y) in the receiving rectangle. Output

@@ -93,3 +93,12 @@
   colors, glyphs, channels or page policy enter core. Auto atomics use an optional
   IntrinsicMeasurer; em requires a positive effective source font. Percentages
   with definite bases work; unknown-auto percentage dependencies still fail.
+
+- `FitRequest.DeferVerticalBounds` supports intermediate composition of
+  independently rooted fragments within one receiver. It retains finite geometry
+  with negative/oversized vertical margins while preserving horizontal checks
+  and paragraph height ceilings. It defaults to false. A caller using it must
+  compose all selected roots and validate final physical bounds before accepting
+  an arrangement; it is not permission to publish overflow as a fitted page.
+  Root interiors remain contained; external sibling margins can collapse through
+  ordinary FlowLayout. No channel, activation or scoring policy enters core.
