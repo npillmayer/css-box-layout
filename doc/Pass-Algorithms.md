@@ -3,7 +3,8 @@
 Implementation update: tasks 2A/3A and bounded auto-width tasks 2B/3B are
 implemented. Core measures nested intrinsic bounds, selects auto content widths,
 resolves descendants privately, then performs final layout. Fixed pixel widths
-including zero remain supported; percent/em widths on atomic boxes remain rejected.
+including zero remain supported; atomic em widths and percentages with definite
+bases are supported too.
 Percentage dependencies on unknown auto widths fail explicitly; definite bases
 remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
 Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.

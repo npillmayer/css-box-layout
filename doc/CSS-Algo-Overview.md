@@ -1,10 +1,11 @@
 # Core Algorithm Contract (CSS Box + Flow Layout)
 
 Finite-height structural fitting is available through `NewStructuralFitter`
-and `Enumerate`, separately from whole-tree `FlowLayout`. The initial profile
-is static auto-width blocks with zero edges, nested containers and ordinary
-inline/text groups. Nonzero/unresolved edges, specified block widths and atomics
-fail explicitly pending used-geometry integration. A neutral paragraph service
+and `Enumerate`, separately from whole-tree `FlowLayout`. The static profile
+includes resolved block widths/edges, signed within-frame margin collapse,
+inline-blocks and fixed-size replaced leaves. Used values are resolved afresh at
+each receiving width; positioned material and cuts inside atomics are unsupported.
+A neutral paragraph service
 enumerates shorter legal prefixes with matching cloneable output/checkpoints;
 core freezes each choice, traverses structure, and retains exact open ancestors,
 next-child/group position and pending opening/closing facts. Results and
@@ -13,8 +14,24 @@ is fitter-local, with BOX-SHIP-01-compatible structural ordinals. Only exhaustiv
 enumeration certifies all choices; service/caller stops, cancellation, work limits
 and failures never imply non-fit. See
 [the fitting API](../layout/README.md#fit-a-structural-fragment-and-resume).
-Used CSS fragment geometry/paint, signed margin collapse and atomic interiors
-remain BOX-SHIP-03; paragraph shaping and page/register policy remain external.
+Selected paragraphs are replayed through the existing flow-layout rules on a
+private pruned fragment tree. Source styles stay unchanged; used top edges are
+omitted only on continuation containers, bottom edges only on nonlast containers.
+Wholly contained children retain all edges. Closing edges must fit with the last
+content; no edge-only remainder is created. Root margins belong to the receiving
+rectangle, with no collapse across frame boundaries. Extent includes box and
+paragraph occupied bounds and root margin advances; overflowing physical bounds
+produce non-fit, while invalid/nonfinite geometry produces an error.
+
+Atomic interiors are completed before the outer paragraph callback. Fixed, em
+and definite-percentage widths need no intrinsic service; auto widths use the
+existing intrinsic pass. ParagraphAtomic inputs are in source order and include
+locked consumed occurrences. Each alternative places exactly a prefix of the
+remaining occurrences (physical placement order may differ). Continuations keep
+consumed interiors unchanged; only suffix occurrences can be re-realized.
+AtomicFragment inspection returns copied geometry, used values and cloneable
+interior paragraph output. Selected output retains no execution services.
+Paragraph shaping, source paint and page/register policy remain external.
 
 Normalization provenance is available through `BuildLayoutTreesWithProvenance`.
 It is an out-of-band result of the same builder, not layout material. Source
@@ -27,7 +44,8 @@ Accessors return detached copies; identity is build-local. See
 Implementation update: tasks 2A/3A and bounded auto-width tasks 2B/3B are
 implemented. Core measures nested intrinsic bounds, selects auto content widths,
 resolves descendants privately, then performs final layout. Fixed pixel widths
-including zero remain supported; percent/em widths on atomic boxes remain rejected.
+including zero remain supported; atomic em widths and percentages with definite
+bases are supported too.
 Percentage dependencies on unknown auto widths fail explicitly; definite bases
 remain supported. Horizontal block auto margins are now resolved in the core
 (2026-11-15), including after late containing-width selection. See [current API](Pass-Signatures.md#intrinsic-measurement).

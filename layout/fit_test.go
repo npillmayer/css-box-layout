@@ -475,16 +475,12 @@ func TestStructuralFitProtocol(t *testing.T) {
 }
 
 func TestStructuralFitProfileAndConcurrentReuse(t *testing.T) {
-	for _, change := range []func(*LayoutNode){
-		func(n *LayoutNode) { s := DefaultComputedStyle(); s.Margin.Top = lenPx(1); n.Style = &s },
-		func(n *LayoutNode) { s := DefaultComputedStyle(); s.Width = lenPx(20); n.Style = &s },
-		func(n *LayoutNode) { n.Children[0].Children[0].Box = BoxInlineBlock },
-	} {
-		root := buildGroupFixture(t, newRenderElement(1, blockDisplay, newRenderText(2, "a")))
-		change(root)
-		if f, err := NewStructuralFitter(root, fitTestParagraphs(nil)); f != nil || !errors.Is(err, ErrUnsupportedFit) {
-			t.Fatalf("profile %v %v", f, err)
-		}
+	rootPositioned := buildGroupFixture(t, newRenderElement(1, blockDisplay, newRenderText(2, "a")))
+	style := DefaultComputedStyle()
+	style.Position = PositionFixed
+	rootPositioned.Style = &style
+	if f, err := NewStructuralFitter(rootPositioned, fitTestParagraphs(nil)); f != nil || !errors.Is(err, ErrUnsupportedFit) {
+		t.Fatalf("profile %v %v", f, err)
 	}
 	root, _, material := fitTestTree(t)
 	f, err := NewStructuralFitter(root, fitTestParagraphs(material))

@@ -39,9 +39,16 @@ func (p ParagraphPosition) Compare(q ParagraphPosition) int {
 
 type ParagraphFitRequest struct {
 	Root, Group, Owner BoxID
-	Width, Height      float32
-	From               ParagraphPosition
-	Checkpoint         FitPayload
+	// Width is the resolved owner content width. Height is a conservative
+	// ceiling; core accounts for adjoining margins and fragment edges later.
+	Width, Height float32
+	From          ParagraphPosition
+	Checkpoint    FitPayload
+	// Used and Atomics are read-only, invocation-local inputs. Do not retain
+	// either view in a checkpoint or output; copy required value data instead.
+	Used UsedValuesView
+	// Source ordered, including locked occurrences from an accepted prefix.
+	Atomics []ParagraphAtomic
 }
 
 // ParagraphAlternative associates a legal prefix with exactly its checkpoint
@@ -52,6 +59,12 @@ type ParagraphAlternative struct {
 	Complete           bool
 	Extent             InlineExtent
 	Checkpoint, Output FitPayload
+	// Only newly consumed occurrences, in physical placement order. Their IDs
+	// must select a source-order prefix of the remaining atomic occurrences.
+	Atomics []AtomicPlacement
+	// Certifies this selected prefix has no separating line boxes or atomics.
+	// Zero height alone does not establish collapse permission.
+	AllowsMarginCollapse bool
 }
 
 // FitEnumeration distinguishes a complete enumeration from an interrupted one.
@@ -105,130 +118,52 @@ type fitCut struct {
 	boundary StructuralBoundary
 }
 type fitProgram struct {
-	root BoxID
-	ops  []fitOp
-	cuts map[fitEdge]fitCut
-	all  map[fitEdge]StructuralBoundary
+	root    BoxID
+	ops     []fitOp
+	cuts    map[fitEdge]fitCut
+	all     map[fitEdge]StructuralBoundary
+	tree    *LayoutNode
+	nodes   map[BoxID]*LayoutNode
+	atomics map[BoxID][]BoxID
 }
 
 // StructuralFitter binds one immutable structural snapshot to one paragraph
-// service. Concurrent calls are safe only if that service supports concurrency;
+// service. Concurrent calls require concurrency-safe paragraph and intrinsic services;
 // all core traversal scratch is local to Enumerate.
 type StructuralFitter struct {
 	program    *fitProgram
 	paragraphs ParagraphFitter
+	options    StructuralFitOptions
 }
 
-// NewStructuralFitter snapshots a normalized block structure and binds one
-// paragraph service. Initial profile: auto-width, zero-edge static blocks and
-// ordinary inline/text groups. Used CSS widths/edges, collapsing margins and
-// inline-atomic geometry are explicit unsupported cases until BOX-SHIP-03.
-// The source tree is never mutated or retained by fragments/checkpoints.
+// StructuralFitOptions supplies intrinsic measurement for auto-width atomics
+// and a fallback source font size for em lengths. Neither service enters results.
+type StructuralFitOptions struct {
+	Intrinsic  IntrinsicMeasurer
+	FontSizePx float32
+}
+
+// NewStructuralFitter snapshots normalized static flow. It supports resolved
+// CSS widths/edges, margin collapse and indivisible inline atomics. Use
+// NewStructuralFitterWithOptions when auto atomics need intrinsic measurement.
 func NewStructuralFitter(root *LayoutNode, paragraphs ParagraphFitter) (*StructuralFitter, error) {
-	if root == nil || !IsBlockLevel(root.Box) || nilFitValue(paragraphs) {
-		return nil, fitError(0, ErrInvalidFit, "block root and paragraph service required")
+	return NewStructuralFitterWithOptions(root, paragraphs, StructuralFitOptions{})
+}
+
+// NewStructuralFitterWithOptions also supplies optional intrinsic measurement
+// and a source-font fallback. Em lengths need a positive effective font.
+func NewStructuralFitterWithOptions(root *LayoutNode, paragraphs ParagraphFitter, options StructuralFitOptions) (*StructuralFitter, error) {
+	if root == nil || !IsBlockLevel(root.Box) || nilFitValue(paragraphs) || !finite(options.FontSizePx) || options.FontSizePx < 0 {
+		return nil, fitError(0, ErrInvalidFit, "block root, paragraph service and valid font size required")
 	}
-	p := &fitProgram{root: root.BoxID, cuts: map[fitEdge]fitCut{}, all: map[fitEdge]StructuralBoundary{}}
-	seen := map[BoxID]bool{}
-	var order uint64
-	var walk func(*LayoutNode, BoxID, BoxID) error
-	walk = func(n *LayoutNode, owner, group BoxID) error {
-		if n == nil || n.BoxID == 0 || seen[n.BoxID] {
-			return fitError(0, ErrInvalidFit, "nil, duplicate or zero box identity")
-		}
-		seen[n.BoxID] = true
-		style := styleOrDefault(n.Style)
-		if err := validateComputedStyle(style); err != nil {
-			return &FitError{n.BoxID, fmt.Errorf("%w: %w", ErrInvalidFit, err)}
-		}
-		if style.Position != PositionStatic || n.Replaced != nil || n.Box == BoxInlineBlock {
-			return fitError(n.BoxID, ErrUnsupportedFit, "positioned/replaced/atomic material")
-		}
-		for _, edges := range []EdgeLengths{style.Margin, style.Padding, style.Border} {
-			for _, edge := range []Length{edges.Top, edges.Right, edges.Bottom, edges.Left} {
-				if edge.Kind != LenPx || edge.Value != 0 {
-					return fitError(n.BoxID, ErrUnsupportedFit, "nonzero or unresolved CSS edges")
-				}
-			}
-		}
-		block := IsBlockLevel(n.Box)
-		if block && style.Width.Kind != LenAuto {
-			return fitError(n.BoxID, ErrUnsupportedFit, "CSS used-width resolution")
-		}
-		if block {
-			owner = n.BoxID
-		}
-		if n.Box == BoxAnonymousInline {
-			group = n.BoxID
-		}
-		order++
-		before := StructuralBoundary{Root: p.root, Box: n.BoxID, Group: group, Edge: BoundaryBefore, Order: order}
-		p.all[fitEdge{n.BoxID, BoundaryBefore}] = before
-		if block {
-			p.cuts[fitEdge{n.BoxID, BoundaryBefore}] = fitCut{len(p.ops), before}
-			p.ops = append(p.ops, fitOp{fitEnter, n.BoxID, owner})
-			if len(n.Children) == 0 {
-				return fitError(n.BoxID, ErrInvalidFit, "normalized block needs children or an empty group")
-			}
-			inline := len(n.Children) == 1 && n.Children[0] != nil && n.Children[0].Box == BoxAnonymousInline
-			for _, c := range n.Children {
-				if c == nil || !inline && !IsBlockLevel(c.Box) {
-					return fitError(n.BoxID, ErrInvalidFit, "mixed or unnormalized block children")
-				}
-				if err := walk(c, owner, group); err != nil {
-					return err
-				}
-			}
-			p.ops = append(p.ops, fitOp{fitExit, n.BoxID, owner})
-		} else if n.Box == BoxAnonymousInline {
-			p.cuts[fitEdge{n.BoxID, BoundaryBefore}] = fitCut{len(p.ops), before}
-			p.ops = append(p.ops, fitOp{fitGroup, n.BoxID, owner})
-			for _, c := range n.Children {
-				if c == nil || (c.Box != BoxInline && c.Box != BoxText && c.Box != BoxInlineBlock) {
-					return fitError(n.BoxID, ErrInvalidFit, "invalid inline group child")
-				}
-				if err := walk(c, owner, n.BoxID); err != nil {
-					return err
-				}
-			}
-		} else if n.Box == BoxInline {
-			for _, c := range n.Children {
-				if c == nil || (c.Box != BoxInline && c.Box != BoxText && c.Box != BoxInlineBlock) {
-					return fitError(n.BoxID, ErrInvalidFit, "unnormalized inline children")
-				}
-				if err := walk(c, owner, group); err != nil {
-					return err
-				}
-			}
-		} else if n.Box == BoxText {
-			if len(n.Children) != 0 || n.Text.Range.End < n.Text.Range.Start {
-				return fitError(n.BoxID, ErrInvalidFit, "invalid text leaf")
-			}
-		} else {
-			return fitError(n.BoxID, ErrUnsupportedFit, "box kind")
-		}
-		order++
-		after := StructuralBoundary{Root: p.root, Box: n.BoxID, Group: group, Edge: BoundaryAfter, Order: order}
-		p.all[fitEdge{n.BoxID, BoundaryAfter}] = after
-		if block || n.Box == BoxAnonymousInline {
-			p.cuts[fitEdge{n.BoxID, BoundaryAfter}] = fitCut{len(p.ops), after}
-		}
-		return nil
+	if nilFitValue(options.Intrinsic) {
+		options.Intrinsic = nil
 	}
-	if err := walk(root, 0, 0); err != nil {
+	p, err := snapshotFitProgram(root, options.FontSizePx)
+	if err != nil {
 		return nil, err
 	}
-	// A trailing group/block carries the closing ancestors with it. A cut cannot
-	// defer their closing facts into a later edge-only fragment.
-	for key, cut := range p.cuts {
-		if key.edge == BoundaryAfter {
-			for cut.index < len(p.ops) && p.ops[cut.index].kind == fitExit {
-				cut.index++
-			}
-			p.cuts[key] = cut
-		}
-	}
-	return &StructuralFitter{p, paragraphs}, nil
+	return &StructuralFitter{program: p, paragraphs: paragraphs, options: options}, nil
 }
 
 // FitBoundary is qualified by this fitter, not just a numeric BoxID. The zero
@@ -255,7 +190,7 @@ func (f *StructuralFitter) Boundary(box BoxID, edge BoundaryEdge) (FitBoundary, 
 
 // OpenContainer describes a suspended ancestor. NextChild is its normalized
 // child index. Pending flags preserve unconsumed opening/closing edge and margin
-// obligations; the current fitting profile admits only zero-valued edges.
+// obligations. Actual values are resolved again at the receiving width.
 type OpenContainer struct {
 	Box                            BoxID
 	NextChild                      int
@@ -266,11 +201,13 @@ type fitCursor struct {
 	point      ParagraphPosition
 	checkpoint FitPayload
 	open       []OpenContainer
+	locked     []*fitAtomic
 }
 
 // FitContinuation is opaque resumption authority for exactly one fitter. Zero
-// starts at the beginning. It retains neither source nodes nor the paragraph
-// service; its checkpoint payload obeys FitPayload's snapshot contract.
+// starts at the beginning. It retains a private structural snapshot, never caller nodes or the paragraph
+// service; its checkpoint payload obeys FitPayload's snapshot contract. It keeps
+// only consumed atomic realizations needed to validate this group's prefix.
 type FitContinuation struct {
 	program *fitProgram
 	cursor  fitCursor
@@ -332,27 +269,32 @@ type FitRequest struct {
 	Continuation  FitContinuation
 	Stop          FitBoundary
 	IncludeEmpty  bool
-	// Zero means no local cap. Each structural step and paragraph alternative
+	// Zero means no local cap. Each structural/atomic step and paragraph alternative
 	// counts; caller cancellation is checked between steps and after callbacks.
 	MaxSteps uint64
 }
 
-// ParagraphFragment has its origin at (0,Y) in the receiving rectangle. Output
+// ParagraphFragment has its origin at (X,Y) in the receiving rectangle. Output
 // belongs to precisely the prefix From..To. Paragraphs returns payload clones.
 type ParagraphFragment struct {
-	Group, Owner BoxID
-	From, To     ParagraphPosition
-	Complete     bool
-	Y            float32
-	Extent       InlineExtent
-	Output       FitPayload
+	Group, Owner         BoxID
+	From, To             ParagraphPosition
+	Complete             bool
+	X, Y                 float32
+	Extent               InlineExtent
+	Output               FitPayload
+	allowsMarginCollapse bool
+	atomics              []AtomicFragment
 }
 
 // ContainerFragment records whether a consumed container has its opening and
-// closing in this fragment. It carries no used geometry or paint yet.
+// closing in this fragment. Geometry and Edges describe this fragment only;
+// consumers apply source paint to these retained borders/content rectangles.
 type ContainerFragment struct {
 	Box         BoxID
 	First, Last bool
+	Geometry    LayoutGeometry
+	Edges       BoxEdges
 }
 type fitResult struct {
 	next           FitContinuation
@@ -360,6 +302,8 @@ type fitResult struct {
 	containers     []ContainerFragment
 	extent         InlineExtent
 	progress, stop bool
+	geometry       LayoutGeometryTable
+	used           UsedValuesTable
 }
 
 // FitAlternative is an immutable structural fragment and its exact remainder.
@@ -399,11 +343,7 @@ func (a FitAlternative) Paragraphs() []ParagraphFragment {
 	if a.result == nil {
 		return nil
 	}
-	out := slices.Clone(a.result.fragments)
-	for i := range out {
-		out[i].Output = out[i].Output.Clone()
-	}
-	return out
+	return cloneFitParagraphs(a.result.fragments)
 }
 func nilFitValue(v any) bool {
 	if v == nil {

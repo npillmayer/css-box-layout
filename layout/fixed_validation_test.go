@@ -175,11 +175,16 @@ func TestFixedSizingNestedIntrinsicMeasurement(t *testing.T) {
 	if err != nil || got.Used.ContentWidth != 50 || !reflect.DeepEqual(calls, []BoxID{inner.BoxID, root.BoxID}) {
 		t.Fatalf("nested sizing: %+v %v %v", got, err, calls)
 	}
-	// The descendant profile remains restricted even when the root has definite width.
+	// A definite root supplies a percentage basis without intrinsic callbacks.
 	inner.Style.Width = lenPct(.5)
 	root.Style.Width = lenPx(100)
 	calls = nil
+	if got, err := resolveFixedSizing(root, Rect{W: 200, H: 100}, 16, measure); err != nil || got.Used.ContentWidth != 100 || len(calls) != 0 {
+		t.Fatal("definite root unexpectedly needed measurement", got, err)
+	}
+	// Under auto sizing the same percentage is unresolved, never zero.
+	root.Style.Width = lenAuto()
 	if got, err := resolveFixedSizing(root, Rect{W: 200, H: 100}, 16, measure); got != nil || err == nil || len(calls) != 0 {
-		t.Fatal("unsupported atomic width reached measurement")
+		t.Fatal("unknown atomic percentage basis reached measurement")
 	}
 }

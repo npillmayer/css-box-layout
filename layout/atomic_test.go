@@ -275,16 +275,34 @@ func TestAtomicPlacementValidation(t *testing.T) {
 	}
 }
 
-func TestAtomicUnsupportedWidthFailsBeforeDelegation(t *testing.T) {
+func TestAtomicRelativeWidthsUseDefiniteContext(t *testing.T) {
 	for _, w := range []Length{lenPct(.5), {Kind: LenEm, Value: 2}} {
 		a := newRenderElement(2, inlineBlockDisplay)
-		a.Style = &ComputedStyle{Width: w}
-		root, _ := BuildLayoutTree(newRenderElement(1, blockDisplay, a), BuildOptions{})
-		used, _ := ResolveUsedValues(root, ResolveContext{})
-		calls := 0
-		r, err := FlowLayout(root, used, resultFunc(func(InlineRequest) (InlineResult, error) { calls++; return InlineResult{}, nil }), nil, LayoutContext{}, LayoutOptions{})
-		if err == nil || r != nil || calls != 0 {
-			t.Fatal("unsupported width reached adapter")
+		a.Style = &ComputedStyle{Width: w, FontSizePx: 25}
+		root, err := BuildLayoutTree(newRenderElement(1, blockDisplay, a), BuildOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		used, err := ResolveUsedValues(root, ResolveContext{ContainingBlock: Rect{W: 100}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		atomic := root.Children[0].Children[0]
+		r, err := FlowLayout(root, used, resultFunc(func(req InlineRequest) (InlineResult, error) {
+			if req.OwnerID == atomic.BoxID {
+				if req.ContentWidth != 50 {
+					t.Fatalf("width %g", req.ContentWidth)
+				}
+				return InlineResult{Extent: InlineExtent{W: 50, H: 10}}, nil
+			}
+			item, ok := req.Atomics.Lookup(atomic.BoxID)
+			if !ok || item.BorderWidth != 50 || item.BorderHeight != 10 {
+				t.Fatalf("item %+v", item)
+			}
+			return InlineResult{Extent: InlineExtent{W: 50, H: 10}, Atomics: []AtomicPlacement{{BoxID: atomic.BoxID}}}, nil
+		}), nil, LayoutContext{}, LayoutOptions{})
+		if err != nil || r.Geometry[atomic.BoxID].Frame.W != 50 {
+			t.Fatal(r, err)
 		}
 	}
 }

@@ -12,8 +12,8 @@ func validateAtomicWidths(n *LayoutNode) error {
 	}
 	if n.Box == BoxInlineBlock {
 		s := styleOrDefault(n.Style)
-		if s.Width.Kind != LenAuto && (s.Width.Kind != LenPx || !finite(s.Width.Value) || s.Width.Value < 0) {
-			return fmt.Errorf("atomic box %d: only auto or nonnegative fixed pixel widths are supported", n.BoxID)
+		if s.Width.Kind != LenAuto && (s.Width.Kind > LenEm || !finite(s.Width.Value) || s.Width.Value < 0) {
+			return fmt.Errorf("atomic box %d: invalid atomic width", n.BoxID)
 		}
 	}
 	for _, child := range n.Children {

@@ -9,8 +9,8 @@ This is a planning artifact, not the algorithm contract.
 `doc/Exec-Roadmap.md`. Unchecked tasks below remain open.
 
 - [x] BOX-SHIP-01: detached normalization boundaries and explicit omission dispositions; split/hoist, empty, suppressed, text and lifetime tests.
-- [x] BOX-SHIP-02: structural finite-height alternatives and exact open-container/paragraph continuation; synthetic conservation, changed-width, zero-height, stop/limit/failure and payload-lifetime tests. Auto-width/zero-edge profile only.
-- [ ] BOX-SHIP-03: used geometry, signed margin/edge handling, inline atomics and fragment paint in finite-height fitting.
+- [x] BOX-SHIP-02: structural finite-height alternatives and exact open-container/paragraph continuation; synthetic conservation, changed-width, zero-height, stop/limit/failure and payload-lifetime tests.
+- [x] BOX-SHIP-03: used geometry, signed margin/edge handling, inline atomics and fragment paint in finite-height fitting.
 
 ## Established requirements
 
@@ -126,8 +126,9 @@ tytui/typography. Bounded auto/intrinsic sizing is implemented under task 2B.
    internal block stacks, source separation, inner-before-outer calls, and no
    external reentrancy. Separate IsBlockLevel from IsBlockContainer.
 3. [x] Recursively lay out fixed-pixel atomics, including zero, before delegation;
-   use correct descendant widths/edges. Reject unsupported percent/em atomic
-   widths explicitly before callbacks (auto is added by 2B); no intrinsic calls or line-width clamping.
+   use correct descendant widths/edges. BOX-SHIP-03 adds em and definite-basis
+   percentages; unknown-auto percentage dependencies still fail explicitly.
+   Definite widths require no intrinsic calls or line-width clamping.
 4. [x] Apply validated placements using RelativeTo, preserving descendant-local
    rectangles and adding no second margin. Test local whatsit handles, lookup
    copies, missing/duplicate/foreign/unknown IDs, non-finite coordinates, valid

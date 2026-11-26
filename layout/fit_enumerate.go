@@ -3,6 +3,7 @@ package layout
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 )
 
@@ -42,7 +43,19 @@ func (f *StructuralFitter) Enumerate(ctx context.Context, req FitRequest, yield 
 	if stop < c.index || stop == c.index && c.point != (ParagraphPosition{}) {
 		return FitFailed, fitError(p.root, ErrInvalidFit, "stop precedes continuation")
 	}
-	r := fitRun{ctx: ctx, fitter: f, req: req, stop: stop, yield: yield, status: FitExhausted}
+	used, err := ResolveUsedValues(p.tree, ResolveContext{ContainingBlock: Rect{W: req.Width}, FontSizePx: f.options.FontSizePx})
+	if err == nil {
+		// These occurrences have already been accepted. Their used values are
+		// part of the checkpoint, not candidates for the new receiving width.
+		for _, a := range c.locked {
+			maps.Copy(used, a.used)
+		}
+		err = validateUsedValues(p.tree, used)
+	}
+	if err != nil {
+		return FitFailed, &FitError{p.root, fmt.Errorf("%w: %w", ErrInvalidFit, err)}
+	}
+	r := fitRun{used: used, ctx: ctx, fitter: f, req: req, stop: stop, yield: yield, status: FitExhausted}
 	r.explore(fitState{cursor: c}, req.IncludeEmpty)
 	return r.status, r.err
 }
@@ -51,7 +64,6 @@ type fitState struct {
 	cursor     fitCursor
 	paragraphs []ParagraphFragment
 	containers []ContainerFragment
-	extent     InlineExtent
 	progress   bool
 }
 
@@ -71,6 +83,7 @@ type fitRun struct {
 	steps  uint64
 	status FitEnumeration
 	err    error
+	used   UsedValuesTable
 }
 
 func (r *fitRun) fail(box BoxID, err error) {
@@ -101,13 +114,19 @@ func (r *fitRun) publish(s fitState) {
 	if !r.check(r.fitter.program.root, false) {
 		return
 	}
+	result, fits, err := r.fragmentGeometry(s)
+	if err != nil {
+		r.fail(r.fitter.program.root, err)
+		return
+	}
+	if !fits {
+		return
+	}
 	// All slices and backend payloads in s are private snapshots. Neither later
 	// exploration nor accessors hand out a writable reference to them.
-	a := FitAlternative{&fitResult{
-		next:      FitContinuation{r.fitter.program, s.cursor},
-		fragments: s.paragraphs, containers: s.containers,
-		extent: s.extent, progress: s.progress, stop: s.cursor.index == r.stop,
-	}}
+	result.next = FitContinuation{r.fitter.program, s.cursor}
+	result.progress, result.stop = s.progress, s.cursor.index == r.stop
+	a := FitAlternative{result}
 	if !r.yield(a) {
 		r.status = FitStopped
 	} else {
@@ -155,16 +174,18 @@ func (r *fitRun) explore(base fitState, offer bool) {
 		}
 		next.paragraphs = append(next.paragraphs, ParagraphFragment{
 			Group: op.box, Owner: op.owner, From: s.cursor.point, To: choice.End,
-			Complete: choice.Complete, Y: s.extent.H, Extent: choice.Extent, Output: choice.Output,
+			Complete: choice.Complete, Extent: choice.Extent, Output: choice.Output,
+			allowsMarginCollapse: choice.AllowsMarginCollapse, atomics: choice.accepted,
 		})
-		next.extent = InlineExtent{W: max(s.extent.W, choice.Extent.W), H: s.extent.H + choice.Extent.H}
 		next.progress = true // completing an empty group is structural progress
 		if !choice.Complete {
 			next.cursor.point, next.cursor.checkpoint = choice.End, choice.Checkpoint
+			next.cursor.locked = choice.locked
 			r.publish(next)
 		} else {
 			next.cursor.index++
 			next.cursor.point, next.cursor.checkpoint = ParagraphPosition{}, nil
+			next.cursor.locked = nil
 			next.cursor.open[len(next.cursor.open)-1].NextChild++
 			// Closing ancestors belong to the last consumed child, never to a
 			// later page containing only closing edges.
@@ -193,57 +214,69 @@ func (r *fitRun) explore(base fitState, offer bool) {
 	}
 }
 
-func (r *fitRun) paragraphs(s fitState, op fitOp) []ParagraphAlternative {
+func (r *fitRun) paragraphs(s fitState, op fitOp) []fitChoice {
 	checkpoint, err := cloneFitPayload(s.cursor.checkpoint)
 	if err != nil {
 		r.fail(op.box, err)
 		return nil
 	}
+	items, used, err := r.groupAtomics(op.box, s.cursor.locked, r.used)
+	if err != nil {
+		r.fail(op.box, err)
+		return nil
+	}
+	if r.status != FitExhausted {
+		return nil
+	}
 	req := ParagraphFitRequest{Root: r.fitter.program.root, Group: op.box, Owner: op.owner,
-		Width: r.req.Width, Height: r.req.Height - s.extent.H, From: s.cursor.point, Checkpoint: checkpoint}
-	var choices []ParagraphAlternative
+		Width: used[op.owner].ContentWidth, Height: r.req.Height, From: s.cursor.point, Checkpoint: checkpoint,
+		Used: usedValuesView{used}, Atomics: atomicFitInputs(items, s.cursor.locked)}
+	return r.enumerateParagraph(req, items, s.cursor.locked, false)
+}
+
+// Collect all choices before traversal so provider order cannot truncate shorter
+// alternatives. Atomics are realized once for this call and shared immutably.
+func (r *fitRun) enumerateParagraph(req ParagraphFitRequest, items []*fitAtomic, locked []*fitAtomic, interior bool) []fitChoice {
+	var choices []fitChoice
 	refused := false
 	status, err := r.fitter.paragraphs.EnumerateParagraph(r.ctx, req, func(a ParagraphAlternative) bool {
 		if refused {
-			r.fail(op.box, fmt.Errorf("%w: callback continued after false yield", ErrFitProtocol))
+			r.fail(req.Group, fmt.Errorf("%w: callback continued after false yield", ErrFitProtocol))
 			return false
 		}
 		accept := func() bool {
-			if !r.check(op.box, true) {
+			if !r.check(req.Group, true) {
 				return false
 			}
 			if !finite(a.Extent.W) || !finite(a.Extent.H) || a.Extent.W < 0 || a.Extent.H < 0 ||
 				a.End.Compare(req.From) < 0 || (!a.Complete && a.End.Compare(req.From) == 0) ||
-				a.Complete != nilFitValue(a.Checkpoint) || nilFitValue(a.Output) {
-				r.fail(op.box, fmt.Errorf("%w: invalid extent, progress or payload association", ErrFitProtocol))
+				a.Complete != nilFitValue(a.Checkpoint) || nilFitValue(a.Output) ||
+				a.AllowsMarginCollapse && (a.Extent.H != 0 || len(a.Atomics) != 0) {
+				r.fail(req.Group, fmt.Errorf("%w: invalid extent, progress, collapse or payload association", ErrFitProtocol))
 				return false
 			}
-			// An oversized indivisible prefix is ordinary non-fit. No clipping
-			// or inferred advancement takes place.
-			if a.Extent.W > req.Width || a.Extent.H > req.Height ||
-				float64(s.extent.H)+float64(a.Extent.H) > float64(r.req.Height) {
+			choice, err := freezeFitChoice(a, req.Owner, items, locked)
+			if err != nil {
+				r.fail(req.Group, err)
+				return false
+			}
+			// Atomic interiors need a complete layout even when that layout
+			// overflows. Physical bounds are checked on the outer fragment.
+			if !interior && (a.Extent.W > req.Width || a.Extent.H > req.Height) {
 				return true
 			}
-			var err error
-			if a.Checkpoint, err = cloneFitPayload(a.Checkpoint); err == nil {
-				a.Output, err = cloneFitPayload(a.Output)
-			}
-			if err != nil {
-				r.fail(op.box, err)
-				return false
-			}
-			choices = append(choices, a)
+			choices = append(choices, choice)
 			return true
 		}
 		ok := accept()
 		refused = !ok
 		return ok
 	})
-	if !r.check(op.box, false) {
+	if !r.check(req.Group, false) {
 		return nil
 	}
 	if err != nil {
-		r.fail(op.box, err)
+		r.fail(req.Group, err)
 		return nil
 	}
 	switch status {
@@ -252,10 +285,10 @@ func (r *fitRun) paragraphs(s fitState, op fitOp) []ParagraphAlternative {
 		r.status = FitStopped
 		return nil
 	default:
-		r.fail(op.box, fmt.Errorf("%w: invalid paragraph enumeration status without error", ErrFitProtocol))
+		r.fail(req.Group, fmt.Errorf("%w: invalid paragraph enumeration status without error", ErrFitProtocol))
 		return nil
 	}
-	slices.SortStableFunc(choices, func(a, b ParagraphAlternative) int {
+	slices.SortStableFunc(choices, func(a, b fitChoice) int {
 		if a.Complete != b.Complete {
 			if a.Complete {
 				return -1

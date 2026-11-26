@@ -452,10 +452,15 @@ trees or provenance and retain `BuildError` source locations and original causes
 ## Fit a structural fragment and resume
 
 Create a `StructuralFitter` from a normalized block root and a `ParagraphFitter`.
-The supported profile is static auto-width blocks with zero margins, borders and
-padding, containing nested blocks or ordinary inline/text groups. Specified block
-widths, nonzero/unresolved edges, positioned/replaced boxes and inline atomics
-return `ErrUnsupportedFit`.
+Static blocks support px/em/percentage widths, margins, padding and borders,
+nested blocks, ordinary inline/text groups, inline-blocks and fixed-size replaced
+leaves. Percentages use each local containing width. Supply source font sizes
+(or `StructuralFitOptions.FontSizePx`) for em. Positioned material and cuts inside
+inline material/atomic interiors return `ErrUnsupportedFit`.
+
+For auto-width atomics, use `NewStructuralFitterWithOptions(tree, paragraphFitter,
+layout.StructuralFitOptions{Intrinsic: measurer})`. Definite atomic widths need
+no intrinsic service; percentages depending on unknown auto widths fail.
 
 ```go
 fitter, err := layout.NewStructuralFitter(tree, paragraphFitter)
@@ -489,7 +494,9 @@ _ = next // pass to the same fitter; the accepted prefix remains unchanged
 ```
 
 `ParagraphFitter.EnumerateParagraph` receives copied group/owner/root identities,
-receiving dimensions, a logical `From` and the selected opaque checkpoint. Supply
+resolved owner content width, a conservative receiving-height ceiling, a logical
+`From` and the selected opaque checkpoint. Core checks exact fragment geometry
+after assembling a candidate, including closing edges and collapsed margins. Supply
 all legal whole-line prefixes, including shorter choices. Partial choices must
 advance their width-independent `ParagraphPosition` and provide a checkpoint;
 complete choices consume the remaining group and have no checkpoint. Each choice
@@ -509,9 +516,32 @@ then descending logical ends, with provider order preserved for ties. Extensions
 precede their shorter block prefix. Per-group choices are collected and frozen
 before traversal. `IncludeEmpty` adds an unchanged, non-progress alternative last;
 an already completed or stopped cursor is reported even without that option.
-`Paragraphs()` returns copied outputs at `(0,Y)` in the receiving rectangle.
-`Containers()` describes first/last fragments; continuation inspection lists
-open ancestors, their next children and pending opening/closing facts.
+`Paragraphs()` returns copied outputs at `(X,Y)` in the receiving rectangle.
+`Geometry()` and `UsedValues()` return copied tables for the selected material;
+geometry's `RelativeTo` names a parent content origin, with zero for the receiver.
+`Containers()` provides first/last flags, geometry and retained margin/padding/
+border values. Apply source paint using these fragment facts: continuing
+containers omit top edges, nonlast containers omit bottom edges, and contained
+children retain all edges. The last content and closing edges must fit together.
+Signed and empty-block margins collapse within a fragment, never across frames.
+`Extent()` includes physical box/paragraph bounds and root margin advances.
+Continuation inspection lists open ancestors, next children and pending edges.
+
+The callback's `Used` view and `Atomics` slice are borrowed, read-only inputs.
+Atomics are realized before the enclosing paragraph callback; each input has
+border dimensions, separate margins and a `Consumed` flag. Consumed occurrences
+retain their accepted dimensions and must not be placed again. Return placements
+for a source-order prefix of unconsumed occurrences; physical order may differ.
+A complete paragraph must consume all remaining atomics. `Atomics()` on a
+selected paragraph/alternative returns immutable `AtomicFragment` handles with
+copied interior geometry, used values and cloned paragraph output. Interior
+geometry is local to the atomic border origin; `Placement()` is relative to the
+enclosing owner's content. Only suffix atomics are re-realized after a width
+change. Interior paragraph callbacks must supply a complete alternative.
+
+Set `AllowsMarginCollapse` only for a selected zero-height prefix without line
+boxes or newly placed atomic occurrences. Zero extent alone does not authorize
+margin collapse.
 
 Use `fitter.Boundary(boxID, edge)` for an optional `FitRequest.Stop`. Block and
 anonymous-group boundaries are supported; cuts inside inline material return
@@ -525,5 +555,5 @@ A false visitor or voluntary service stop returns `FitStopped`. Context errors,
 `FitFailed` with an error. Only `FitExhausted` certifies full enumeration; an empty
 exhaustive result is ordinary non-fit. `FitError` identifies the box and preserves
 causes for `errors.Is`/`errors.As`. Limits and cancellation are cooperative between
-structural steps and paragraph yields/calls. Results retain no source nodes or
-paragraph service; concurrent use requires a concurrency-safe service.
+structural steps and paragraph yields/calls. Results retain a private structural
+snapshot, never caller nodes or execution services. Concurrent use requires concurrency-safe paragraph/intrinsic services.

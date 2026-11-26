@@ -75,9 +75,21 @@
   fragments with a neutral `ParagraphFitter`. Snapshot structure; keep opaque
   continuations/stops fitter-qualified. Clone backend checkpoints/output at the
   service boundary and on inspection/resumption; never retain mutable scratch,
-  source nodes or services in results. Enumerate shorter prefixes and distinguish
-  exhaustion, voluntary stop and errors/limits. Initial profile is static,
-  auto-width, zero-edge blocks/groups; nonzero/unresolved edges, specified block
-  widths and atomics are unsupported until BOX-SHIP-03. Keep pending container
+  caller nodes or services in results (private structural snapshots are retained). Enumerate shorter prefixes and distinguish
+  exhaustion, voluntary stop and errors/limits. BOX-SHIP-03 extends the static
+  profile to used widths/edges, signed margin collapse and inline atomics. Keep pending container
   facts and zero-height logical progress independent of occupied height. No
   channels, spans, scoring, fonts or typography dependencies enter this API.
+
+- BOX-SHIP-03 resolves each receiver with existing used/intrinsic/flow machinery.
+  Replay selected paragraphs on a private pruned fragment tree. Omit top edges
+  only for continuing containers and bottom edges only for nonlast containers;
+  source styles never change. Closing edges fit with the final content. Preserve
+  within-frame signed/empty margin collapse; frames never collapse together.
+  ParagraphAtomic inputs identify consumed occurrences with locked dimensions;
+  output placements consume a source-order prefix of the remaining occurrences.
+  Keep accepted atomic interiors frozen and re-realize only unconsumed atomics.
+  UsedValues/Geometry/Containers expose copied fragment paint facts; no paint
+  colors, glyphs, channels or page policy enter core. Auto atomics use an optional
+  IntrinsicMeasurer; em requires a positive effective source font. Percentages
+  with definite bases work; unknown-auto percentage dependencies still fail.

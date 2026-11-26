@@ -123,9 +123,9 @@ not just policy fields.
 
 ## 4) Inline integration - task 2A implemented
 
-Fixed CSS-pixel atomic widths (including zero) and auto widths are supported.
-Percent/em widths on atomic boxes remain rejected; descendant percentages work
-with definite bases. Unknown-auto-width percentage dependencies fail explicitly.
+Fixed CSS-pixel atomic widths (including zero), em, definite-basis percentages
+and auto widths are supported. Descendant percentages use their local definite
+bases. Unknown-auto-width percentage dependencies fail explicitly.
 Core lays out atomic subtrees before outer delegation without sizing callbacks or
 external reentrancy. The intrinsic service is used for auto width only.
 

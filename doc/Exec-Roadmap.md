@@ -12,10 +12,19 @@ every supported structural/line cut, changed widths and repeated resumes, and
 cover zero-height progress, oversized non-fit, copied inspection, late failures,
 callback scratch reuse and concurrent independent runs. An external-package
 example demonstrates narrower-width continuation with fixed earlier output.
-The supported structural profile has auto-width blocks and zero CSS edges.
-BOX-SHIP-03 still owns actual edge/margin/width resolution, fragment paint and
-inline-atomic geometry; unsupported cases are diagnosed now. Registers, spans,
-paragraph shaping and page loss do not enter this core API.
+BOX-SHIP-03 (2026-11-26) extends this to used-width/edge resolution, signed
+within-frame margin collapse, fragment paint facts and indivisible atomics.
+The fitter snapshots styles/structure and replays frozen paragraphs through core
+FlowLayout on selected topology; only crossed top/bottom edges are omitted.
+Final bottom edges must fit beside the last content. Copy-returning geometry,
+used values and container edge facts leave source styles unchanged. No margins
+collapse across receivers. Atomics are realized before outer fitting, with
+consumed interiors locked across changed-width resumes and only suffix atomics
+re-realized. Auto widths use optional intrinsic measurement; definite percentages
+and em are supported. Tests pin first/middle/last edges, contained children,
+percent/font bases, signed/empty margin collapse, shrink-to-fit, nested/replaced
+atomics, oversized retry, invalid placements, interruption and retained output.
+Registers, spans, paragraph shaping and page loss do not enter this core API.
 
 BOX-SHIP-01 (2026-11-25) is implemented. `BuildLayoutTreesWithProvenance`
 returns unchanged normalized trees plus detached source/structural boundary
@@ -34,7 +43,8 @@ prepared-text mapping remain outside core normalization.
 Implementation update: tasks 2A/3A and bounded auto-width tasks 2B/3B are
 implemented. Core measures nested intrinsic bounds, selects auto content widths,
 resolves descendants privately, then performs final layout. Fixed pixel widths
-including zero remain supported; percent/em widths on atomic boxes remain rejected.
+including zero remain supported; atomic em widths and percentages with definite
+bases are supported too.
 Percentage dependencies on unknown auto widths fail explicitly; definite bases
 remain supported. See [current API](Pass-Signatures.md#intrinsic-measurement).
 Diagrams illustrate the fixed-width final-layout phase, not intrinsic measurement.
