@@ -1,5 +1,16 @@
 # Repository Guidelines
 
+## API evolution and clients
+
+These modules have no external clients. Tytui is an experimental application for
+exercising individual stages, not a supported compatibility client. Do not keep
+obsolete entry points, aliases or parallel implementations merely to preserve its
+build or previous API. Update current library integrations directly; adapt a
+Tytui experiment only when it serves the task. Preserve current behavior,
+immutable ownership and useful regressions, rather than historical signatures.
+Do not run git commands; the user handles commits and pushes.
+
+
 ## Project Structure & Module Organization
 - `doc/` holds design and algorithm notes.
   - `doc/CSS-Algo-Overview.md`: single authoritative core algorithm contract.
